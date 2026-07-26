@@ -53,28 +53,47 @@ export default function useOrcamentos() {
         unidade: dados.tipo === "grupo" ? "" : dados.unidade.trim().toUpperCase(),
         unitario: dados.tipo === "grupo" ? 0 : numeroSeguro(dados.unitario),
       };
+      let itensAtualizados;
+
+      if (itemId) {
+        itensAtualizados = orcamento.itens.map((item) => {
+          if (item.id === itemId) return { ...item, ...itemAtualizado };
+          if (
+            original?.tipo === "grupo"
+            && item.codigo.startsWith(`${original.codigo}.`)
+            && original.codigo !== codigoNovo
+          ) {
+            return { ...item, codigo: `${codigoNovo}${item.codigo.slice(original.codigo.length)}` };
+          }
+          return item;
+        });
+      } else {
+        const novoItem = {
+          id: criarId(dados.tipo === "grupo" ? "grp" : "item"),
+          ...itemAtualizado,
+        };
+        itensAtualizados = [...orcamento.itens];
+
+        if (dados.tipo === "grupo") {
+          itensAtualizados.push(novoItem);
+        } else {
+          const codigoGrupo = codigoNovo.split(".").slice(0, -1).join(".");
+          const indiceGrupo = itensAtualizados.findIndex(
+            (item) => item.tipo === "grupo" && item.codigo === codigoGrupo,
+          );
+          let indiceInsercao = indiceGrupo + 1;
+          while (
+            indiceInsercao < itensAtualizados.length
+            && itensAtualizados[indiceInsercao].tipo !== "grupo"
+            && itensAtualizados[indiceInsercao].codigo.startsWith(`${codigoGrupo}.`)
+          ) indiceInsercao += 1;
+          itensAtualizados.splice(indiceGrupo >= 0 ? indiceInsercao : itensAtualizados.length, 0, novoItem);
+        }
+      }
 
       return {
         ...orcamento,
-        itens: itemId
-          ? orcamento.itens.map((item) => {
-            if (item.id === itemId) return { ...item, ...itemAtualizado };
-            if (
-              original?.tipo === "grupo"
-              && item.codigo.startsWith(`${original.codigo}.`)
-              && original.codigo !== codigoNovo
-            ) {
-              return { ...item, codigo: `${codigoNovo}${item.codigo.slice(original.codigo.length)}` };
-            }
-            return item;
-          })
-          : [
-            ...orcamento.itens,
-            {
-              id: criarId(dados.tipo === "grupo" ? "grp" : "item"),
-              ...itemAtualizado,
-            },
-          ],
+        itens: itensAtualizados,
       };
     });
   }
@@ -185,6 +204,34 @@ export default function useOrcamentos() {
     atualizarAtivo((orcamento) => ({ ...orcamento, bdiComponentes }));
   }
 
+  function atualizarPrecosSinapi(referencias, base) {
+    const precos = new Map(
+      referencias
+        .filter((item) => item.tipo === "composicao" && !item.semPreco && item.preco > 0)
+        .map((item) => [String(item.codigo), item]),
+    );
+    const atualizaveis = orcamentoAtivo.itens.filter((item) => {
+      const codigoFonte = item.fonte?.split("·").at(-1)?.trim();
+      return item.tipo !== "grupo" && precos.has(codigoFonte);
+    });
+
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      base: base.titulo,
+      itens: orcamento.itens.map((item) => {
+        const codigoFonte = item.fonte?.split("·").at(-1)?.trim();
+        const referencia = precos.get(codigoFonte);
+        return referencia ? {
+          ...item,
+          fonte: `${base.titulo} · ${referencia.codigo}`,
+          unidade: referencia.unidade || item.unidade,
+          unitario: referencia.preco,
+        } : item;
+      }),
+    }));
+    return atualizaveis.length;
+  }
+
   function adicionarComposicao(dados) {
     atualizarAtivo((orcamento) => ({
       ...orcamento,
@@ -258,6 +305,7 @@ export default function useOrcamentos() {
     moverItem,
     importarItens,
     atualizarBdi,
+    atualizarPrecosSinapi,
     adicionarComposicao,
     removerComposicao,
     adicionarOrcamento,

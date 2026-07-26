@@ -116,6 +116,23 @@ export function totalGrupo(itens, codigoGrupo) {
     .reduce((total, item) => total + totalItem(item), 0);
 }
 
+export function proximoCodigoServico(itens, codigoGrupo, itemIgnoradoId = "") {
+  const expressao = new RegExp(`^${codigoGrupo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.(\\d+)$`);
+  const maiorSequencial = itens.reduce((maior, item) => {
+    if (item.id === itemIgnoradoId) return maior;
+    const resultado = item.codigo.match(expressao);
+    return resultado ? Math.max(maior, Number(resultado[1])) : maior;
+  }, 0);
+  return `${codigoGrupo}.${maiorSequencial + 1}`;
+}
+
+export function proximoCodigoGrupo(itens) {
+  const maiorGrupo = itens
+    .filter((item) => item.tipo === "grupo" && /^\d+$/.test(item.codigo))
+    .reduce((maior, item) => Math.max(maior, Number(item.codigo)), 0);
+  return String(maiorGrupo + 1);
+}
+
 export function calcularTotais(orcamento) {
   const custoDireto = orcamento.itens.reduce((total, item) => total + totalItem(item), 0);
   const bdi = obterBdi(orcamento);

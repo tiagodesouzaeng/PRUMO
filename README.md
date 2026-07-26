@@ -38,6 +38,19 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - comparação de snapshots entre revisões;
 - remoção completa das referências fixas à marca ULBRA.
 
+## Integração SINAPI — v9.3
+
+- número do serviço gerado automaticamente após selecionar o grupo da EAP;
+- serviço inserido automaticamente dentro do grupo selecionado;
+- criação rápida de grupo dentro do cadastro do serviço;
+- importação das publicações oficiais em ZIP, XLSX ou XLS;
+- bases separadas por UF, referência mensal e regime;
+- armazenamento estruturado em IndexedDB;
+- hash SHA-256 do arquivo importado;
+- catálogo pesquisável de composições no cadastro do serviço;
+- alerta e bloqueio de atualização para referências com preço zerado;
+- atualização dos preços dos serviços vinculados à base ativa.
+
 ## Execução
 
 Requisitos já utilizados na validação:
@@ -61,6 +74,7 @@ manter instalações reproduzíveis entre os ambientes.
 
 ## Observação
 
-O módulo já oferece persistência local e um motor orçamentário editável.
-A autenticação, o banco relacional compartilhado e a importação automática
-das publicações SINAPI devem ser conectados nas próximas etapas.
+O módulo oferece persistência local, motor orçamentário editável e importação
+manual das publicações SINAPI. A autenticação, o banco relacional compartilhado
+e uma futura integração automatizada com fonte estruturada devem ser conectados
+nas próximas etapas.

@@ -4,12 +4,15 @@ import {
   calcularBdiDetalhado,
   calcularTotais,
   compararSnapshots,
+  proximoCodigoGrupo,
+  proximoCodigoServico,
   totalGrupo,
   totalItem,
   UNIDADES_ORCAMENTARIAS,
   validarOrcamento,
 } from "../domain/orcamento";
 import useOrcamentos from "../hooks/useOrcamentos";
+import useSinapi from "../hooks/useSinapi";
 import { importarPlanilhaOrcamentaria } from "../services/orcamentoImport";
 
 const ETAPAS = [
@@ -230,31 +233,80 @@ function BdiDetalhado({ orcamento, salvarBdi }) {
   );
 }
 
-function Bases({ orcamento, adicionarComposicao, removerComposicao, setAviso }) {
+function ModalImportarSinapi({ fechar, importar, carregando }) {
+  const [arquivo, setArquivo] = useState(null);
+  const [erro, setErro] = useState("");
+  const [dados, setDados] = useState({
+    uf: "RS",
+    referencia: "07/2026",
+    regime: "SEM-DESONERACAO",
+  });
+  const ufs = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+
+  async function enviar(event) {
+    event.preventDefault();
+    if (!arquivo) return;
+    setErro("");
+    try {
+      await importar(arquivo, dados);
+      fechar();
+    } catch (error) {
+      setErro(error.message || "Não foi possível importar a publicação.");
+    }
+  }
+
+  return (
+    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
+      <form className="orc-modal" role="dialog" aria-modal="true" aria-labelledby="orc-importar-sinapi" onMouseDown={(event) => event.stopPropagation()} onSubmit={enviar}>
+        <header><div><span>BASES VERSIONADAS</span><h3 id="orc-importar-sinapi">Importar publicação SINAPI</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
+        <div className="orc-form-grid">
+          <label><span>UF</span><select value={dados.uf} onChange={(event) => setDados((atual) => ({ ...atual, uf: event.target.value }))}>{ufs.map((uf) => <option key={uf}>{uf}</option>)}</select></label>
+          <label><span>Referência</span><input required value={dados.referencia} onChange={(event) => setDados((atual) => ({ ...atual, referencia: event.target.value }))} placeholder="MM/AAAA" /></label>
+          <label className="orc-field-wide"><span>Regime</span><select value={dados.regime} onChange={(event) => setDados((atual) => ({ ...atual, regime: event.target.value }))}><option value="SEM-DESONERACAO">Sem desoneração</option><option value="DESONERADO">Desonerado</option></select></label>
+          <label className="orc-field-wide orc-file-drop"><span>Arquivo oficial da CAIXA</span><input required type="file" accept=".zip,.xlsx,.xls" onChange={(event) => setArquivo(event.target.files[0] || null)} /><small>{arquivo ? arquivo.name : "Selecione o ZIP oficial ou uma planilha XLSX/XLS."}</small></label>
+          <div className="orc-sinapi-official-note orc-field-wide"><strong>Atenção aos preços zerados</strong><span>Publicações recentes podem preservar as composições com custos zerados. O PRUMO importará a estrutura, mas marcará essas referências como sem preço.</span></div>
+          {erro && <div className="orc-form-error orc-field-wide">{erro}</div>}
+        </div>
+        <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary" disabled={carregando || !arquivo}>{carregando ? "Importando..." : "Importar e versionar"}</button></footer>
+      </form>
+    </div>
+  );
+}
+
+function Bases({ orcamento, adicionarComposicao, removerComposicao, setAviso, sinapi, atualizarPrecos }) {
+  const [mostrarImportacao, setMostrarImportacao] = useState(false);
   const [novaComposicao, setNovaComposicao] = useState({ codigo: "", descricao: "", unidade: "UN", custoUnitario: "" });
-  const bases = [
-    { titulo: "SINAPI RS · 06/2026", detalhe: "Sem desoneração · Versão publicada", registros: "4.876 insumos · 10.454 composições", status: "Ativa" },
-    { titulo: "SINAPI RS · 05/2026", detalhe: "Sem desoneração · Versão histórica", registros: "4.862 insumos · 10.419 composições", status: "Histórica" },
-    { titulo: "Base corporativa PRUMO", detalhe: "Cotações e composições próprias", registros: "286 insumos · 74 composições", status: "Ativa" },
-  ];
   function salvarComposicao(event) {
     event.preventDefault();
     adicionarComposicao(novaComposicao);
     setNovaComposicao({ codigo: "", descricao: "", unidade: "UN", custoUnitario: "" });
     setAviso("Composição própria cadastrada.");
   }
+  async function importarBase(arquivo, dados) {
+    const resultado = await sinapi.importar(arquivo, dados);
+    setAviso(`${resultado.base.total.toLocaleString("pt-BR")} referências importadas · ${resultado.base.semPreco.toLocaleString("pt-BR")} sem preço.`);
+  }
+  const baseAtiva = sinapi.baseAtiva;
+  const integridadePreco = baseAtiva?.total
+    ? ((baseAtiva.total - baseAtiva.semPreco) / baseAtiva.total) * 100
+    : 0;
   return (
     <>
+      {mostrarImportacao && <ModalImportarSinapi fechar={() => setMostrarImportacao(false)} importar={importarBase} carregando={sinapi.carregando} />}
       <div className="orc-bases-grid">
         <section className="orc-card orc-base-list">
-          <header><div><span>BASES VERSIONADAS</span><h3>Referências disponíveis</h3></div><button type="button" onClick={() => setAviso("Integração automática do SINAPI programada para a v9.3.")}>＋ Importar SINAPI</button></header>
-          {bases.map((base) => <article key={base.titulo}><div className="orc-base-icon">◫</div><div><strong>{base.titulo}</strong><span>{base.detalhe}</span><small>{base.registros}</small></div><b className={base.status === "Ativa" ? "is-active" : ""}>{base.status}</b><button type="button">Abrir →</button></article>)}
+          <header><div><span>BASES VERSIONADAS</span><h3>Publicações SINAPI importadas</h3></div><div className="orc-base-actions">{baseAtiva && <button type="button" onClick={atualizarPrecos}>↻ Atualizar preços</button>}<button type="button" onClick={() => setMostrarImportacao(true)}>＋ Importar SINAPI</button></div></header>
+          {sinapi.bases.map((base) => <article key={base.id}><div className="orc-base-icon">◫</div><div><strong>{base.titulo}</strong><span>{base.regime === "DESONERADO" ? "Desonerado" : "Sem desoneração"} · {base.statusPreco}</span><small>{base.insumos.toLocaleString("pt-BR")} insumos · {base.composicoes.toLocaleString("pt-BR")} composições</small></div><b className={base.id === sinapi.baseAtivaId ? "is-active" : ""}>{base.id === sinapi.baseAtivaId ? "Ativa" : "Histórica"}</b><button type="button" onClick={() => sinapi.setBaseAtivaId(base.id)}>Ativar →</button><button type="button" className="orc-delete-base" onClick={() => { if (window.confirm(`Excluir a base ${base.titulo}?`)) sinapi.remover(base.id); }} aria-label={`Excluir base ${base.titulo}`}>×</button></article>)}
+          {!sinapi.bases.length && <div className="orc-empty-base"><strong>Nenhuma publicação importada</strong><span>Importe o ZIP ou XLSX oficial da CAIXA para iniciar o catálogo versionado.</span></div>}
+          <article><div className="orc-base-icon">◆</div><div><strong>Base corporativa PRUMO</strong><span>Cotações e composições próprias</span><small>{orcamento.composicoes.length} composições cadastradas</small></div><b className="is-active">Local</b></article>
         </section>
         <aside className="orc-card orc-import-status">
-          <header><div><span>ÚLTIMA IMPORTAÇÃO</span><h3>Integridade da base</h3></div></header>
-          <div className="orc-quality-score"><strong>99,8%</strong><span>VALIDADA</span></div>
-          <ul><li><i>✓</i> Códigos e unidades consistentes</li><li><i>✓</i> Composições sem ciclos</li><li><i>✓</i> Três regimes conciliados</li><li><i>!</i> 7 preços exigem tratamento</li></ul>
-          <small>Arquivo oficial preservado com hash SHA-256</small>
+          <header><div><span>BASE ATIVA</span><h3>Integridade da publicação</h3></div></header>
+          {baseAtiva ? <>
+            <div className="orc-quality-score"><strong>{integridadePreco.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong><span>COM PREÇO</span></div>
+            <ul><li><i>✓</i> {baseAtiva.total.toLocaleString("pt-BR")} referências versionadas</li><li><i>✓</i> UF {baseAtiva.uf} · {baseAtiva.referencia}</li><li><i>✓</i> Regime {baseAtiva.regime}</li><li><i>!</i> {baseAtiva.semPreco.toLocaleString("pt-BR")} referências sem preço</li></ul>
+            <small title={baseAtiva.hash}>SHA-256: {baseAtiva.hash.slice(0, 18)}…</small>
+          </> : <div className="orc-no-active-base"><strong>Sem base ativa</strong><span>A integridade será calculada após a primeira importação.</span></div>}
         </aside>
       </div>
       <section className="orc-card orc-compositions">
@@ -375,9 +427,23 @@ function Revisoes({ orcamento }) {
   );
 }
 
-function ModalItem({ fechar, salvar, item, tipoInicial = "servico" }) {
+function ModalItem({
+  fechar,
+  salvar,
+  item,
+  tipoInicial = "servico",
+  itens,
+  criarGrupo,
+  baseSinapi,
+  referenciasSinapi = [],
+}) {
+  const grupos = itens.filter((candidato) => candidato.tipo === "grupo");
+  const grupoInicial = item?.tipo !== "grupo"
+    ? item?.codigo.split(".").slice(0, -1).join(".") || grupos[0]?.codigo || ""
+    : grupos[0]?.codigo || "";
   const [dados, setDados] = useState(() => item ? {
     tipo: item.tipo || "servico",
+    grupoCodigo: grupoInicial,
     codigo: item.codigo,
     descricao: item.descricao,
     fonte: item.fonte || "",
@@ -386,16 +452,81 @@ function ModalItem({ fechar, salvar, item, tipoInicial = "servico" }) {
     unitario: item.unitario || "",
   } : {
     tipo: tipoInicial,
-    codigo: "",
+    grupoCodigo: grupoInicial,
+    codigo: tipoInicial === "grupo"
+      ? proximoCodigoGrupo(itens)
+      : (grupoInicial ? proximoCodigoServico(itens, grupoInicial) : ""),
     descricao: "",
     fonte: tipoInicial === "grupo" ? "" : "SINAPI · ",
     quantidade: "",
     unidade: "UN",
     unitario: "",
   });
+  const [novoGrupo, setNovoGrupo] = useState({
+    aberto: false,
+    codigo: proximoCodigoGrupo(itens),
+    descricao: "",
+  });
+  const [buscaSinapi, setBuscaSinapi] = useState("");
+  const resultadosSinapi = useMemo(() => {
+    const termo = buscaSinapi.trim().toLocaleLowerCase("pt-BR");
+    if (!termo) return [];
+    return referenciasSinapi
+      .filter((referencia) => referencia.tipo === "composicao")
+      .filter((referencia) => `${referencia.codigo} ${referencia.descricao}`.toLocaleLowerCase("pt-BR").includes(termo))
+      .slice(0, 8);
+  }, [buscaSinapi, referenciasSinapi]);
 
   function atualizar(campo, valor) {
     setDados((atuais) => ({ ...atuais, [campo]: valor }));
+  }
+
+  function selecionarGrupo(codigoGrupo) {
+    setDados((atuais) => ({
+      ...atuais,
+      grupoCodigo: codigoGrupo,
+      codigo: proximoCodigoServico(itens, codigoGrupo, item?.id),
+    }));
+  }
+
+  function alterarTipo(tipo) {
+    setDados((atuais) => ({
+      ...atuais,
+      tipo,
+      codigo: tipo === "grupo"
+        ? proximoCodigoGrupo(itens)
+        : (atuais.grupoCodigo ? proximoCodigoServico(itens, atuais.grupoCodigo, item?.id) : ""),
+    }));
+  }
+
+  function incluirGrupoRapido() {
+    if (!novoGrupo.descricao.trim()) return;
+    criarGrupo({
+      tipo: "grupo",
+      codigo: novoGrupo.codigo,
+      descricao: novoGrupo.descricao,
+      fonte: "",
+      quantidade: 0,
+      unidade: "",
+      unitario: 0,
+    });
+    setDados((atuais) => ({
+      ...atuais,
+      grupoCodigo: novoGrupo.codigo,
+      codigo: `${novoGrupo.codigo}.1`,
+    }));
+    setNovoGrupo((atual) => ({ ...atual, aberto: false }));
+  }
+
+  function selecionarReferenciaSinapi(referencia) {
+    setDados((atuais) => ({
+      ...atuais,
+      descricao: referencia.descricao,
+      fonte: `${baseSinapi.titulo} · ${referencia.codigo}`,
+      unidade: referencia.unidade || "UN",
+      unitario: referencia.preco || 0,
+    }));
+    setBuscaSinapi(`${referencia.codigo} · ${referencia.descricao}`);
   }
 
   return (
@@ -403,10 +534,16 @@ function ModalItem({ fechar, salvar, item, tipoInicial = "servico" }) {
       <form className="orc-modal" role="dialog" aria-modal="true" aria-labelledby="orc-novo-item" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); salvar(dados, item?.id); }}>
         <header><div><span>PLANILHA ORÇAMENTÁRIA</span><h3 id="orc-novo-item">{item ? "Editar" : "Adicionar"} {dados.tipo === "grupo" ? "grupo" : "serviço"}</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
         <div className="orc-form-grid">
-          <label><span>Tipo</span><select value={dados.tipo} onChange={(event) => atualizar("tipo", event.target.value)}><option value="servico">Serviço</option><option value="grupo">Grupo EAP</option></select></label>
-          <label><span>Código EAP</span><input required value={dados.codigo} onChange={(event) => atualizar("codigo", event.target.value)} placeholder="Ex.: 4.1" /></label>
+          <label><span>Tipo</span><select value={dados.tipo} onChange={(event) => alterarTipo(event.target.value)}><option value="servico">Serviço</option><option value="grupo">Grupo EAP</option></select></label>
+          {dados.tipo !== "grupo" && <label className="orc-field-wide"><span>Grupo da EAP</span><div className="orc-group-select"><select required value={dados.grupoCodigo} onChange={(event) => selecionarGrupo(event.target.value)}><option value="">Selecione um grupo</option>{grupos.map((grupo) => <option key={grupo.id} value={grupo.codigo}>{grupo.codigo} · {grupo.descricao}</option>)}{novoGrupo.descricao && !grupos.some((grupo) => grupo.codigo === novoGrupo.codigo) && <option value={novoGrupo.codigo}>{novoGrupo.codigo} · {novoGrupo.descricao}</option>}</select><button type="button" onClick={() => setNovoGrupo((atual) => ({ ...atual, aberto: !atual.aberto }))}>＋ Novo grupo</button></div></label>}
+          {novoGrupo.aberto && dados.tipo !== "grupo" && <div className="orc-inline-group orc-field-wide"><label><span>Número do grupo</span><input readOnly value={novoGrupo.codigo} /></label><label><span>Nome do novo grupo</span><input autoFocus value={novoGrupo.descricao} onChange={(event) => setNovoGrupo((atual) => ({ ...atual, descricao: event.target.value }))} placeholder="Ex.: REVESTIMENTOS" /></label><button type="button" disabled={!novoGrupo.descricao.trim()} onClick={incluirGrupoRapido}>Criar e selecionar</button></div>}
+          <label><span>Código EAP</span><input required readOnly={dados.tipo !== "grupo"} value={dados.codigo} onChange={(event) => atualizar("codigo", event.target.value)} placeholder="Gerado após selecionar o grupo" /></label>
           <label className="orc-field-wide"><span>Descrição</span><input required value={dados.descricao} onChange={(event) => atualizar("descricao", event.target.value)} placeholder="Descrição do serviço" /></label>
           {dados.tipo !== "grupo" && <>
+            <div className="orc-sinapi-picker orc-field-wide">
+              <label><span>Buscar composição SINAPI {baseSinapi ? `— ${baseSinapi.uf} ${baseSinapi.referencia}` : ""}</span><input disabled={!baseSinapi} value={buscaSinapi} onChange={(event) => setBuscaSinapi(event.target.value)} placeholder={baseSinapi ? "Digite código ou descrição da composição" : "Importe e ative uma base SINAPI primeiro"} /></label>
+              {resultadosSinapi.length > 0 && <div>{resultadosSinapi.map((referencia) => <button type="button" key={referencia.uid || referencia.codigo} onClick={() => selecionarReferenciaSinapi(referencia)}><span><strong>{referencia.codigo}</strong>{referencia.descricao}</span><b className={referencia.semPreco ? "sem-preco" : ""}>{referencia.semPreco ? "Sem preço" : formatarMoeda(referencia.preco)}</b></button>)}</div>}
+            </div>
             <label className="orc-field-wide"><span>Fonte e código</span><input value={dados.fonte} onChange={(event) => atualizar("fonte", event.target.value)} placeholder="SINAPI · 000000" /></label>
             <label><span>Quantidade</span><input required min="0" step="any" type="number" value={dados.quantidade} onChange={(event) => atualizar("quantidade", event.target.value)} /></label>
             <label><span>Unidade</span><select required value={dados.unidade} onChange={(event) => atualizar("unidade", event.target.value)}>{UNIDADES_ORCAMENTARIAS.map((unidade) => <option key={unidade}>{unidade}</option>)}</select></label>
@@ -465,11 +602,13 @@ export default function Orcamento() {
     moverItem,
     importarItens,
     atualizarBdi,
+    atualizarPrecosSinapi,
     adicionarComposicao,
     removerComposicao,
     adicionarOrcamento,
     criarRevisao,
   } = useOrcamentos();
+  const sinapi = useSinapi();
   const etapaAtual = useMemo(() => ETAPAS.find((item) => item.id === etapa), [etapa]);
   const proximoCodigo = useMemo(() => {
     const maior = orcamentos.reduce((atual, item) => Math.max(atual, Number(item.id.split("-").at(-1)) || 0), 0);
@@ -528,6 +667,12 @@ export default function Orcamento() {
     notificar("Composição do BDI aplicada ao orçamento.");
   }
 
+  function aplicarPrecosSinapi() {
+    if (!sinapi.baseAtiva) return;
+    const total = atualizarPrecosSinapi(sinapi.referencias, sinapi.baseAtiva);
+    notificar(total ? `${total} preços SINAPI atualizados no orçamento.` : "Nenhum serviço vinculado possui preço disponível nesta base.");
+  }
+
   function adicionarRevisao() {
     criarRevisao();
     setEtapa("revisoes");
@@ -550,7 +695,7 @@ export default function Orcamento() {
   return (
     <section className="sigiu-page orc-page">
       {aviso && <div className="orc-toast" role="status">{aviso}</div>}
-      {(modal === "item" || modal === "grupo") && <ModalItem fechar={() => { setModal(""); setItemEmEdicao(null); }} salvar={salvarDadosItem} item={itemEmEdicao} tipoInicial={modal === "grupo" ? "grupo" : "servico"} />}
+      {(modal === "item" || modal === "grupo") && <ModalItem fechar={() => { setModal(""); setItemEmEdicao(null); }} salvar={salvarDadosItem} item={itemEmEdicao} tipoInicial={modal === "grupo" ? "grupo" : "servico"} itens={orcamentoAtivo.itens} criarGrupo={(dados) => { salvarItem(dados); notificar("Novo grupo criado e selecionado."); }} baseSinapi={sinapi.baseAtiva} referenciasSinapi={sinapi.referencias} />}
       {modal === "orcamento" && <ModalNovoOrcamento fechar={() => setModal("")} salvar={salvarNovoOrcamento} proximoCodigo={proximoCodigo} />}
       <div className="orc-project-bar">
         <div><span>ORÇAMENTO ATIVO</span><select value={orcamentoAtivoId} onChange={(event) => setOrcamentoAtivoId(event.target.value)}>{orcamentos.map((orcamento) => <option key={orcamento.id} value={orcamento.id}>{orcamento.id} · {orcamento.nome}</option>)}</select></div>
@@ -564,7 +709,7 @@ export default function Orcamento() {
       {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
       {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} />}
       {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} />}
-      {etapa === "bases" && <Bases orcamento={orcamentoAtivo} adicionarComposicao={adicionarComposicao} removerComposicao={removerComposicao} setAviso={notificar} />}
+      {etapa === "bases" && <Bases orcamento={orcamentoAtivo} adicionarComposicao={adicionarComposicao} removerComposicao={removerComposicao} setAviso={notificar} sinapi={sinapi} atualizarPrecos={aplicarPrecosSinapi} />}
       {etapa === "cronograma" && <Cronograma />}
       {etapa === "histograma" && <Histograma />}
       {etapa === "medicoes" && <Medicoes />}
