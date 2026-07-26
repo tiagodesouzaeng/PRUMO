@@ -51,6 +51,15 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - alerta e bloqueio de atualização para referências com preço zerado;
 - atualização dos preços dos serviços vinculados à base ativa.
 
+## Motor financeiro — etapa planejada v9.4
+
+- preços unitários com precisão superior a duas casas decimais;
+- preservação da precisão original para cadastro, importação e memória;
+- truncamento obrigatório, sem arredondamento, após a segunda casa decimal;
+- desconto global informado como percentual ou valor monetário;
+- cálculo automático do percentual quando o desconto for informado em valor;
+- distribuição e auditoria do desconto em cada serviço do orçamento.
+
 ## Execução
 
 Requisitos já utilizados na validação:
