@@ -1,0 +1,115 @@
+/* =========================================================
+   SIGIU / ULBRA DESIGN SYSTEM
+   SPRINT........: 7.0 RC1
+   ARQUIVO.......: src/styles/sigiuTokens.css
+   OBJETIVO......: Tokens visuais oficiais do SIGIU baseados no padrão ULBRA
+========================================================= */
+
+:root {
+  /* -----------------------------------------------------
+     Cores institucionais ULBRA / AELBRA
+  ----------------------------------------------------- */
+  --sigiu-bordo: #471923;
+  --sigiu-azul: #222d45;
+  --sigiu-cinza: #a39b84;
+  --sigiu-bege: #f3f1e5;
+
+  --sigiu-dourado-claro: #f5ce99;
+  --sigiu-dourado: #cca269;
+  --sigiu-marrom: #66563d;
+  --sigiu-verde-profundo: #0d3634;
+  --sigiu-verde-institucional: #045a52;
+  --sigiu-verde-suave: #91baa3;
+
+  /* -----------------------------------------------------
+     Cores funcionais do produto
+  ----------------------------------------------------- */
+  --sigiu-bg: #f4f6f8;
+  --sigiu-surface: #ffffff;
+  --sigiu-surface-soft: #f8faf9;
+  --sigiu-border: rgba(13, 54, 52, 0.12);
+  --sigiu-border-strong: rgba(13, 54, 52, 0.22);
+
+  --sigiu-text: #222d45;
+  --sigiu-text-muted: #6a6a6a;
+  --sigiu-text-soft: #8a9099;
+  --sigiu-text-invert: #ffffff;
+
+  /* -----------------------------------------------------
+     Semânticas operacionais
+  ----------------------------------------------------- */
+  --sigiu-danger: #c62828;
+  --sigiu-danger-soft: #fdecec;
+  --sigiu-warning: #f59e0b;
+  --sigiu-warning-soft: #fff4df;
+  --sigiu-success: #2e7d32;
+  --sigiu-success-soft: #e8f5e9;
+  --sigiu-info: #1565c0;
+  --sigiu-info-soft: #e3f2fd;
+  --sigiu-neutral: #6b7280;
+  --sigiu-neutral-soft: #eef1f3;
+
+  /* -----------------------------------------------------
+     Gradientes institucionais
+  ----------------------------------------------------- */
+  --sigiu-gradient-primary: linear-gradient(90deg, var(--sigiu-verde-profundo), var(--sigiu-verde-institucional));
+  --sigiu-gradient-deep: linear-gradient(180deg, #073431 0%, #045a52 100%);
+  --sigiu-gradient-gold: linear-gradient(135deg, var(--sigiu-dourado-claro), var(--sigiu-dourado));
+
+  /* -----------------------------------------------------
+     Tipografia
+  ----------------------------------------------------- */
+  --sigiu-font-family: "Inter", "Segoe UI", Arial, sans-serif;
+
+  --sigiu-font-size-xs: 0.75rem;
+  --sigiu-font-size-sm: 0.875rem;
+  --sigiu-font-size-md: 1rem;
+  --sigiu-font-size-lg: 1.125rem;
+  --sigiu-font-size-xl: 1.5rem;
+  --sigiu-font-size-2xl: 2rem;
+
+  --sigiu-font-weight-regular: 400;
+  --sigiu-font-weight-medium: 500;
+  --sigiu-font-weight-semibold: 600;
+  --sigiu-font-weight-bold: 700;
+  --sigiu-font-weight-black: 800;
+
+  /* -----------------------------------------------------
+     Espaçamentos
+  ----------------------------------------------------- */
+  --sigiu-space-1: 4px;
+  --sigiu-space-2: 8px;
+  --sigiu-space-3: 12px;
+  --sigiu-space-4: 16px;
+  --sigiu-space-5: 20px;
+  --sigiu-space-6: 24px;
+  --sigiu-space-8: 32px;
+  --sigiu-space-10: 40px;
+
+  /* -----------------------------------------------------
+     Raios e sombras
+  ----------------------------------------------------- */
+  --sigiu-radius-sm: 8px;
+  --sigiu-radius-md: 12px;
+  --sigiu-radius-lg: 16px;
+  --sigiu-radius-xl: 20px;
+  --sigiu-radius-pill: 999px;
+
+  --sigiu-shadow-sm: 0 2px 8px rgba(13, 54, 52, 0.06);
+  --sigiu-shadow-md: 0 6px 20px rgba(13, 54, 52, 0.10);
+  --sigiu-shadow-lg: 0 14px 40px rgba(13, 54, 52, 0.16);
+
+  /* -----------------------------------------------------
+     Layout base
+  ----------------------------------------------------- */
+  --sigiu-sidebar-width: 220px;
+  --sigiu-topbar-height: 76px;
+  --sigiu-mobile-bottom-nav-height: 72px;
+}
+
+html,
+body {
+  font-family: var(--sigiu-font-family);
+  background: var(--sigiu-bg);
+  color: var(--sigiu-text);
+}

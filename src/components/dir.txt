@@ -1,0 +1,3 @@
+Componentes recuperados da base SIGIU/PRUMO.
+Consulte as subpastas Navigation, Alertas, QualidadeDados, Preferencias,
+FiltrosAtivos, Feedback, Modal, Analises, Cards, Dashboard, Toolbar e Header.

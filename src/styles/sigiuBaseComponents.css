@@ -1,0 +1,207 @@
+/* =========================================================
+   SIGIU / ULBRA DESIGN SYSTEM
+   SPRINT........: 7.0 RC1
+   ARQUIVO.......: src/styles/sigiuBaseComponents.css
+   OBJETIVO......: Componentes base reutilizáveis para o SIGIU
+========================================================= */
+
+.sigiu-app-shell {
+  min-height: 100vh;
+  background: var(--sigiu-bg);
+  color: var(--sigiu-text);
+}
+
+.sigiu-sidebar {
+  background: var(--sigiu-gradient-deep);
+  color: var(--sigiu-text-invert);
+  box-shadow: var(--sigiu-shadow-md);
+}
+
+.sigiu-topbar {
+  min-height: var(--sigiu-topbar-height);
+  background: var(--sigiu-surface);
+  border-bottom: 1px solid var(--sigiu-border);
+}
+
+.sigiu-card {
+  background: var(--sigiu-surface);
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-lg);
+  box-shadow: var(--sigiu-shadow-sm);
+}
+
+.sigiu-card--soft {
+  background: var(--sigiu-surface-soft);
+}
+
+.sigiu-card--glass {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  border-radius: var(--sigiu-radius-lg);
+  box-shadow: var(--sigiu-shadow-md);
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+}
+
+.sigiu-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sigiu-space-3);
+  margin: var(--sigiu-space-6) 0 var(--sigiu-space-4);
+  color: var(--sigiu-verde-profundo);
+  font-size: var(--sigiu-font-size-sm);
+  font-weight: var(--sigiu-font-weight-black);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sigiu-section-title::before {
+  content: "";
+  width: 4px;
+  height: 20px;
+  border-radius: var(--sigiu-radius-pill);
+  background: var(--sigiu-dourado);
+}
+
+.sigiu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sigiu-space-2);
+  min-height: 38px;
+  padding: 0 var(--sigiu-space-4);
+  border-radius: var(--sigiu-radius-pill);
+  border: 1px solid transparent;
+  font-family: var(--sigiu-font-family);
+  font-size: var(--sigiu-font-size-sm);
+  font-weight: var(--sigiu-font-weight-bold);
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.sigiu-btn:hover {
+  transform: translateY(-1px);
+}
+
+.sigiu-btn--primary {
+  background: var(--sigiu-verde-institucional);
+  color: #fff;
+}
+
+.sigiu-btn--primary:hover {
+  background: var(--sigiu-verde-profundo);
+}
+
+.sigiu-btn--secondary {
+  background: var(--sigiu-dourado);
+  color: #fff;
+}
+
+.sigiu-btn--secondary:hover {
+  background: var(--sigiu-dourado-claro);
+  color: var(--sigiu-verde-profundo);
+}
+
+.sigiu-btn--outline {
+  background: transparent;
+  color: var(--sigiu-verde-institucional);
+  border-color: var(--sigiu-dourado);
+}
+
+.sigiu-btn--outline:hover {
+  background: var(--sigiu-dourado);
+  color: #fff;
+}
+
+.sigiu-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sigiu-space-1);
+  padding: 5px 10px;
+  border-radius: var(--sigiu-radius-pill);
+  font-size: var(--sigiu-font-size-xs);
+  font-weight: var(--sigiu-font-weight-bold);
+  white-space: nowrap;
+}
+
+.sigiu-chip--primary {
+  background: rgba(4, 90, 82, 0.10);
+  color: var(--sigiu-verde-institucional);
+}
+
+.sigiu-chip--gold {
+  background: rgba(204, 162, 105, 0.18);
+  color: var(--sigiu-marrom);
+}
+
+.sigiu-chip--danger {
+  background: var(--sigiu-danger-soft);
+  color: var(--sigiu-danger);
+}
+
+.sigiu-chip--warning {
+  background: var(--sigiu-warning-soft);
+  color: var(--sigiu-warning);
+}
+
+.sigiu-chip--success {
+  background: var(--sigiu-success-soft);
+  color: var(--sigiu-success);
+}
+
+.sigiu-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 var(--sigiu-space-4);
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface);
+  color: var(--sigiu-text);
+  font-family: var(--sigiu-font-family);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+.sigiu-input:focus {
+  outline: none;
+  border-color: var(--sigiu-verde-institucional);
+  box-shadow: 0 0 0 3px rgba(4, 90, 82, 0.12);
+}
+
+.sigiu-tabs {
+  display: flex;
+  gap: var(--sigiu-space-2);
+  padding: var(--sigiu-space-2);
+  background: var(--sigiu-surface-soft);
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-lg);
+}
+
+.sigiu-tab {
+  border: 1px solid transparent;
+  border-radius: var(--sigiu-radius-pill);
+  background: transparent;
+  color: var(--sigiu-text-muted);
+  padding: 8px 14px;
+  font-weight: var(--sigiu-font-weight-bold);
+  cursor: pointer;
+}
+
+.sigiu-tab.is-active {
+  background: var(--sigiu-verde-institucional);
+  color: #fff;
+  box-shadow: var(--sigiu-shadow-sm);
+}
+
+@media (max-width: 768px) {
+  .sigiu-desktop-only {
+    display: none !important;
+  }
+
+  .sigiu-card {
+    border-radius: var(--sigiu-radius-md);
+  }
+
+  .sigiu-section-title {
+    font-size: var(--sigiu-font-size-xs);
+  }
+}

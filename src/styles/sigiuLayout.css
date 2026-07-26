@@ -1,0 +1,511 @@
+/* =========================================================
+   SIGIU / ULBRA LAYOUT SYSTEM
+   SPRINT........: 7.1 RC1
+   ARQUIVO.......: src/styles/sigiuLayout.css
+========================================================= */
+
+.sigiu-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: var(--sigiu-sidebar-width) minmax(0, 1fr);
+  background: var(--sigiu-bg);
+  color: var(--sigiu-text);
+}
+
+.sigiu-sidebar-main {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 14px;
+  z-index: 50;
+}
+
+.sigiu-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  margin-bottom: 20px;
+}
+
+.sigiu-logo-mark {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 206, 153, 0.60);
+  color: var(--sigiu-dourado-claro);
+  font-weight: 900;
+  letter-spacing: -1px;
+}
+
+.sigiu-sidebar-brand strong,
+.sigiu-sidebar-brand span {
+  display: block;
+  line-height: 1.1;
+}
+
+.sigiu-sidebar-brand strong {
+  color: #fff;
+  font-size: 1.15rem;
+}
+
+.sigiu-sidebar-brand span {
+  color: var(--sigiu-dourado-claro);
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+}
+
+.sigiu-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sigiu-nav-item {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.84);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sigiu-nav-item:hover,
+.sigiu-nav-item.is-active {
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.sigiu-nav-item.is-active {
+  box-shadow: inset 3px 0 0 var(--sigiu-dourado);
+}
+
+.sigiu-nav-icon {
+  width: 24px;
+  text-align: center;
+}
+
+.sigiu-sidebar-collapse {
+  margin-top: auto;
+  align-self: flex-end;
+  width: 42px;
+  height: 36px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+  color: #fff;
+  cursor: pointer;
+}
+
+.sigiu-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sigiu-topbar-main {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  padding: 16px 28px;
+}
+
+.sigiu-topbar-title h1 {
+  margin: 0;
+  color: var(--sigiu-verde-profundo);
+  font-size: 1.75rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.sigiu-topbar-title p {
+  margin: 2px 0 0;
+  color: var(--sigiu-text-muted);
+  font-size: 0.9rem;
+}
+
+.sigiu-mobile-brand {
+  display: none;
+}
+
+.sigiu-topbar-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sigiu-select-button,
+.sigiu-date-button,
+.sigiu-icon-button,
+.sigiu-notification-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--sigiu-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sigiu-select-button,
+.sigiu-date-button {
+  padding: 0 14px;
+}
+
+.sigiu-global-search {
+  flex: 1;
+  max-width: 430px;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.sigiu-global-search input {
+  width: 100%;
+  height: 42px;
+  border: none;
+  outline: none;
+  font-family: var(--sigiu-font-family);
+  color: var(--sigiu-text);
+}
+
+.sigiu-notification-button {
+  position: relative;
+  width: 42px;
+  padding: 0;
+}
+
+.sigiu-notification-button span {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--sigiu-verde-institucional);
+  color: #fff;
+  font-size: 0.72rem;
+}
+
+.sigiu-mobile-controls,
+.sigiu-topbar-update {
+  display: none;
+}
+
+.sigiu-content {
+  width: min(100%, 1540px);
+  margin: 0 auto;
+  padding: 24px 28px 40px;
+  box-sizing: border-box;
+}
+
+.sigiu-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .sigiu-shell {
+    display: block;
+    padding-bottom: var(--sigiu-mobile-bottom-nav-height);
+  }
+
+  .sigiu-sidebar-main {
+    display: none;
+  }
+
+  .sigiu-topbar-main {
+    position: relative;
+    display: block;
+    min-height: unset;
+    padding: 18px 16px 16px;
+    background: var(--sigiu-gradient-deep);
+    color: #fff;
+    border-bottom: none;
+  }
+
+  .sigiu-topbar-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .sigiu-topbar-title h1,
+  .sigiu-topbar-title p {
+    color: #fff;
+  }
+
+  .sigiu-topbar-title h1 {
+    font-size: 1.6rem;
+  }
+
+  .sigiu-mobile-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid rgba(245, 206, 153, 0.65);
+    color: var(--sigiu-dourado-claro);
+    font-weight: 900;
+  }
+
+  .sigiu-topbar-actions {
+    display: none;
+  }
+
+  .sigiu-mobile-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px 44px;
+    gap: 10px;
+  }
+
+  .sigiu-select-button--mobile,
+  .sigiu-icon-button {
+    min-height: 44px;
+    border-radius: 14px;
+  }
+
+  .sigiu-content {
+    padding: 16px 12px 28px;
+  }
+
+  .sigiu-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 80;
+    height: var(--sigiu-mobile-bottom-nav-height);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid var(--sigiu-border);
+    box-shadow: 0 -6px 18px rgba(13, 54, 52, 0.10);
+    backdrop-filter: blur(12px);
+  }
+
+  .sigiu-bottom-nav__item {
+    border: none;
+    background: transparent;
+    color: var(--sigiu-text-muted);
+    font-family: var(--sigiu-font-family);
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .sigiu-bottom-nav__item span {
+    font-size: 1.25rem;
+  }
+
+  .sigiu-bottom-nav__item small {
+    font-size: 0.68rem;
+  }
+
+  .sigiu-bottom-nav__item.is-active {
+    color: var(--sigiu-verde-institucional);
+  }
+}
+
+/* =========================================================
+   SIGIU / MOBILE-FIRST NAVIGATION
+   SPRINT........: 7.6 RC1
+========================================================= */
+
+.sigiu-mobile-more-backdrop,
+.sigiu-mobile-more-sheet {
+  display: none;
+}
+
+.sigiu-icon-button--notification {
+  position: relative;
+}
+
+.sigiu-icon-button--notification span {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--sigiu-dourado);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+@media (max-width: 1024px) {
+  .sigiu-topbar-main {
+    position: sticky;
+    top: 0;
+    z-index: 70;
+  }
+
+  .sigiu-content {
+    padding-bottom: calc(var(--sigiu-mobile-bottom-nav-height) + 28px);
+  }
+
+  .sigiu-mobile-more-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 78;
+    display: block;
+    border: none;
+    background: rgba(13, 54, 52, 0.28);
+    backdrop-filter: blur(2px);
+  }
+
+  .sigiu-mobile-more-sheet {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(var(--sigiu-mobile-bottom-nav-height) + 10px);
+    z-index: 90;
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 45px rgba(13, 54, 52, 0.22);
+    transform: translateY(18px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+
+  .sigiu-mobile-more-sheet.is-open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sigiu-mobile-more-sheet__handle {
+    width: 42px;
+    height: 4px;
+    justify-self: center;
+    border-radius: 999px;
+    background: rgba(13, 54, 52, 0.18);
+  }
+
+  .sigiu-mobile-more-sheet header {
+    display: grid;
+    gap: 2px;
+    padding: 2px 4px;
+    text-align: left;
+  }
+
+  .sigiu-mobile-more-sheet header strong {
+    color: var(--sigiu-verde-profundo);
+    font-weight: 900;
+  }
+
+  .sigiu-mobile-more-sheet header small {
+    color: var(--sigiu-text-muted);
+    font-size: 0.78rem;
+    font-weight: 650;
+  }
+
+  .sigiu-mobile-more-sheet__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .sigiu-mobile-more-item {
+    min-height: 78px;
+    display: grid;
+    place-items: center;
+    gap: 5px;
+    padding: 10px 6px;
+    border: 1px solid var(--sigiu-border);
+    border-radius: 16px;
+    background: var(--sigiu-surface-soft);
+    color: var(--sigiu-text);
+    font-family: var(--sigiu-font-family);
+    cursor: pointer;
+  }
+
+  .sigiu-mobile-more-item span {
+    font-size: 1.35rem;
+  }
+
+  .sigiu-mobile-more-item strong {
+    font-size: 0.74rem;
+    text-align: center;
+  }
+
+  .sigiu-mobile-more-item.is-active,
+  .sigiu-mobile-more-item:hover {
+    border-color: rgba(204, 162, 105, 0.72);
+    background: rgba(204, 162, 105, 0.12);
+    color: var(--sigiu-verde-profundo);
+  }
+}
+
+@media (max-width: 430px) {
+  .sigiu-topbar-title h1 {
+    font-size: 1.4rem;
+  }
+
+  .sigiu-topbar-title p {
+    font-size: 0.78rem;
+  }
+
+  .sigiu-mobile-brand {
+    width: 42px;
+    height: 42px;
+    font-size: 0.72rem;
+  }
+
+  .sigiu-mobile-controls {
+    grid-template-columns: minmax(0, 1fr) 42px 42px;
+  }
+
+  .sigiu-select-button--mobile {
+    justify-content: flex-start;
+    overflow: hidden;
+    padding: 0 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}

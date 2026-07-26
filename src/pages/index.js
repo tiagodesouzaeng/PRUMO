@@ -1,0 +1,10 @@
+export { default as VisaoGeral } from "./VisaoGeral";
+export { default as PPCI } from "./PPCI";
+export { default as CentralAlertas } from "./CentralAlertas";
+export { default as ConsumoHidrico } from "./ConsumoHidrico";
+export { default as Obras } from "./Obras";
+export { default as Manutencao } from "./Manutencao";
+export { default as Relatorios } from "./Relatorios";
+export { default as PlaceholderModulo } from "./PlaceholderModulo";
+export { default as Administracao } from "./Administracao";
+export { default as Orcamento } from "./Orcamento";
