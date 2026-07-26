@@ -16,6 +16,16 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - medições, saldos e revisões;
 - múltiplos orçamentos e revisões imutáveis.
 
+## Persistência local — v9.1
+
+- criação de novos orçamentos;
+- inclusão e exclusão de serviços;
+- cálculos automáticos de custo direto, BDI, preço total e valor por área;
+- totais de grupos calculados pela EAP;
+- criação de revisões;
+- exportação do orçamento em JSON;
+- restauração dos dados e do orçamento ativo após recarregar a aplicação.
+
 ## Execução
 
 Requisitos já utilizados na validação:
@@ -39,6 +49,6 @@ manter instalações reproduzíveis entre os ambientes.
 
 ## Observação
 
-Os dados do módulo de Orçamentos são demonstrativos. A persistência,
-autenticação, banco relacional e importação efetiva dos arquivos SINAPI
-devem ser conectados na próxima etapa de desenvolvimento.
+O módulo já oferece persistência local no navegador. A autenticação, o
+banco relacional compartilhado entre usuários e a importação efetiva dos
+arquivos SINAPI devem ser conectados nas próximas etapas de desenvolvimento.

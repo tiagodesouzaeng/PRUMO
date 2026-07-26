@@ -23,6 +23,7 @@
 .orc-project-bar select { width: min(520px, 100%); border: 0; outline: 0; background: transparent; color: var(--orc-navy); font-size: 14px; font-weight: 800; }
 .orc-project-bar strong { display: block; font-size: 12px; color: #405660; }
 .orc-project-bar .orc-status { color: #a66d13; }
+.orc-new-budget { min-height: 34px; padding: 0 12px; border: 1px solid #cfe0df; border-radius: 7px; background: #edf7f5; color: var(--orc-teal); font-size: 10px; font-weight: 900; white-space: nowrap; }
 
 .orc-module-nav {
   padding: 0 14px;
@@ -117,6 +118,9 @@
 .orc-table td:nth-child(2) { width: 43%; white-space: normal; }
 .orc-table td small { display: block; margin-top: 4px; color: #8c9aa1; font-size: 8px; }
 .orc-table td button { border: 0; background: transparent; color: #8b999f; }
+.orc-table td .orc-remove-item { width: 24px; height: 24px; border-radius: 50%; color: #a44848; font-size: 17px; }
+.orc-table td .orc-remove-item:hover { background: #fff0f0; }
+.orc-table .orc-empty-table { height: 90px; color: #87969d; text-align: center; }
 .orc-table td i { display: inline-grid; width: 16px; height: 16px; margin-right: 7px; place-items: center; border: 1px solid #d4dfe2; border-radius: 3px; background: #fff; font-style: normal; }
 .orc-table .orc-group-row td { background: #f1f7f6; color: var(--orc-navy); font-weight: 900; }
 .orc-toolbar { padding: 12px 16px; display: flex; gap: 8px; border-bottom: 1px solid var(--orc-border); }
@@ -175,6 +179,20 @@
 .orc-revisions div span strong, .orc-revisions div span small { display: block; }.orc-revisions div span small { margin-bottom: 3px; color: #89979d; font-size: 8px; }.orc-revisions div span strong { font-size: 10px; color: #425862; }
 .orc-rev { color: var(--orc-teal); font-size: 16px; font-weight: 900; }.orc-revisions div > b { color: #a66d13; font-size: 10px; }.orc-revisions div > button { border: 0; background: transparent; color: #89979d; }
 
+.orc-modal-backdrop { position: fixed; z-index: 1100; inset: 0; padding: 24px; display: grid; place-items: center; background: rgba(14, 36, 49, .58); backdrop-filter: blur(2px); }
+.orc-modal { width: min(620px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 24px 70px rgba(7, 27, 39, .3); }
+.orc-modal > header { min-height: 70px; padding: 16px 20px; display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid var(--orc-border); }
+.orc-modal > header span { color: #8a999f; font-size: 9px; font-weight: 800; letter-spacing: .13em; }
+.orc-modal > header h3 { margin: 6px 0 0; color: var(--orc-navy); font-family: Georgia, serif; font-size: 21px; }
+.orc-modal > header button { width: 32px; height: 32px; border: 0; border-radius: 50%; background: #f1f5f6; color: #687b84; font-size: 20px; }
+.orc-form-grid { padding: 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.orc-form-grid label { display: flex; flex-direction: column; gap: 6px; }
+.orc-form-grid label > span { color: #61747d; font-size: 9px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.orc-form-grid input { width: 100%; height: 39px; padding: 0 11px; border: 1px solid #d6e0e3; border-radius: 7px; outline: none; color: #314852; font: inherit; font-size: 11px; }
+.orc-form-grid input:focus { border-color: var(--orc-teal); box-shadow: 0 0 0 3px rgba(8, 127, 115, .1); }
+.orc-form-grid .orc-field-wide { grid-column: 1 / -1; }
+.orc-modal > footer { padding: 14px 20px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--orc-border); background: #f8fafb; }
+
 @media (max-width: 1120px) {
   .orc-kpis, .orc-schedule-kpis { grid-template-columns: repeat(2, 1fr); }
   .orc-dashboard-grid, .orc-bases-grid { grid-template-columns: 1fr; }
@@ -188,6 +206,7 @@
   .orc-kpis, .orc-schedule-kpis { grid-template-columns: 1fr; }
   .orc-project-bar { gap: 12px; }
   .orc-project-bar > div { flex: 1 1 42%; }
+  .orc-new-budget { order: 2; }
   .orc-module-nav { padding: 0 5px; }
   .orc-module-nav button { padding: 0 10px; }
   .orc-donut-row { align-items: flex-start; flex-direction: column; }
@@ -197,4 +216,7 @@
   .orc-hist-grid { overflow-x: auto; }.orc-hist-head, .orc-hist-row { min-width: 720px; }
   .orc-measurements > div, .orc-revisions > div { min-width: 820px; }
   .orc-measurements, .orc-revisions { overflow-x: auto; }
+  .orc-modal-backdrop { padding: 12px; }
+  .orc-form-grid { grid-template-columns: 1fr; }
+  .orc-form-grid .orc-field-wide { grid-column: auto; }
 }

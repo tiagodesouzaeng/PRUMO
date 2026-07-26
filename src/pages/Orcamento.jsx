@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { calcularTotais, totalGrupo, totalItem } from "../domain/orcamento";
+import useOrcamentos from "../hooks/useOrcamentos";
 
 const ETAPAS = [
   { id: "visao", label: "Visão geral", icon: "⌂" },
@@ -10,21 +12,10 @@ const ETAPAS = [
   { id: "revisoes", label: "Revisões", icon: "⇄" },
 ];
 
-const ITENS = [
-  { codigo: "1", descricao: "SERVIÇOS PRELIMINARES", tipo: "grupo", total: 284610.42 },
-  { codigo: "1.1", descricao: "Administração local da obra", fonte: "Própria · CPU-014", quantidade: 8, unidade: "MÊS", unitario: 35420.88, total: 283367.04 },
-  { codigo: "1.2", descricao: "Placa de obra em chapa de aço galvanizado", fonte: "SINAPI · 103689", quantidade: 6, unidade: "M²", unitario: 207.23, total: 1243.38 },
-  { codigo: "2", descricao: "FUNDAÇÕES E ESTRUTURAS", tipo: "grupo", total: 1847932.71 },
-  { codigo: "2.1", descricao: "Concreto armado para fundações, fck = 30 MPa", fonte: "SINAPI · 96557", quantidade: 428.5, unidade: "M³", unitario: 1268.44, total: 543576.54 },
-  { codigo: "2.2", descricao: "Forma para estruturas de concreto em chapa compensada", fonte: "SINAPI · 92431", quantidade: 3842.2, unidade: "M²", unitario: 154.17, total: 592356.97 },
-  { codigo: "3", descricao: "INSTALAÇÕES ELÉTRICAS", tipo: "grupo", total: 916487.28 },
-  { codigo: "3.1", descricao: "Quadro de distribuição de energia em chapa de aço", fonte: "SINAPI · 101875", quantidade: 18, unidade: "UN", unitario: 2867.41, total: 51613.38 },
-];
-
 const formatarMoeda = (valor) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
 
-function CabecalhoSecao({ etapa, setAviso }) {
+function CabecalhoSecao({ etapa, exportar, novaRevisao }) {
   const textos = {
     visao: ["Painel do orçamento", "Custos, planejamento e execução em uma visão consolidada."],
     planilha: ["Planilha orçamentária", "EAP, serviços, quantidades, preços unitários e totais da revisão."],
@@ -43,52 +34,67 @@ function CabecalhoSecao({ etapa, setAviso }) {
         <p>{descricao}</p>
       </div>
       <div className="orc-heading-actions">
-        <button type="button" className="orc-btn orc-btn-ghost" onClick={() => setAviso("Relatório preparado para exportação.")}>⇩ Exportar</button>
-        <button type="button" className="orc-btn orc-btn-primary" onClick={() => setAviso("Nova revisão criada a partir da R03.")}>＋ Nova revisão</button>
+        <button type="button" className="orc-btn orc-btn-ghost" onClick={exportar}>⇩ Exportar</button>
+        <button type="button" className="orc-btn orc-btn-primary" onClick={novaRevisao}>＋ Nova revisão</button>
       </div>
     </div>
   );
 }
 
-function Indicadores() {
+function Indicadores({ orcamento }) {
+  const totais = calcularTotais(orcamento);
   return (
     <div className="orc-kpis">
-      <article><span>CUSTO DIRETO</span><strong>R$ 4.286.740,18</strong><small className="orc-positive">↗ 3,2% em relação à R02</small></article>
-      <article><span>BDI MÉDIO</span><strong>24,73%</strong><small>Obras civis padrão</small></article>
-      <article className="orc-kpi-total"><span>PREÇO TOTAL</span><strong>R$ 5.346.911,37</strong><small>R$ 915,57 / m²</small></article>
-      <article><span>PENDÊNCIAS</span><strong>7 itens</strong><small className="orc-warning">3 sem preço · 4 para revisar</small></article>
+      <article><span>CUSTO DIRETO</span><strong>{formatarMoeda(totais.custoDireto)}</strong><small className="orc-positive">Calculado a partir dos serviços</small></article>
+      <article><span>BDI MÉDIO</span><strong>{orcamento.bdi.toLocaleString("pt-BR")}%</strong><small>Aplicado ao custo direto</small></article>
+      <article className="orc-kpi-total"><span>PREÇO TOTAL</span><strong>{formatarMoeda(totais.precoTotal)}</strong><small>{formatarMoeda(totais.valorPorArea)} / m²</small></article>
+      <article><span>PENDÊNCIAS</span><strong>{totais.pendencias} {totais.pendencias === 1 ? "item" : "itens"}</strong><small className={totais.pendencias ? "orc-warning" : "orc-positive"}>{totais.pendencias ? "Quantidade ou preço a completar" : "Planilha consistente"}</small></article>
     </div>
   );
 }
 
-function TabelaItens({ completa = false }) {
-  const linhas = completa ? [...ITENS, ...ITENS.slice(4).map((item, index) => ({ ...item, codigo: `4.${index + 1}` }))] : ITENS.slice(0, 6);
+function TabelaItens({ itens, completa = false, filtro = "", removerItem }) {
+  const termo = filtro.trim().toLocaleLowerCase("pt-BR");
+  const filtrados = termo
+    ? itens.filter((item) => [item.codigo, item.descricao, item.fonte].some((valor) => valor?.toLocaleLowerCase("pt-BR").includes(termo)))
+    : itens;
+  const linhas = completa ? filtrados : filtrados.slice(0, 6);
   return (
     <div className="orc-table-wrap">
       <table className="orc-table">
         <thead><tr><th>ITEM</th><th>DESCRIÇÃO / FONTE</th><th>QUANTIDADE</th><th>UN.</th><th>PREÇO UNIT.</th><th>PREÇO TOTAL</th><th /></tr></thead>
         <tbody>
           {linhas.map((item, index) => (
-            <tr key={`${item.codigo}-${index}`} className={item.tipo === "grupo" ? "orc-group-row" : ""}>
+            <tr key={item.id || `${item.codigo}-${index}`} className={item.tipo === "grupo" ? "orc-group-row" : ""}>
               <td>{item.tipo === "grupo" && <i>⌄</i>}{item.codigo}</td>
               <td><strong>{item.descricao}</strong>{item.fonte && <small>{item.fonte}</small>}</td>
               <td>{item.quantidade?.toLocaleString("pt-BR") || "—"}</td>
               <td>{item.unidade || ""}</td>
               <td>{item.unitario ? formatarMoeda(item.unitario) : ""}</td>
-              <td><strong>{formatarMoeda(item.total)}</strong></td>
-              <td><button type="button" aria-label={`Opções do item ${item.codigo}`}>⋮</button></td>
+              <td><strong>{formatarMoeda(item.tipo === "grupo" ? totalGrupo(itens, item.codigo) : totalItem(item))}</strong></td>
+              <td>{item.tipo !== "grupo" && removerItem && <button type="button" className="orc-remove-item" onClick={() => removerItem(item)} aria-label={`Excluir item ${item.codigo}`} title="Excluir item">×</button>}</td>
             </tr>
           ))}
+          {!linhas.length && <tr><td colSpan="7" className="orc-empty-table">Nenhum item encontrado.</td></tr>}
         </tbody>
       </table>
     </div>
   );
 }
 
-function VisaoGeralOrcamento({ setEtapa }) {
+function VisaoGeralOrcamento({ orcamento, setEtapa }) {
+  const totais = calcularTotais(orcamento);
+  const valorMedido = totais.precoTotal * 0.318;
+  const saldo = totais.precoTotal - valorMedido;
+  const distribuicao = [
+    ["Materiais", 0.538],
+    ["Mão de obra", 0.314],
+    ["Equipamentos", 0.092],
+    ["Outros", 0.056],
+  ];
   return (
     <>
-      <Indicadores />
+      <Indicadores orcamento={orcamento} />
       <div className="orc-dashboard-grid">
         <article className="orc-card orc-evolution">
           <header><div><span>EVOLUÇÃO FINANCEIRA</span><h3>Curva do orçamento</h3></div><div className="orc-legend"><i />Planejado <i />Medido</div></header>
@@ -97,39 +103,40 @@ function VisaoGeralOrcamento({ setEtapa }) {
             <div className="orc-chart-field"><span className="orc-gridline a" /><span className="orc-gridline b" /><span className="orc-gridline c" /><span className="orc-chart-area" /><span className="orc-chart-line" /></div>
           </div>
           <div className="orc-months">{["Jul","Ago","Set","Out","Nov","Dez","Jan","Fev"].map((mes) => <span key={mes}>{mes}</span>)}</div>
-          <footer><div><small>AVANÇO FÍSICO</small><strong>31,8%</strong></div><div><small>VALOR MEDIDO</small><strong>R$ 1.704.684,05</strong></div><div><small>SALDO</small><strong>R$ 3.642.227,32</strong></div></footer>
+          <footer><div><small>AVANÇO FÍSICO</small><strong>31,8%</strong></div><div><small>VALOR MEDIDO</small><strong>{formatarMoeda(valorMedido)}</strong></div><div><small>SALDO</small><strong>{formatarMoeda(saldo)}</strong></div></footer>
         </article>
         <article className="orc-card">
           <header><div><span>COMPOSIÇÃO DO CUSTO</span><h3>Distribuição por natureza</h3></div></header>
           <div className="orc-donut-row">
-            <div className="orc-donut"><div><strong>R$ 4,28 mi</strong><small>CUSTO DIRETO</small></div></div>
+            <div className="orc-donut"><div><strong>{formatarMoeda(totais.custoDireto)}</strong><small>CUSTO DIRETO</small></div></div>
             <div className="orc-cost-list">
-              {[["Materiais","53,8%","R$ 2.306.266"],["Mão de obra","31,4%","R$ 1.346.036"],["Equipamentos","9,2%","R$ 394.380"],["Outros","5,6%","R$ 240.058"]].map(([nome,pct,valor], i) => <div key={nome}><i className={`c${i + 1}`} /><span><strong>{nome}</strong><small>{valor}</small></span><b>{pct}</b></div>)}
+              {distribuicao.map(([nome, percentual], i) => <div key={nome}><i className={`c${i + 1}`} /><span><strong>{nome}</strong><small>{formatarMoeda(totais.custoDireto * percentual)}</small></span><b>{percentual.toLocaleString("pt-BR", { style: "percent", minimumFractionDigits: 1 })}</b></div>)}
             </div>
           </div>
         </article>
       </div>
       <article className="orc-card orc-budget-preview">
         <header><div><span>PLANILHA ORÇAMENTÁRIA</span><h3>Principais serviços</h3></div><button type="button" onClick={() => setEtapa("planilha")}>Ver planilha completa →</button></header>
-        <TabelaItens />
+        <TabelaItens itens={orcamento.itens} />
       </article>
     </>
   );
 }
 
-function Planilha({ setAviso }) {
+function Planilha({ orcamento, abrirNovoItem, removerItem }) {
   const [filtro, setFiltro] = useState("");
+  const totais = calcularTotais(orcamento);
   return (
     <>
-      <Indicadores />
+      <Indicadores orcamento={orcamento} />
       <article className="orc-card orc-budget-preview">
         <div className="orc-toolbar">
           <label>⌕<input value={filtro} onChange={(event) => setFiltro(event.target.value)} placeholder="Filtrar item, descrição ou código..." /></label>
-          <button type="button">≡ Filtros <span>2</span></button>
-          <button type="button" onClick={() => setAviso("Formulário de novo item aberto.")}>＋ Adicionar item</button>
+          <button type="button">≡ Filtros <span>{filtro ? 1 : 0}</span></button>
+          <button type="button" onClick={abrirNovoItem}>＋ Adicionar item</button>
         </div>
-        <TabelaItens completa={Boolean(filtro) || true} />
-        <footer className="orc-table-footer"><span>142 itens · 8 grupos · 3 pendências de preço</span><strong>Total com BDI: R$ 5.346.911,37</strong></footer>
+        <TabelaItens itens={orcamento.itens} completa filtro={filtro} removerItem={removerItem} />
+        <footer className="orc-table-footer"><span>{orcamento.itens.filter((item) => item.tipo !== "grupo").length} itens · {orcamento.itens.filter((item) => item.tipo === "grupo").length} grupos · {totais.pendencias} pendências</span><strong>Total com BDI: {formatarMoeda(totais.precoTotal)}</strong></footer>
       </article>
     </>
   );
@@ -206,49 +213,184 @@ function Medicoes() {
   );
 }
 
-function Revisoes() {
-  const revisoes = [
-    ["R03","Em elaboração","SINAPI RS 06/2026","R$ 5.346.911,37","+3,2%","Tiago Souza"],
-    ["R02","Aprovada","SINAPI RS 05/2026","R$ 5.181.105,04","+1,7%","Marina Alves"],
-    ["R01","Substituída","SINAPI RS 04/2026","R$ 5.094.482,66","—","Tiago Souza"],
-  ];
+function Revisoes({ orcamento }) {
+  const totais = calcularTotais(orcamento);
+  const revisoes = orcamento.revisoes.length
+    ? orcamento.revisoes.map((revisao, index) => (
+      index === 0 && !revisao.publicada
+        ? { ...revisao, total: totais.precoTotal }
+        : revisao
+    ))
+    : [{
+      id: "revisao-atual",
+      codigo: orcamento.revisao,
+      status: orcamento.status,
+      base: orcamento.base,
+      total: totais.precoTotal,
+      variacao: 0,
+      autor: "Usuário atual",
+      publicada: false,
+    }];
+
   return (
     <article className="orc-card orc-revisions">
-      <header><div><span>HISTÓRICO IMUTÁVEL</span><h3>Revisões do orçamento ORC-2026-0042</h3></div><button type="button">Comparar revisões</button></header>
-      {revisoes.map(([rev,status,base,total,variacao,autor], index) => <div key={rev} className={index === 0 ? "current" : ""}><span className="orc-rev">{rev}</span><span><strong>{status}</strong><small>{index === 0 ? "Atualizada hoje, 10:42" : "Publicada e preservada"}</small></span><span><small>BASE</small><strong>{base}</strong></span><span><small>PREÇO TOTAL</small><strong>{total}</strong></span><b>{variacao}</b><span><small>RESPONSÁVEL</small><strong>{autor}</strong></span><button type="button">•••</button></div>)}
+      <header><div><span>HISTÓRICO VERSIONADO</span><h3>Revisões do orçamento {orcamento.id}</h3></div><button type="button">Comparar revisões</button></header>
+      {revisoes.map((revisao, index) => <div key={revisao.id} className={index === 0 ? "current" : ""}><span className="orc-rev">{revisao.codigo}</span><span><strong>{revisao.status}</strong><small>{index === 0 ? "Revisão atual" : "Publicada e preservada"}</small></span><span><small>BASE</small><strong>{revisao.base}</strong></span><span><small>PREÇO TOTAL</small><strong>{formatarMoeda(revisao.total)}</strong></span><b>{revisao.variacao ? `${revisao.variacao > 0 ? "+" : ""}${revisao.variacao.toLocaleString("pt-BR")}%` : "—"}</b><span><small>RESPONSÁVEL</small><strong>{revisao.autor}</strong></span><button type="button">•••</button></div>)}
     </article>
+  );
+}
+
+function ModalNovoItem({ fechar, salvar }) {
+  const [dados, setDados] = useState({
+    codigo: "",
+    descricao: "",
+    fonte: "SINAPI · ",
+    quantidade: "",
+    unidade: "UN",
+    unitario: "",
+  });
+
+  function atualizar(campo, valor) {
+    setDados((atuais) => ({ ...atuais, [campo]: valor }));
+  }
+
+  return (
+    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
+      <form className="orc-modal" role="dialog" aria-modal="true" aria-labelledby="orc-novo-item" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); salvar(dados); }}>
+        <header><div><span>PLANILHA ORÇAMENTÁRIA</span><h3 id="orc-novo-item">Adicionar serviço</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
+        <div className="orc-form-grid">
+          <label><span>Código EAP</span><input required value={dados.codigo} onChange={(event) => atualizar("codigo", event.target.value)} placeholder="Ex.: 4.1" /></label>
+          <label className="orc-field-wide"><span>Descrição</span><input required value={dados.descricao} onChange={(event) => atualizar("descricao", event.target.value)} placeholder="Descrição do serviço" /></label>
+          <label className="orc-field-wide"><span>Fonte e código</span><input value={dados.fonte} onChange={(event) => atualizar("fonte", event.target.value)} placeholder="SINAPI · 000000" /></label>
+          <label><span>Quantidade</span><input required min="0" step="any" type="number" value={dados.quantidade} onChange={(event) => atualizar("quantidade", event.target.value)} /></label>
+          <label><span>Unidade</span><input required value={dados.unidade} onChange={(event) => atualizar("unidade", event.target.value)} /></label>
+          <label><span>Preço unitário</span><input required min="0" step="0.01" type="number" value={dados.unitario} onChange={(event) => atualizar("unitario", event.target.value)} /></label>
+        </div>
+        <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">Adicionar serviço</button></footer>
+      </form>
+    </div>
+  );
+}
+
+function ModalNovoOrcamento({ fechar, salvar, proximoCodigo }) {
+  const [dados, setDados] = useState({
+    id: proximoCodigo,
+    nome: "",
+    base: "SINAPI RS · 06/2026",
+    bdi: "24.73",
+    area: "",
+  });
+
+  function atualizar(campo, valor) {
+    setDados((atuais) => ({ ...atuais, [campo]: valor }));
+  }
+
+  return (
+    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
+      <form className="orc-modal" role="dialog" aria-modal="true" aria-labelledby="orc-novo-orcamento" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); salvar(dados); }}>
+        <header><div><span>PORTFÓLIO</span><h3 id="orc-novo-orcamento">Novo orçamento</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
+        <div className="orc-form-grid">
+          <label><span>Identificador</span><input required value={dados.id} onChange={(event) => atualizar("id", event.target.value.toUpperCase())} /></label>
+          <label className="orc-field-wide"><span>Nome do empreendimento</span><input required value={dados.nome} onChange={(event) => atualizar("nome", event.target.value)} placeholder="Nome da obra ou projeto" /></label>
+          <label className="orc-field-wide"><span>Base de referência</span><input required value={dados.base} onChange={(event) => atualizar("base", event.target.value)} /></label>
+          <label><span>BDI (%)</span><input required min="0" step="0.01" type="number" value={dados.bdi} onChange={(event) => atualizar("bdi", event.target.value)} /></label>
+          <label><span>Área (m²)</span><input min="0" step="0.01" type="number" value={dados.area} onChange={(event) => atualizar("area", event.target.value)} /></label>
+        </div>
+        <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">Criar orçamento</button></footer>
+      </form>
+    </div>
   );
 }
 
 export default function Orcamento() {
   const [etapa, setEtapa] = useState("visao");
   const [aviso, setAviso] = useState("");
-  const [orcamento, setOrcamento] = useState("ORC-2026-0042");
+  const [modal, setModal] = useState("");
+  const {
+    orcamentos,
+    orcamentoAtivo,
+    orcamentoAtivoId,
+    setOrcamentoAtivoId,
+    adicionarItem,
+    removerItem,
+    adicionarOrcamento,
+    criarRevisao,
+  } = useOrcamentos();
   const etapaAtual = useMemo(() => ETAPAS.find((item) => item.id === etapa), [etapa]);
+  const proximoCodigo = useMemo(() => {
+    const maior = orcamentos.reduce((atual, item) => Math.max(atual, Number(item.id.split("-").at(-1)) || 0), 0);
+    return `ORC-${new Date().getFullYear()}-${String(maior + 1).padStart(4, "0")}`;
+  }, [orcamentos]);
 
   function notificar(mensagem) {
     setAviso(mensagem);
     window.setTimeout(() => setAviso(""), 2400);
   }
 
+  function salvarNovoItem(dados) {
+    adicionarItem(dados);
+    setModal("");
+    notificar("Serviço adicionado e salvo neste navegador.");
+  }
+
+  function salvarNovoOrcamento(dados) {
+    if (orcamentos.some((item) => item.id === dados.id)) {
+      notificar("Já existe um orçamento com esse identificador.");
+      return;
+    }
+    adicionarOrcamento(dados);
+    setModal("");
+    setEtapa("planilha");
+    notificar("Novo orçamento criado e salvo.");
+  }
+
+  function confirmarRemocao(item) {
+    if (window.confirm(`Excluir o item ${item.codigo} — ${item.descricao}?`)) {
+      removerItem(item.id);
+      notificar("Item removido da planilha.");
+    }
+  }
+
+  function adicionarRevisao() {
+    criarRevisao();
+    setEtapa("revisoes");
+    notificar("Nova revisão criada a partir da versão atual.");
+  }
+
+  function exportar() {
+    const arquivo = new Blob([JSON.stringify(orcamentoAtivo, null, 2)], { type: "application/json" });
+    const endereco = URL.createObjectURL(arquivo);
+    const link = document.createElement("a");
+    link.href = endereco;
+    link.download = `${orcamentoAtivo.id}-${orcamentoAtivo.revisao}.json`;
+    link.click();
+    URL.revokeObjectURL(endereco);
+    notificar("Dados do orçamento exportados.");
+  }
+
+  if (!orcamentoAtivo) return null;
+
   return (
     <section className="sigiu-page orc-page">
       {aviso && <div className="orc-toast" role="status">{aviso}</div>}
+      {modal === "item" && <ModalNovoItem fechar={() => setModal("")} salvar={salvarNovoItem} />}
+      {modal === "orcamento" && <ModalNovoOrcamento fechar={() => setModal("")} salvar={salvarNovoOrcamento} proximoCodigo={proximoCodigo} />}
       <div className="orc-project-bar">
-        <div><span>ORÇAMENTO ATIVO</span><select value={orcamento} onChange={(event) => setOrcamento(event.target.value)}><option value="ORC-2026-0042">ORC-2026-0042 · Centro Administrativo Canoas</option><option value="ORC-2026-0038">ORC-2026-0038 · Reforma Bloco C</option><option value="ORC-2026-0029">ORC-2026-0029 · Cobertura do Ginásio</option></select></div>
-        <div><small>REVISÃO</small><strong>R03</strong></div><div><small>STATUS</small><strong className="orc-status">Em elaboração</strong></div><div><small>BASE</small><strong>SINAPI RS · 06/2026</strong></div>
+        <div><span>ORÇAMENTO ATIVO</span><select value={orcamentoAtivoId} onChange={(event) => setOrcamentoAtivoId(event.target.value)}>{orcamentos.map((orcamento) => <option key={orcamento.id} value={orcamento.id}>{orcamento.id} · {orcamento.nome}</option>)}</select></div>
+        <button type="button" className="orc-new-budget" onClick={() => setModal("orcamento")}>＋ Novo orçamento</button>
+        <div><small>REVISÃO</small><strong>{orcamentoAtivo.revisao}</strong></div><div><small>STATUS</small><strong className="orc-status">{orcamentoAtivo.status}</strong></div><div><small>BASE</small><strong>{orcamentoAtivo.base}</strong></div>
       </div>
       <nav className="orc-module-nav" aria-label="Etapas do orçamento">
         {ETAPAS.map((item) => <button type="button" key={item.id} className={etapa === item.id ? "is-active" : ""} onClick={() => setEtapa(item.id)}><span>{item.icon}</span>{item.label}</button>)}
       </nav>
-      <CabecalhoSecao etapa={etapaAtual.id} setAviso={notificar} />
-      {etapa === "visao" && <VisaoGeralOrcamento setEtapa={setEtapa} />}
-      {etapa === "planilha" && <Planilha setAviso={notificar} />}
+      <CabecalhoSecao etapa={etapaAtual.id} exportar={exportar} novaRevisao={adicionarRevisao} />
+      {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
+      {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => setModal("item")} removerItem={confirmarRemocao} />}
       {etapa === "bases" && <Bases />}
       {etapa === "cronograma" && <Cronograma />}
       {etapa === "histograma" && <Histograma />}
       {etapa === "medicoes" && <Medicoes />}
-      {etapa === "revisoes" && <Revisoes />}
+      {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} />}
     </section>
   );
 }
