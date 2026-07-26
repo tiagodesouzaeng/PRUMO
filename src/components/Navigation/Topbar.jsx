@@ -13,7 +13,7 @@ export default function Topbar({ paginaAtiva, setPaginaAtiva, ultimaAtualizacao 
         <span className="sigiu-mobile-brand">PRUMO</span>
         <div>
           <h1>{paginaAtiva === "visao-geral" ? "PRUMO" : tituloPagina}</h1>
-          <p>Plataforma de Inteligência e Gestão ULBRA</p>
+          <p>Plataforma de Inteligência e Gestão</p>
         </div>
       </div>
 

@@ -4,10 +4,10 @@ export default function Sidebar({ paginaAtiva, setPaginaAtiva }) {
   return (
     <aside className="sigiu-sidebar sigiu-sidebar-main">
       <div className="sigiu-sidebar-brand">
-        <div className="sigiu-logo-mark">UL</div>
+        <div className="sigiu-logo-mark">PR</div>
         <div>
-          <strong>ULBRA</strong>
-          <span>PRUMO</span>
+          <strong>PRUMO</strong>
+          <span>Gestão integrada</span>
         </div>
       </div>
 

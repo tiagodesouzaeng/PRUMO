@@ -1,4 +1,17 @@
-export const ORCAMENTO_STORAGE_VERSION = 1;
+export const ORCAMENTO_STORAGE_VERSION = 2;
+
+export const UNIDADES_ORCAMENTARIAS = [
+  "UN", "M", "M²", "M³", "KG", "T", "H", "DIA", "MÊS", "VB",
+];
+
+export const BDI_COMPONENTES_PADRAO = {
+  administracaoCentral: 4,
+  segurosGarantias: 0.8,
+  riscos: 1.27,
+  despesasFinanceiras: 1.23,
+  lucro: 7.4,
+  tributos: 8.65,
+};
 
 const itensBase = [
   { id: "grp-1", codigo: "1", descricao: "SERVIÇOS PRELIMINARES", tipo: "grupo" },
@@ -12,9 +25,9 @@ const itensBase = [
 ];
 
 const revisoesBase = [
-  { id: "rev-3", codigo: "R03", status: "Em elaboração", base: "SINAPI RS · 06/2026", total: 1836000.42, variacao: 3.2, autor: "Tiago Souza", publicada: false, data: "2026-07-26T10:42:00.000Z" },
-  { id: "rev-2", codigo: "R02", status: "Aprovada", base: "SINAPI RS · 05/2026", total: 1779096.68, variacao: 1.7, autor: "Marina Alves", publicada: true, data: "2026-06-30T14:10:00.000Z" },
-  { id: "rev-1", codigo: "R01", status: "Substituída", base: "SINAPI RS · 04/2026", total: 1749406.77, variacao: 0, autor: "Tiago Souza", publicada: true, data: "2026-05-29T09:15:00.000Z" },
+  { id: "rev-3", codigo: "R03", status: "Em elaboração", base: "SINAPI RS · 06/2026", total: 1836000.42, variacao: 3.2, autor: "Tiago Souza", publicada: false, data: "2026-07-26T10:42:00.000Z", snapshot: itensBase },
+  { id: "rev-2", codigo: "R02", status: "Aprovada", base: "SINAPI RS · 05/2026", total: 1779096.68, variacao: 1.7, autor: "Marina Alves", publicada: true, data: "2026-06-30T14:10:00.000Z", snapshot: itensBase.map((item) => item.tipo === "grupo" ? item : { ...item, unitario: item.unitario * 0.968 }) },
+  { id: "rev-1", codigo: "R01", status: "Substituída", base: "SINAPI RS · 04/2026", total: 1749406.77, variacao: 0, autor: "Tiago Souza", publicada: true, data: "2026-05-29T09:15:00.000Z", snapshot: itensBase.slice(0, -1).map((item) => item.tipo === "grupo" ? item : { ...item, unitario: item.unitario * 0.951 }) },
 ];
 
 export const ORCAMENTOS_INICIAIS = [
@@ -25,9 +38,13 @@ export const ORCAMENTOS_INICIAIS = [
     revisao: "R03",
     base: "SINAPI RS · 06/2026",
     bdi: 24.73,
+    bdiComponentes: BDI_COMPONENTES_PADRAO,
     area: 5840,
     atualizadoEm: "2026-07-26T10:42:00.000Z",
     itens: itensBase,
+    composicoes: [
+      { id: "comp-1", codigo: "CPU-014", descricao: "Administração local da obra", unidade: "MÊS", custoUnitario: 35420.88 },
+    ],
     revisoes: revisoesBase,
   },
   {
@@ -37,9 +54,11 @@ export const ORCAMENTOS_INICIAIS = [
     revisao: "R01",
     base: "SINAPI RS · 06/2026",
     bdi: 22.5,
+    bdiComponentes: null,
     area: 1920,
     atualizadoEm: "2026-07-18T15:20:00.000Z",
     itens: itensBase.slice(0, 4),
+    composicoes: [],
     revisoes: [],
   },
   {
@@ -49,9 +68,11 @@ export const ORCAMENTOS_INICIAIS = [
     revisao: "R02",
     base: "SINAPI RS · 05/2026",
     bdi: 21.8,
+    bdiComponentes: null,
     area: 2460,
     atualizadoEm: "2026-07-10T11:30:00.000Z",
     itens: itensBase.slice(0, 6),
+    composicoes: [],
     revisoes: [],
   },
 ];
@@ -64,6 +85,23 @@ export function criarId(prefixo) {
 export function numeroSeguro(valor) {
   const numero = typeof valor === "string" ? Number(valor.replace(",", ".")) : Number(valor);
   return Number.isFinite(numero) ? numero : 0;
+}
+
+export function calcularBdiDetalhado(componentes) {
+  if (!componentes) return 0;
+  const ac = numeroSeguro(componentes.administracaoCentral) / 100;
+  const sg = numeroSeguro(componentes.segurosGarantias) / 100;
+  const r = numeroSeguro(componentes.riscos) / 100;
+  const df = numeroSeguro(componentes.despesasFinanceiras) / 100;
+  const l = numeroSeguro(componentes.lucro) / 100;
+  const i = Math.min(numeroSeguro(componentes.tributos) / 100, 0.99);
+  return ((((1 + ac + sg + r) * (1 + df) * (1 + l)) / (1 - i)) - 1) * 100;
+}
+
+export function obterBdi(orcamento) {
+  return orcamento.bdiComponentes
+    ? calcularBdiDetalhado(orcamento.bdiComponentes)
+    : numeroSeguro(orcamento.bdi);
 }
 
 export function totalItem(item) {
@@ -80,7 +118,8 @@ export function totalGrupo(itens, codigoGrupo) {
 
 export function calcularTotais(orcamento) {
   const custoDireto = orcamento.itens.reduce((total, item) => total + totalItem(item), 0);
-  const valorBdi = custoDireto * (numeroSeguro(orcamento.bdi) / 100);
+  const bdi = obterBdi(orcamento);
+  const valorBdi = custoDireto * (bdi / 100);
   const precoTotal = custoDireto + valorBdi;
   const pendencias = orcamento.itens.filter(
     (item) => item.tipo !== "grupo" && (!numeroSeguro(item.quantidade) || !numeroSeguro(item.unitario)),
@@ -88,10 +127,66 @@ export function calcularTotais(orcamento) {
 
   return {
     custoDireto,
+    bdi,
     valorBdi,
     precoTotal,
     pendencias,
     valorPorArea: orcamento.area ? precoTotal / numeroSeguro(orcamento.area) : 0,
+  };
+}
+
+export function validarOrcamento(orcamento) {
+  const ocorrencias = new Map();
+  orcamento.itens.forEach((item) => {
+    const codigo = item.codigo.trim();
+    ocorrencias.set(codigo, (ocorrencias.get(codigo) || 0) + 1);
+  });
+
+  return orcamento.itens.flatMap((item) => {
+    const problemas = [];
+    if (ocorrencias.get(item.codigo.trim()) > 1) problemas.push({ tipo: "erro", mensagem: `Código ${item.codigo} duplicado.` });
+    if (!item.descricao.trim()) problemas.push({ tipo: "erro", mensagem: `Item ${item.codigo} sem descrição.` });
+    if (item.tipo !== "grupo") {
+      if (!numeroSeguro(item.quantidade)) problemas.push({ tipo: "alerta", mensagem: `Item ${item.codigo} sem quantidade.` });
+      if (!numeroSeguro(item.unitario)) problemas.push({ tipo: "alerta", mensagem: `Item ${item.codigo} sem preço unitário.` });
+      if (!UNIDADES_ORCAMENTARIAS.includes(item.unidade?.toUpperCase())) problemas.push({ tipo: "erro", mensagem: `Unidade inválida no item ${item.codigo}.` });
+    }
+    return problemas.map((problema) => ({ ...problema, itemId: item.id }));
+  });
+}
+
+export function compararSnapshots(revisaoBase, revisaoComparada) {
+  if (!Array.isArray(revisaoBase?.snapshot) || !Array.isArray(revisaoComparada?.snapshot)) {
+    return { adicionados: [], removidos: [], alterados: [], disponivel: false };
+  }
+  const base = new Map((revisaoBase?.snapshot || []).map((item) => [item.codigo, item]));
+  const comparada = new Map((revisaoComparada?.snapshot || []).map((item) => [item.codigo, item]));
+  const adicionados = [...comparada.keys()].filter((codigo) => !base.has(codigo));
+  const removidos = [...base.keys()].filter((codigo) => !comparada.has(codigo));
+  const alterados = [...comparada.keys()].filter((codigo) => {
+    const anterior = base.get(codigo);
+    const atual = comparada.get(codigo);
+    return anterior && (
+      anterior.descricao !== atual.descricao
+      || numeroSeguro(anterior.quantidade) !== numeroSeguro(atual.quantidade)
+      || numeroSeguro(anterior.unitario) !== numeroSeguro(atual.unitario)
+    );
+  });
+  return { adicionados, removidos, alterados, disponivel: true };
+}
+
+export function normalizarOrcamento(orcamento) {
+  return {
+    ...orcamento,
+    bdiComponentes: orcamento.bdiComponentes ?? null,
+    itens: (orcamento.itens || []).map((item) => ({
+      ...item,
+      id: item.id || criarId(item.tipo === "grupo" ? "grp" : "item"),
+      tipo: item.tipo || "servico",
+      unidade: item.tipo === "grupo" ? "" : (item.unidade || "").toUpperCase(),
+    })),
+    composicoes: orcamento.composicoes || [],
+    revisoes: orcamento.revisoes || [],
   };
 }
 
@@ -103,10 +198,11 @@ export function criarOrcamento({ id, nome, base, bdi, area }) {
     revisao: "R01",
     base,
     bdi: numeroSeguro(bdi),
+    bdiComponentes: null,
     area: numeroSeguro(area),
     atualizadoEm: new Date().toISOString(),
     itens: [],
+    composicoes: [],
     revisoes: [],
   };
 }
-

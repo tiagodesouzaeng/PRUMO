@@ -29,7 +29,7 @@ export default function Header({
         </h1>
 
         <p>
-          Infraestrutura ULBRA
+          Gestão de infraestrutura
         </p>
 
       </div>

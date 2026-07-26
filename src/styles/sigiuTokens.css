@@ -1,13 +1,13 @@
 /* =========================================================
-   SIGIU / ULBRA DESIGN SYSTEM
+   PRUMO DESIGN SYSTEM
    SPRINT........: 7.0 RC1
    ARQUIVO.......: src/styles/sigiuTokens.css
-   OBJETIVO......: Tokens visuais oficiais do SIGIU baseados no padrão ULBRA
+   OBJETIVO......: Tokens visuais oficiais do PRUMO
 ========================================================= */
 
 :root {
   /* -----------------------------------------------------
-     Cores institucionais ULBRA / AELBRA
+     Cores institucionais PRUMO
   ----------------------------------------------------- */
   --sigiu-bordo: #471923;
   --sigiu-azul: #222d45;

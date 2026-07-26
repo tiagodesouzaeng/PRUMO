@@ -37,7 +37,7 @@ export const SIGIU_ADMIN_USUARIOS = [
   {
     id: "USR-001",
     nome: "Administrador SIGIU",
-    email: "admin.sigiu@ulbra.br",
+    email: "administracao@prumo.local",
     perfil: "Administrador Geral",
     unidade: "Todas",
     modulos: ["PPCI", "Consumo Hídrico", "Obras", "Orçamentos", "Manutenção", "Administração"],
@@ -47,7 +47,7 @@ export const SIGIU_ADMIN_USUARIOS = [
   {
     id: "USR-002",
     nome: "Gestão de Infraestrutura",
-    email: "infraestrutura@ulbra.br",
+    email: "infraestrutura@prumo.local",
     perfil: "Gestor de Infraestrutura",
     unidade: "Campus Canoas",
     modulos: ["PPCI", "Consumo Hídrico", "Obras", "Orçamentos", "Relatórios"],
@@ -57,7 +57,7 @@ export const SIGIU_ADMIN_USUARIOS = [
   {
     id: "USR-003",
     nome: "Operação Predial",
-    email: "operacao.predial@ulbra.br",
+    email: "operacao.predial@prumo.local",
     perfil: "Operador",
     unidade: "Campus Canoas",
     modulos: ["Consumo Hídrico", "Manutenção"],

@@ -1,4 +1,5 @@
 import {
+  normalizarOrcamento,
   ORCAMENTOS_INICIAIS,
   ORCAMENTO_STORAGE_VERSION,
 } from "../domain/orcamento";
@@ -7,7 +8,7 @@ const STORAGE_KEY = "prumo.orcamentos";
 const ACTIVE_STORAGE_KEY = "prumo.orcamentos.ativo";
 
 function copiarIniciais() {
-  return structuredClone(ORCAMENTOS_INICIAIS);
+  return structuredClone(ORCAMENTOS_INICIAIS).map(normalizarOrcamento);
 }
 
 export function carregarOrcamentos() {
@@ -16,14 +17,11 @@ export function carregarOrcamentos() {
     if (!conteudo) return copiarIniciais();
 
     const registro = JSON.parse(conteudo);
-    if (
-      registro.version !== ORCAMENTO_STORAGE_VERSION
-      || !Array.isArray(registro.orcamentos)
-    ) {
+    if (!Array.isArray(registro.orcamentos)) {
       return copiarIniciais();
     }
 
-    return registro.orcamentos;
+    return registro.orcamentos.map(normalizarOrcamento);
   } catch (error) {
     console.warn("Não foi possível restaurar os orçamentos locais.", error);
     return copiarIniciais();

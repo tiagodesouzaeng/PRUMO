@@ -26,6 +26,18 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - exportação do orçamento em JSON;
 - restauração dos dados e do orçamento ativo após recarregar a aplicação.
 
+## Motor orçamentário — v9.2
+
+- edição, duplicação, exclusão e ordenação de itens;
+- criação e manutenção de grupos da EAP;
+- exclusão controlada de grupos e seus serviços;
+- BDI detalhado por componentes e memória de cálculo;
+- cadastro de composições próprias;
+- importação de planilhas CSV, XLS e XLSX;
+- validação de códigos, descrições, quantidades, preços e unidades;
+- comparação de snapshots entre revisões;
+- remoção completa das referências fixas à marca ULBRA.
+
 ## Execução
 
 Requisitos já utilizados na validação:
@@ -49,6 +61,6 @@ manter instalações reproduzíveis entre os ambientes.
 
 ## Observação
 
-O módulo já oferece persistência local no navegador. A autenticação, o
-banco relacional compartilhado entre usuários e a importação efetiva dos
-arquivos SINAPI devem ser conectados nas próximas etapas de desenvolvimento.
+O módulo já oferece persistência local e um motor orçamentário editável.
+A autenticação, o banco relacional compartilhado e a importação automática
+das publicações SINAPI devem ser conectados nas próximas etapas.
