@@ -1,6 +1,6 @@
-import { reclassificarEap } from "./eap";
+import { reclassificarEap } from "./eap.js";
 
-export const ORCAMENTO_STORAGE_VERSION = 5;
+export const ORCAMENTO_STORAGE_VERSION = 6;
 export const REGRA_CALCULO_ATUAL = "9.4-truncamento-2-casas";
 
 export const UNIDADES_ORCAMENTARIAS = [
@@ -8,22 +8,73 @@ export const UNIDADES_ORCAMENTARIAS = [
 ];
 
 export const BDI_COMPONENTES_PADRAO = {
-  administracaoCentral: 4,
-  segurosGarantias: 0.8,
-  riscos: 1.27,
-  despesasFinanceiras: 1.23,
-  lucro: 7.4,
-  tributos: 8.65,
+  estrutura: "planilha-022026-r00",
+  grupos: [
+    { id: "A", nome: "Administração Central", itens: [
+      { id: "A1", descricao: "Administração Central (Matriz da empresa)", percentual: 5.5 },
+      { id: "A2", descricao: "Seguros e Garantias", percentual: 1 },
+    ] },
+    { id: "B", nome: "Riscos e Imprevistos", itens: [
+      { id: "B1", descricao: "Riscos de Execução e Imprevistos", percentual: 1.27 },
+    ] },
+    { id: "C", nome: "Despesas Financeiras", itens: [
+      { id: "C1", descricao: "Despesas Financeiras (Capital de Giro)", percentual: 1.39 },
+    ] },
+    { id: "D", nome: "Lucro", itens: [
+      { id: "D1", descricao: "Lucro Bruto", percentual: 8.21 },
+    ] },
+    { id: "E", nome: "Tributos", itens: [
+      { id: "E1", descricao: "ISS", percentual: 2 },
+      { id: "E2", descricao: "PIS", percentual: 0.65 },
+      { id: "E3", descricao: "COFINS", percentual: 3 },
+      { id: "E4", descricao: "CPRB", percentual: 0 },
+    ] },
+  ],
 };
 
 export const ENCARGOS_SOCIAIS_PADRAO = {
+  estrutura: "planilha-022026-r00",
   fonte: "SINAPI",
   uf: "RS",
   referencia: "02/2026",
   regime: "Sem desoneração",
-  horista: 111.95,
-  mensalista: 69.29,
-  observacoes: "Referência inicial extraída da base estratégica BASE DE CUSTOS 022026-R00.",
+  grupos: [
+    { id: "A", nome: "Encargos básicos", itens: [
+      { id: "A1", descricao: "INSS", percentual: 20 },
+      { id: "A2", descricao: "SESC", percentual: 1.5 },
+      { id: "A3", descricao: "SENAC", percentual: 1 },
+      { id: "A4", descricao: "INCRA", percentual: 0.2 },
+      { id: "A5", descricao: "SEBRAE", percentual: 0.6 },
+      { id: "A6", descricao: "Salário Educação", percentual: 2.5 },
+      { id: "A7", descricao: "Seguro Contra Acidentes de Trabalho", percentual: 3 },
+      { id: "A8", descricao: "FGTS", percentual: 8 },
+      { id: "A9", descricao: "SECONCI", percentual: 0 },
+    ] },
+    { id: "B", nome: "Encargos trabalhistas", itens: [
+      { id: "B1", descricao: "Repouso Semanal Remunerado", percentual: 17.93 },
+      { id: "B2", descricao: "Feriados", percentual: 4.24 },
+      { id: "B3", descricao: "Auxílio - Enfermidade", percentual: 0.86 },
+      { id: "B4", descricao: "13º Salário", percentual: 10.94 },
+      { id: "B5", descricao: "Licença Paternidade", percentual: 0.07 },
+      { id: "B6", descricao: "Faltas Justificadas", percentual: 0.73 },
+      { id: "B7", descricao: "Dias de Chuvas", percentual: 1.56 },
+      { id: "B8", descricao: "Auxílio Acidente de Trabalho", percentual: 0.1 },
+      { id: "B9", descricao: "Férias Gozadas", percentual: 10.28 },
+      { id: "B10", descricao: "Salário maternidade", percentual: 0.04 },
+    ] },
+    { id: "C", nome: "Encargos indenizatórios", itens: [
+      { id: "C1", descricao: "Aviso Prévio Indenizado", percentual: 4.56 },
+      { id: "C2", descricao: "Aviso Prévio Trabalhado", percentual: 0.11 },
+      { id: "C3", descricao: "Férias Indenizadas", percentual: 3.35 },
+      { id: "C4", descricao: "Depósito Rescisão Sem Justa Causa", percentual: 2.83 },
+      { id: "C5", descricao: "Indenização Adicional", percentual: 0.38 },
+    ] },
+    { id: "D", nome: "Reincidências", itens: [
+      { id: "D1", descricao: "Reincidência do Grupo A sobre Grupo B", percentual: 17.2 },
+      { id: "D2", descricao: "Reincidência do Grupo A sobre Aviso Prévio Trabalhado e do FGTS sobre Aviso Prévio Indenizado", percentual: 0.41 },
+    ] },
+  ],
+  observacoes: "Composição analítica conforme a planilha estratégica BASE DE CUSTOS 022026-R00.",
 };
 
 const itensBase = [
@@ -117,6 +168,17 @@ function paraCentavos(valor) {
 
 export function calcularBdiDetalhado(componentes) {
   if (!componentes) return 0;
+  if (Array.isArray(componentes.grupos)) {
+    const total = (id) => componentes.grupos
+      .find((grupo) => grupo.id === id)?.itens
+      .reduce((soma, item) => soma + numeroSeguro(item.percentual), 0) || 0;
+    const a = total("A") / 100;
+    const r = total("B") / 100;
+    const df = total("C") / 100;
+    const l = total("D") / 100;
+    const i = Math.min(total("E") / 100, 0.99);
+    return ((((1 + a + r) * (1 + df) * (1 + l)) / (1 - i)) - 1) * 100;
+  }
   const ac = numeroSeguro(componentes.administracaoCentral) / 100;
   const sg = numeroSeguro(componentes.segurosGarantias) / 100;
   const r = numeroSeguro(componentes.riscos) / 100;
@@ -124,6 +186,13 @@ export function calcularBdiDetalhado(componentes) {
   const l = numeroSeguro(componentes.lucro) / 100;
   const i = Math.min(numeroSeguro(componentes.tributos) / 100, 0.99);
   return ((((1 + ac + sg + r) * (1 + df) * (1 + l)) / (1 - i)) - 1) * 100;
+}
+
+export function calcularTotalPercentuais(grupos = []) {
+  return grupos.reduce((total, grupo) => total + (grupo.itens || []).reduce(
+    (subtotal, item) => subtotal + numeroSeguro(item.percentual),
+    0,
+  ), 0);
 }
 
 export function obterBdi(orcamento) {
@@ -301,13 +370,27 @@ export function compararSnapshots(revisaoBase, revisaoComparada) {
   return { adicionados, removidos, alterados, disponivel: true };
 }
 
+function clonarConfiguracao(valor) {
+  return JSON.parse(JSON.stringify(valor));
+}
+
+function normalizarBdiComponentes(componentes) {
+  if (componentes?.estrutura === BDI_COMPONENTES_PADRAO.estrutura && Array.isArray(componentes?.grupos)) {
+    return clonarConfiguracao(componentes);
+  }
+  return clonarConfiguracao(BDI_COMPONENTES_PADRAO);
+}
+
 export function normalizarOrcamento(orcamento) {
   const dadosOrcamento = { ...orcamento };
   delete dadosOrcamento.base;
   return {
     ...dadosOrcamento,
-    bdiComponentes: orcamento.bdiComponentes ?? null,
-    encargosSociais: orcamento.encargosSociais ?? { ...ENCARGOS_SOCIAIS_PADRAO },
+    bdiComponentes: normalizarBdiComponentes(orcamento.bdiComponentes),
+    encargosSociais: orcamento.encargosSociais?.estrutura === ENCARGOS_SOCIAIS_PADRAO.estrutura
+      && Array.isArray(orcamento.encargosSociais?.grupos)
+      ? clonarConfiguracao(orcamento.encargosSociais)
+      : clonarConfiguracao(ENCARGOS_SOCIAIS_PADRAO),
     descontoGlobal: orcamento.descontoGlobal ?? null,
     historicoCalculo: orcamento.historicoCalculo || [],
     itens: reclassificarEap((orcamento.itens || []).map((item) => ({
@@ -343,8 +426,8 @@ export function criarOrcamento({ id, nome, bdi, area }) {
     status: "Em elaboração",
     revisao: "R01",
     bdi: numeroSeguro(bdi),
-    bdiComponentes: null,
-    encargosSociais: { ...ENCARGOS_SOCIAIS_PADRAO },
+    bdiComponentes: clonarConfiguracao(BDI_COMPONENTES_PADRAO),
+    encargosSociais: clonarConfiguracao(ENCARGOS_SOCIAIS_PADRAO),
     descontoGlobal: null,
     historicoCalculo: [],
     area: numeroSeguro(area),

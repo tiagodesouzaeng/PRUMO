@@ -4,8 +4,10 @@ import {
   ENCARGOS_SOCIAIS_PADRAO,
   calcularBdiDetalhado,
   calcularDistribuicaoDesconto,
+  calcularTotalPercentuais,
   calcularTotais,
   compararSnapshots,
+  criarId,
   proximoCodigoGrupo,
   proximoCodigoServico,
   totalGrupo,
@@ -299,7 +301,7 @@ function Planilha({
         />
         <footer className="orc-table-footer">
           <span>{orcamento.itens.filter((item) => item.tipo !== "grupo").length} itens · {orcamento.itens.filter((item) => item.tipo === "grupo").length} grupos · {totais.pendencias} pendências</span>
-          <div><span>Líquido: {formatarMoeda(totais.custoDireto)}</span><span>BDI: {formatarMoeda(totais.valorBdi)}</span><strong>Total com BDI: {formatarMoeda(totais.precoTotal)}</strong></div>
+          <div><span>Bruto: {formatarMoeda(totais.subtotalBruto)}</span><span>Descontos: − {formatarMoeda(totais.valorDesconto)}</span><span>Líquido: {formatarMoeda(totais.custoDireto)}</span><span>BDI: {formatarMoeda(totais.valorBdi)}</span><strong>Total com BDI: {formatarMoeda(totais.precoTotal)}</strong></div>
         </footer>
       </article>
     </>
@@ -320,23 +322,80 @@ function CondicoesComerciais({ orcamento, salvarDesconto }) {
   );
 }
 
+const clonar = (valor) => JSON.parse(JSON.stringify(valor));
+
+function EditorPercentuais({ configuracao, alterar, prefixo }) {
+  function atualizarItem(grupoId, itemId, campo, valor) {
+    alterar((atual) => ({
+      ...atual,
+      grupos: atual.grupos.map((grupo) => grupo.id !== grupoId ? grupo : {
+        ...grupo,
+        itens: grupo.itens.map((item) => item.id !== itemId ? item : {
+          ...item,
+          [campo]: campo === "percentual" ? Number(valor) : valor,
+        }),
+      }),
+    }));
+  }
+
+  function adicionarItem(grupoId) {
+    alterar((atual) => ({
+      ...atual,
+      grupos: atual.grupos.map((grupo) => grupo.id !== grupoId ? grupo : {
+        ...grupo,
+        itens: [...grupo.itens, {
+          id: `${grupo.id}${grupo.itens.length + 1}-${criarId("taxa")}`,
+          descricao: "Novo item",
+          percentual: 0,
+        }],
+      }),
+    }));
+  }
+
+  function removerItem(grupoId, itemId) {
+    alterar((atual) => ({
+      ...atual,
+      grupos: atual.grupos.map((grupo) => grupo.id !== grupoId ? grupo : {
+        ...grupo,
+        itens: grupo.itens.filter((item) => item.id !== itemId),
+      }),
+    }));
+  }
+
+  function adicionarGrupo() {
+    alterar((atual) => ({
+      ...atual,
+      grupos: [...atual.grupos, {
+        id: `G${atual.grupos.length + 1}`,
+        nome: "Novo grupo",
+        itens: [],
+      }],
+    }));
+  }
+
+  return (
+    <div className="analytic-rate-editor">
+      {configuracao.grupos.map((grupo) => {
+        const total = grupo.itens.reduce((soma, item) => soma + Number(item.percentual || 0), 0);
+        return (
+          <section key={grupo.id}>
+            <header><strong>GRUPO {grupo.id} — <input aria-label={`Nome do grupo ${grupo.id}`} value={grupo.nome} onChange={(event) => alterar((atual) => ({ ...atual, grupos: atual.grupos.map((item) => item.id === grupo.id ? { ...item, nome: event.target.value } : item) }))} /></strong><b>{total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</b></header>
+            {grupo.itens.map((item) => <div key={item.id}><span>{item.id}</span><input aria-label={`Descrição ${item.id}`} value={item.descricao} onChange={(event) => atualizarItem(grupo.id, item.id, "descricao", event.target.value)} /><label><input aria-label={`Percentual ${item.id}`} type="number" min="0" step="0.01" value={item.percentual} onChange={(event) => atualizarItem(grupo.id, item.id, "percentual", event.target.value)} /><b>%</b></label><button type="button" aria-label={`Remover ${item.id}`} onClick={() => removerItem(grupo.id, item.id)}>×</button></div>)}
+            <footer><button type="button" onClick={() => adicionarItem(grupo.id)}>＋ Incluir item no grupo {grupo.id}</button><strong>Total do Grupo {grupo.id}: {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></footer>
+          </section>
+        );
+      })}
+      <button type="button" className="analytic-add-group" onClick={adicionarGrupo}>＋ Incluir novo grupo em {prefixo}</button>
+    </div>
+  );
+}
+
 function BdiDetalhado({ orcamento, salvarBdi, salvarEncargos }) {
   const [guia, setGuia] = useState("bdi");
-  const [componentes, setComponentes] = useState(
-    () => ({ ...(orcamento.bdiComponentes || BDI_COMPONENTES_PADRAO) }),
-  );
-  const [encargos, setEncargos] = useState(
-    () => ({ ...(orcamento.encargosSociais || ENCARGOS_SOCIAIS_PADRAO) }),
-  );
+  const [componentes, setComponentes] = useState(() => clonar(orcamento.bdiComponentes || BDI_COMPONENTES_PADRAO));
+  const [encargos, setEncargos] = useState(() => clonar(orcamento.encargosSociais || ENCARGOS_SOCIAIS_PADRAO));
   const bdiCalculado = calcularBdiDetalhado(componentes);
-  const campos = [
-    ["administracaoCentral", "Administração central"],
-    ["segurosGarantias", "Seguros e garantias"],
-    ["riscos", "Riscos"],
-    ["despesasFinanceiras", "Despesas financeiras"],
-    ["lucro", "Lucro"],
-    ["tributos", "Tributos"],
-  ];
+  const totalEncargos = calcularTotalPercentuais(encargos.grupos);
 
   return (
     <>
@@ -344,49 +403,42 @@ function BdiDetalhado({ orcamento, salvarBdi, salvarEncargos }) {
         <button type="button" className={guia === "bdi" ? "is-active" : ""} onClick={() => setGuia("bdi")}>Composição do BDI</button>
         <button type="button" className={guia === "encargos" ? "is-active" : ""} onClick={() => setGuia("encargos")}>Encargos sociais</button>
       </nav>
-      {guia === "bdi" && <div className="orc-bdi-grid">
-      <article className="orc-card">
-        <header><div><span>COMPOSIÇÃO DO BDI</span><h3>Componentes percentuais</h3></div><strong>{bdiCalculado.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong></header>
-        <div className="orc-bdi-form">
-          {campos.map(([campo, rotulo]) => <label key={campo}><span>{rotulo}</span><div><input type="number" min="0" max={campo === "tributos" ? "99" : "100"} step="0.01" value={componentes[campo]} onChange={(event) => setComponentes((atuais) => ({ ...atuais, [campo]: Number(event.target.value) }))} /><b>%</b></div></label>)}
-        </div>
-        <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={() => setComponentes({ ...BDI_COMPONENTES_PADRAO })}>Restaurar referência</button><button type="button" className="orc-btn orc-btn-primary" onClick={() => salvarBdi(componentes)}>Aplicar BDI</button></footer>
-      </article>
-      <aside className="orc-card orc-bdi-summary">
-        <header><div><span>MEMÓRIA DE CÁLCULO</span><h3>Resultado</h3></div></header>
-        <div><span>BDI anterior</span><strong>{calcularTotais(orcamento).bdi.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong></div>
-        <div><span>BDI calculado</span><strong>{bdiCalculado.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong></div>
-        <div><span>Subtotal bruto</span><strong>{formatarMoeda(calcularTotais(orcamento).subtotalBruto)}</strong></div>
-        <div><span>Desconto global</span><strong>− {formatarMoeda(calcularTotais(orcamento).valorDesconto)}</strong></div>
-        <div><span>Custo direto líquido</span><strong>{formatarMoeda(calcularTotais(orcamento).custoDireto)}</strong></div>
-        <div className="total"><span>Preço com BDI</span><strong>{formatarMoeda(calcularTotais({ ...orcamento, bdiComponentes: componentes }).precoTotal)}</strong></div>
-        <p>Fórmula: (((1 + AC + SG + R) × (1 + DF) × (1 + L)) ÷ (1 − I)) − 1</p>
-      </aside>
+      {guia === "bdi" && <div className="orc-bdi-grid analytic-config-grid">
+        <article className="orc-card">
+          <header><div><span>COMPOSIÇÃO ANALÍTICA DO BDI</span><h3>Grupos e componentes percentuais</h3></div><strong>{bdiCalculado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></header>
+          <EditorPercentuais configuracao={componentes} alterar={setComponentes} prefixo="BDI" />
+          <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={() => setComponentes(clonar(BDI_COMPONENTES_PADRAO))}>Restaurar planilha</button><button type="button" className="orc-btn orc-btn-primary" onClick={() => salvarBdi(componentes)}>Aplicar BDI</button></footer>
+        </article>
+        <aside className="orc-card orc-bdi-summary">
+          <header><div><span>MEMÓRIA DE CÁLCULO</span><h3>Resultado</h3></div></header>
+          {componentes.grupos.map((grupo) => <div key={grupo.id}><span>Grupo {grupo.id} · {grupo.nome}</span><strong>{grupo.itens.reduce((soma, item) => soma + Number(item.percentual || 0), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>)}
+          <div><span>BDI calculado</span><strong>{bdiCalculado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>
+          <div><span>Subtotal bruto</span><strong>{formatarMoeda(calcularTotais(orcamento).subtotalBruto)}</strong></div>
+          <div><span>Desconto global</span><strong>− {formatarMoeda(calcularTotais(orcamento).valorDesconto)}</strong></div>
+          <div className="total"><span>Preço com BDI</span><strong>{formatarMoeda(calcularTotais({ ...orcamento, bdiComponentes: componentes }).precoTotal)}</strong></div>
+          <p>Fórmula: (((1 + A + B) × (1 + C) × (1 + D)) ÷ (1 − E)) − 1</p>
+        </aside>
       </div>}
-      {guia === "encargos" && (
-        <div className="social-charges-grid">
-          <article className="orc-card">
-            <header><div><span>ENCARGOS SOCIAIS</span><h3>Referência aplicada ao orçamento</h3></div><strong>{encargos.regime}</strong></header>
-            <div className="social-charges-form">
-              <label><span>Fonte</span><input value={encargos.fonte} onChange={(event) => setEncargos((atual) => ({ ...atual, fonte: event.target.value }))} /></label>
-              <label><span>Estado</span><input maxLength="5" value={encargos.uf} onChange={(event) => setEncargos((atual) => ({ ...atual, uf: event.target.value.toUpperCase() }))} /></label>
-              <label><span>Mês de referência</span><input value={encargos.referencia} onChange={(event) => setEncargos((atual) => ({ ...atual, referencia: event.target.value }))} /></label>
-              <label><span>Regime</span><select value={encargos.regime} onChange={(event) => setEncargos((atual) => ({ ...atual, regime: event.target.value }))}><option>Sem desoneração</option><option>Desonerado</option><option>Personalizado</option></select></label>
-              <label><span>Taxa horista</span><div><input type="number" min="0" step="0.01" value={encargos.horista} onChange={(event) => setEncargos((atual) => ({ ...atual, horista: Number(event.target.value) }))} /><b>%</b></div></label>
-              <label><span>Taxa mensalista</span><div><input type="number" min="0" step="0.01" value={encargos.mensalista} onChange={(event) => setEncargos((atual) => ({ ...atual, mensalista: Number(event.target.value) }))} /><b>%</b></div></label>
-              <label className="orc-field-wide"><span>Observações</span><textarea rows="3" value={encargos.observacoes || ""} onChange={(event) => setEncargos((atual) => ({ ...atual, observacoes: event.target.value }))} /></label>
-            </div>
-            <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={() => setEncargos({ ...ENCARGOS_SOCIAIS_PADRAO })}>Restaurar referência</button><button type="button" className="orc-btn orc-btn-primary" onClick={() => salvarEncargos(encargos)}>Aplicar encargos</button></footer>
-          </article>
-          <aside className="orc-card social-charges-summary">
-            <header><div><span>RESUMO</span><h3>Taxas de referência</h3></div></header>
-            <div><span>Horista</span><strong>{Number(encargos.horista || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>
-            <div><span>Mensalista</span><strong>{Number(encargos.mensalista || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>
-            <div><span>Publicação</span><strong>{encargos.fonte} · {encargos.uf} · {encargos.referencia}</strong></div>
-            <p>A memória analítica dos grupos A, B, C e D permanece preservada na planilha estratégica arquivada. Esta configuração registra a taxa utilizada em cada orçamento.</p>
-          </aside>
-        </div>
-      )}
+      {guia === "encargos" && <div className="social-charges-grid analytic-config-grid">
+        <article className="orc-card">
+          <header><div><span>COMPOSIÇÃO ANALÍTICA DAS TAXAS</span><h3>Encargos sociais por grupo</h3></div><strong>{totalEncargos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></header>
+          <div className="social-charges-form compact">
+            <label><span>Fonte</span><input value={encargos.fonte} onChange={(event) => setEncargos((atual) => ({ ...atual, fonte: event.target.value }))} /></label>
+            <label><span>Estado</span><input maxLength="5" value={encargos.uf} onChange={(event) => setEncargos((atual) => ({ ...atual, uf: event.target.value.toUpperCase() }))} /></label>
+            <label><span>Mês de referência</span><input value={encargos.referencia} onChange={(event) => setEncargos((atual) => ({ ...atual, referencia: event.target.value }))} /></label>
+            <label><span>Regime</span><select value={encargos.regime} onChange={(event) => setEncargos((atual) => ({ ...atual, regime: event.target.value }))}><option>Sem desoneração</option><option>Desonerado</option><option>Personalizado</option></select></label>
+          </div>
+          <EditorPercentuais configuracao={encargos} alterar={setEncargos} prefixo="encargos" />
+          <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={() => setEncargos(clonar(ENCARGOS_SOCIAIS_PADRAO))}>Restaurar planilha</button><button type="button" className="orc-btn orc-btn-primary" onClick={() => salvarEncargos(encargos)}>Aplicar encargos</button></footer>
+        </article>
+        <aside className="orc-card social-charges-summary">
+          <header><div><span>RESUMO</span><h3>Encargos sociais</h3></div></header>
+          {encargos.grupos.map((grupo) => <div key={grupo.id}><span>Grupo {grupo.id} · {grupo.nome}</span><strong>{grupo.itens.reduce((soma, item) => soma + Number(item.percentual || 0), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>)}
+          <div><span>Total geral (A + B + C + D)</span><strong>{totalEncargos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>
+          <div><span>Publicação</span><strong>{encargos.fonte} · {encargos.uf} · {encargos.referencia}</strong></div>
+          <p>{encargos.observacoes}</p>
+        </aside>
+      </div>}
     </>
   );
 }

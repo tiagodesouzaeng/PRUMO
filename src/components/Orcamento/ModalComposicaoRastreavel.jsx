@@ -16,6 +16,7 @@ export default function ModalComposicaoRastreavel({
   basesPrecos,
   fechar,
   tituloContexto = "Memória da composição",
+  ufSelecionada = "RS",
 }) {
   const [trilha, setTrilha] = useState([referencia]);
   const [componentes, setComponentes] = useState([]);
@@ -29,7 +30,7 @@ export default function ModalComposicaoRastreavel({
   useEffect(() => {
     let ativo = true;
     setCarregando(true);
-    basesPrecos.carregarItensComposicao(atual.basePrecoId, atual.codigo)
+    basesPrecos.carregarItensComposicao(atual.basePrecoId, atual.codigo, ufSelecionada)
       .then((itens) => {
         if (ativo) setComponentes(itens || []);
       })
@@ -40,7 +41,7 @@ export default function ModalComposicaoRastreavel({
         if (ativo) setCarregando(false);
       });
     return () => { ativo = false; };
-  }, [atual.basePrecoId, atual.codigo]);
+  }, [atual.basePrecoId, atual.codigo, ufSelecionada]);
 
   function abrirComposicao(componente) {
     const codigo = componente.referenciaCodigo || componente.itemCodigo;
@@ -96,7 +97,7 @@ export default function ModalComposicaoRastreavel({
                     <td>{componente.baseTitulo || base?.titulo || baseAtual?.titulo || "Base própria"}<small>{componente.baseUf ? `${componente.baseUf} · ${componente.baseReferencia}` : base ? `${base.uf} · ${base.referencia}` : ""}</small></td>
                     <td>{componente.unidade || "—"}</td>
                     <td>{numero(coeficiente)}</td>
-                    <td>{preco ? moeda(preco) : "Sem preço"}</td>
+                    <td>{preco ? <>{moeda(preco)}{componente.precoSubstituidoSp && <sup title={`Preço de SP utilizado por ausência de preço em ${ufSelecionada}`}>*</sup>}</> : "Sem preço"}</td>
                     <td>{moeda(coeficiente * preco)}</td>
                     <td>{composicao && <button type="button" className="composition-open-button" onClick={() => abrirComposicao(componente)} title="Abrir composição interna">Abrir →</button>}</td>
                   </tr>
@@ -108,6 +109,7 @@ export default function ModalComposicaoRastreavel({
           </table>
         </div>
         <footer>
+          {componentes.some((item) => item.precoSubstituidoSp) && <small className="composition-fallback-note">* Valor de SP utilizado porque a publicação não possui preço para {ufSelecionada}.</small>}
           {trilha.length > 1 && <button type="button" className="orc-btn orc-btn-ghost" onClick={() => setTrilha((niveis) => niveis.slice(0, -1))}>← Voltar um nível</button>}
           <button type="button" className="orc-btn orc-btn-primary" onClick={fechar}>Fechar</button>
         </footer>

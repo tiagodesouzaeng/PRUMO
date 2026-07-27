@@ -1,8 +1,9 @@
 const DB_NAME = "prumo-bases-precos";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const BASE_STORE = "bases";
 const PACKAGE_STORE = "pacotes";
 const COMPOSITION_STORE = "composicoes_analiticas";
+const SOURCE_FILE_STORE = "arquivos_fontes";
 
 let bancoPromise;
 
@@ -34,6 +35,9 @@ function abrirBanco() {
       if (!banco.objectStoreNames.contains(COMPOSITION_STORE)) {
         const composicoes = banco.createObjectStore(COMPOSITION_STORE, { keyPath: "uid" });
         composicoes.createIndex("baseId", "baseId", { unique: false });
+      }
+      if (!banco.objectStoreNames.contains(SOURCE_FILE_STORE)) {
+        banco.createObjectStore(SOURCE_FILE_STORE, { keyPath: "baseId" });
       }
     };
   });
@@ -95,32 +99,47 @@ function agruparAnalitico(referencias) {
     }, new Map());
 }
 
-export async function listarBasesPrecos() {
+export async function listarBasesPrecos({ incluirExcluidas = false } = {}) {
   const banco = await abrirBanco();
   return new Promise((resolve, reject) => {
     const requisicao = banco.transaction(BASE_STORE, "readonly").objectStore(BASE_STORE).getAll();
     requisicao.onerror = () => reject(requisicao.error);
     requisicao.onsuccess = () => resolve(
-      requisicao.result.sort((a, b) => b.referencia.localeCompare(a.referencia)),
+      requisicao.result
+        .filter((base) => incluirExcluidas || base.status !== "excluida")
+        .sort((a, b) => b.referencia.localeCompare(a.referencia)),
     );
   });
 }
 
-export async function salvarBasePrecos(base, referencias) {
+export async function salvarBasePrecos(base, referencias, arquivoFonte = null) {
   const banco = await abrirBanco();
   const transacao = banco.transaction(
-    [BASE_STORE, PACKAGE_STORE, COMPOSITION_STORE],
+    [BASE_STORE, PACKAGE_STORE, COMPOSITION_STORE, SOURCE_FILE_STORE],
     "readwrite",
   );
   const baseStore = transacao.objectStore(BASE_STORE);
   const packageStore = transacao.objectStore(PACKAGE_STORE);
   const compositionStore = transacao.objectStore(COMPOSITION_STORE);
+  const sourceFileStore = transacao.objectStore(SOURCE_FILE_STORE);
 
   await Promise.all([
     removerPorBase(packageStore, base.id),
     removerPorBase(compositionStore, base.id),
   ]);
-  baseStore.put(base);
+  baseStore.put({ ...base, status: "ativa", excluidaEm: null, restauradaEm: null });
+  if (arquivoFonte) {
+    sourceFileStore.put({
+      baseId: base.id,
+      nomeOriginal: arquivoFonte.name,
+      nomeInterno: `${base.id}__${arquivoFonte.name}`,
+      tipo: arquivoFonte.type || "application/octet-stream",
+      tamanho: arquivoFonte.size,
+      arquivo: arquivoFonte,
+      status: "ativo",
+      armazenadoEm: new Date().toISOString(),
+    });
+  }
 
   agruparPorTipo(referencias).forEach((registros, tipo) => {
     packageStore.put({
@@ -157,7 +176,20 @@ export async function carregarReferenciasBase(baseId, tipos = ["insumo", "compos
   return (await Promise.all(tipos.map(buscarTipo))).flat();
 }
 
-export async function carregarItensComposicaoBase(baseId, composicaoCodigo) {
+function referenciaNaUf(referencia, uf) {
+  if (!referencia?.precosPorUf) return referencia;
+  const precoUf = Number(referencia.precosPorUf[uf]) || 0;
+  const precoSp = Number(referencia.precosPorUf.SP) || 0;
+  return {
+    ...referencia,
+    preco: precoUf > 0 ? precoUf : precoSp,
+    semPreco: precoUf <= 0 && precoSp <= 0,
+    ufPrecoEfetivo: precoUf > 0 ? uf : (precoSp > 0 ? "SP" : uf),
+    precoSubstituidoSp: precoUf <= 0 && precoSp > 0 && uf !== "SP",
+  };
+}
+
+export async function carregarItensComposicaoBase(baseId, composicaoCodigo, uf = "RS") {
   if (!baseId || !composicaoCodigo) return [];
   const banco = await abrirBanco();
   const itens = await new Promise((resolve, reject) => {
@@ -177,7 +209,10 @@ export async function carregarItensComposicaoBase(baseId, composicaoCodigo) {
     referencias.map((item) => [`${item.tipo}:${item.codigo}`, item]),
   );
   return itens.map((item) => {
-    const referencia = catalogo.get(`${item.itemTipo}:${item.itemCodigo}`);
+    const referencia = referenciaNaUf(
+      catalogo.get(`${item.itemTipo}:${item.itemCodigo}`),
+      uf,
+    );
     return {
       ...item,
       descricao: referencia?.descricao || item.descricao,
@@ -191,16 +226,76 @@ export async function carregarItensComposicaoBase(baseId, composicaoCodigo) {
   });
 }
 
-export async function removerBasePrecos(baseId) {
+function obterRegistro(store, chave) {
+  return new Promise((resolve, reject) => {
+    const requisicao = store.get(chave);
+    requisicao.onerror = () => reject(requisicao.error);
+    requisicao.onsuccess = () => resolve(requisicao.result);
+  });
+}
+
+export async function arquivarBasePrecos(baseId, usuario = "Administrador atual") {
   const banco = await abrirBanco();
   const transacao = banco.transaction(
-    [BASE_STORE, PACKAGE_STORE, COMPOSITION_STORE],
+    [BASE_STORE, SOURCE_FILE_STORE],
     "readwrite",
   );
-  transacao.objectStore(BASE_STORE).delete(baseId);
-  await Promise.all([
-    removerPorBase(transacao.objectStore(PACKAGE_STORE), baseId),
-    removerPorBase(transacao.objectStore(COMPOSITION_STORE), baseId),
+  const baseStore = transacao.objectStore(BASE_STORE);
+  const fileStore = transacao.objectStore(SOURCE_FILE_STORE);
+  const [base, arquivo] = await Promise.all([
+    obterRegistro(baseStore, baseId),
+    obterRegistro(fileStore, baseId),
   ]);
+  if (!base) throw new Error("Base de preços não localizada.");
+  const instante = new Date().toISOString();
+  baseStore.put({
+    ...base,
+    status: "excluida",
+    excluidaEm: instante,
+    excluidaPor: usuario,
+  });
+  if (arquivo) {
+    fileStore.put({
+      ...arquivo,
+      status: "arquivado",
+      nomeInterno: `EXCLUIDO_${instante.replace(/[:.]/g, "-")}__${arquivo.nomeOriginal}`,
+      arquivadoEm: instante,
+      arquivadoPor: usuario,
+    });
+  }
   await concluirTransacao(transacao);
 }
+
+export async function restaurarBasePrecos(baseId, usuario = "Administrador atual") {
+  const banco = await abrirBanco();
+  const transacao = banco.transaction(
+    [BASE_STORE, SOURCE_FILE_STORE],
+    "readwrite",
+  );
+  const baseStore = transacao.objectStore(BASE_STORE);
+  const fileStore = transacao.objectStore(SOURCE_FILE_STORE);
+  const [base, arquivo] = await Promise.all([
+    obterRegistro(baseStore, baseId),
+    obterRegistro(fileStore, baseId),
+  ]);
+  if (!base) throw new Error("Base arquivada não localizada.");
+  const instante = new Date().toISOString();
+  baseStore.put({
+    ...base,
+    status: "ativa",
+    restauradaEm: instante,
+    restauradaPor: usuario,
+  });
+  if (arquivo) {
+    fileStore.put({
+      ...arquivo,
+      status: "ativo",
+      nomeInterno: `${base.id}__${arquivo.nomeOriginal}`,
+      restauradoEm: instante,
+      restauradoPor: usuario,
+    });
+  }
+  await concluirTransacao(transacao);
+}
+
+export const removerBasePrecos = arquivarBasePrecos;

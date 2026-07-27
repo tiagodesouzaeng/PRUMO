@@ -7,6 +7,12 @@ const REGIMES_SINAPI = {
   "SEM-ENCARGOS": { insumos: "ISE", composicoes: "CSE", maoObra: "" },
 };
 
+export const UFS_SINAPI = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
+  "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
+  "SP", "SE", "TO",
+];
+
 function normalizarChave(valor) {
   return String(valor ?? "")
     .normalize("NFD")
@@ -68,6 +74,28 @@ function criarReferencia({
   };
 }
 
+function valorComFallbackSp(precosPorUf, ufPreferida) {
+  const uf = UFS_SINAPI.includes(ufPreferida) ? ufPreferida : "RS";
+  const proprio = numeroSeguro(precosPorUf[uf]);
+  const sp = numeroSeguro(precosPorUf.SP);
+  return {
+    preco: proprio > 0 ? proprio : sp,
+    semPreco: proprio <= 0 && sp <= 0,
+    ufPrecoEfetivo: proprio > 0 ? uf : (sp > 0 ? "SP" : uf),
+    precoSubstituidoSp: proprio <= 0 && sp > 0 && uf !== "SP",
+  };
+}
+
+function extrairValoresPorUf(colunasUf, linhaValores, validarColuna = () => true) {
+  return UFS_SINAPI.reduce((precos, uf) => {
+    const indice = colunasUf.findIndex(
+      (valor, posicao) => normalizarChave(valor) === normalizarChave(uf) && validarColuna(posicao),
+    );
+    precos[uf] = indice >= 0 ? numeroSeguro(linhaValores[indice]) : 0;
+    return precos;
+  }, {});
+}
+
 function extrairPrecosInsumosSinapi(XLSX, workbook, metadados) {
   const regime = REGIMES_SINAPI[metadados.regime] || REGIMES_SINAPI["SEM-DESONERACAO"];
   const aba = workbook.Sheets[regime.insumos];
@@ -80,8 +108,10 @@ function extrairPrecosInsumosSinapi(XLSX, workbook, metadados) {
   const descricaoCol = indiceCabecalho(colunas, ["Descrição do Insumo"]);
   const unidadeCol = indiceCabecalho(colunas, ["Unidade"]);
   const origemCol = indiceCabecalho(colunas, ["Origem de Preço"]);
-  const precoCol = colunas.findIndex((valor) => normalizarChave(valor) === normalizarChave(metadados.uf));
-  if ([codigoCol, descricaoCol, precoCol].some((indice) => indice < 0)) return [];
+  const possuiUf = UFS_SINAPI.some((uf) => colunas.some(
+    (valor) => normalizarChave(valor) === normalizarChave(uf),
+  ));
+  if ([codigoCol, descricaoCol].some((indice) => indice < 0) || !possuiUf) return [];
 
   return linhas.slice(cabecalho + 1).flatMap((linha, indice) => {
     const codigo = valorCodigo(
@@ -90,14 +120,18 @@ function extrairPrecosInsumosSinapi(XLSX, workbook, metadados) {
     );
     const descricao = linha[descricaoCol];
     if (!codigo || !descricao) return [];
+    const precosPorUf = extrairValoresPorUf(colunas, linha);
+    const precoSelecionado = valorComFallbackSp(precosPorUf, metadados.uf);
     return [criarReferencia({
       codigo,
       descricao,
       tipo: "insumo",
       unidade: linha[unidadeCol],
-      preco: linha[precoCol],
+      preco: precoSelecionado.preco,
       origem: linha[origemCol],
       classificacao: linha[0] || "",
+      precosPorUf,
+      ...precoSelecionado,
     })];
   });
 }
@@ -114,11 +148,11 @@ function extrairCustosComposicoesSinapi(XLSX, workbook, metadados) {
   const descricaoCol = indiceCabecalho(colunas, ["Descrição"]);
   const unidadeCol = indiceCabecalho(colunas, ["Unidade"]);
   const linhaUfs = linhas[cabecalho - 1] || [];
-  const precoCol = linhaUfs.findIndex(
-    (valor, indice) => normalizarChave(valor) === normalizarChave(metadados.uf)
+  const possuiUf = UFS_SINAPI.some((uf) => linhaUfs.some(
+    (valor, indice) => normalizarChave(valor) === normalizarChave(uf)
       && normalizarChave(colunas[indice]).includes("custo"),
-  );
-  if ([codigoCol, descricaoCol, precoCol].some((indice) => indice < 0)) return [];
+  ));
+  if ([codigoCol, descricaoCol].some((indice) => indice < 0) || !possuiUf) return [];
 
   return linhas.slice(cabecalho + 1).flatMap((linha, indice) => {
     const codigo = valorCodigo(
@@ -127,15 +161,22 @@ function extrairCustosComposicoesSinapi(XLSX, workbook, metadados) {
     );
     const descricao = linha[descricaoCol];
     if (!codigo || !descricao || codigo === "0") return [];
+    const precosPorUf = extrairValoresPorUf(
+      linhaUfs,
+      linha,
+      (indice) => normalizarChave(colunas[indice]).includes("custo"),
+    );
+    const precoSelecionado = valorComFallbackSp(precosPorUf, metadados.uf);
     return [criarReferencia({
       codigo,
       descricao,
       tipo: "composicao",
       unidade: linha[unidadeCol],
-      preco: linha[precoCol],
-      origem: metadados.uf,
+      preco: precoSelecionado.preco,
+      origem: precoSelecionado.ufPrecoEfetivo,
       grupo: linha[0] || "",
-      percentualAtribuidoSp: numeroSeguro(linha[precoCol + 1]),
+      precosPorUf,
+      ...precoSelecionado,
     })];
   });
 }
@@ -368,14 +409,17 @@ export async function importarArquivoBasePrecos(arquivo, metadados) {
 
   const semPreco = catalogo.filter((item) => item.semPreco).length;
   const fonteId = normalizarChave(fonte).toUpperCase() || "BASE";
-  const baseId = `${fonteId}-${metadados.uf || "GERAL"}-${metadados.referencia}-${metadados.regime || "PADRAO"}`
+  const nacional = fonte === "SINAPI";
+  const baseId = `${fonteId}-${nacional ? "NACIONAL" : (metadados.uf || "GERAL")}-${metadados.referencia}-${metadados.regime || "PADRAO"}`
     .replace(/[^A-Z0-9-]/gi, "-")
     .toUpperCase();
   const base = {
     id: baseId,
     fonte,
-    titulo: `${fonte} ${metadados.uf || ""} · ${metadados.referencia}`.replace(/\s+/g, " ").trim(),
-    uf: metadados.uf || "",
+    titulo: `${fonte} ${nacional ? "Nacional" : (metadados.uf || "")} · ${metadados.referencia}`.replace(/\s+/g, " ").trim(),
+    uf: nacional ? "NACIONAL" : (metadados.uf || ""),
+    ufInicial: metadados.uf || "RS",
+    ufsDisponiveis: nacional ? UFS_SINAPI : [metadados.uf || "GERAL"],
     referencia: metadados.referencia,
     regime: metadados.regime || "PADRAO",
     arquivo: arquivo.name,
