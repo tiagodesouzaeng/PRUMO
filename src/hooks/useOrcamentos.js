@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  calcularDistribuicaoDesconto,
   calcularTotais,
   criarId,
   criarOrcamento,
   numeroSeguro,
+  REGRA_CALCULO_ATUAL,
 } from "../domain/orcamento";
 import {
   carregarOrcamentoAtivo,
@@ -204,6 +206,42 @@ export default function useOrcamentos() {
     atualizarAtivo((orcamento) => ({ ...orcamento, bdiComponentes }));
   }
 
+  function atualizarDescontoGlobal(dados) {
+    atualizarAtivo((orcamento) => {
+      const agora = new Date().toISOString();
+      const usuario = "Usuário atual";
+      const removendo = !dados || numeroSeguro(dados.valor) <= 0;
+      const configuracao = removendo ? null : {
+        tipo: dados.tipo === "valor" ? "valor" : "percentual",
+        valor: numeroSeguro(dados.valor),
+        atualizadoEm: agora,
+        usuario,
+        versaoRegra: REGRA_CALCULO_ATUAL,
+      };
+      const distribuicao = calcularDistribuicaoDesconto({
+        ...orcamento,
+        descontoGlobal: configuracao,
+      });
+      const registro = {
+        id: criarId("calc"),
+        acao: removendo ? "desconto_removido" : "desconto_aplicado",
+        tipo: configuracao?.tipo || orcamento.descontoGlobal?.tipo || "",
+        valorInformado: configuracao?.valor || 0,
+        percentualCalculado: distribuicao.percentual,
+        valorDesconto: distribuicao.valorDesconto,
+        usuario,
+        data: agora,
+        versaoRegra: REGRA_CALCULO_ATUAL,
+      };
+
+      return {
+        ...orcamento,
+        descontoGlobal: configuracao,
+        historicoCalculo: [registro, ...(orcamento.historicoCalculo || [])],
+      };
+    });
+  }
+
   function atualizarPrecosSinapi(referencias, base) {
     const precos = new Map(
       referencias
@@ -277,6 +315,11 @@ export default function useOrcamentos() {
         publicada: false,
         data: new Date().toISOString(),
         snapshot: structuredClone(orcamento.itens),
+        calculo: {
+          descontoGlobal: structuredClone(orcamento.descontoGlobal),
+          versaoRegra: REGRA_CALCULO_ATUAL,
+          totais,
+        },
       };
 
       return {
@@ -305,6 +348,7 @@ export default function useOrcamentos() {
     moverItem,
     importarItens,
     atualizarBdi,
+    atualizarDescontoGlobal,
     atualizarPrecosSinapi,
     adicionarComposicao,
     removerComposicao,

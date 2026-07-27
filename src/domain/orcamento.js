@@ -1,4 +1,5 @@
-export const ORCAMENTO_STORAGE_VERSION = 2;
+export const ORCAMENTO_STORAGE_VERSION = 3;
+export const REGRA_CALCULO_ATUAL = "9.4-truncamento-2-casas";
 
 export const UNIDADES_ORCAMENTARIAS = [
   "UN", "M", "M²", "M³", "KG", "T", "H", "DIA", "MÊS", "VB",
@@ -39,6 +40,8 @@ export const ORCAMENTOS_INICIAIS = [
     base: "SINAPI RS · 06/2026",
     bdi: 24.73,
     bdiComponentes: BDI_COMPONENTES_PADRAO,
+    descontoGlobal: null,
+    historicoCalculo: [],
     area: 5840,
     atualizadoEm: "2026-07-26T10:42:00.000Z",
     itens: itensBase,
@@ -55,6 +58,8 @@ export const ORCAMENTOS_INICIAIS = [
     base: "SINAPI RS · 06/2026",
     bdi: 22.5,
     bdiComponentes: null,
+    descontoGlobal: null,
+    historicoCalculo: [],
     area: 1920,
     atualizadoEm: "2026-07-18T15:20:00.000Z",
     itens: itensBase.slice(0, 4),
@@ -69,6 +74,8 @@ export const ORCAMENTOS_INICIAIS = [
     base: "SINAPI RS · 05/2026",
     bdi: 21.8,
     bdiComponentes: null,
+    descontoGlobal: null,
+    historicoCalculo: [],
     area: 2460,
     atualizadoEm: "2026-07-10T11:30:00.000Z",
     itens: itensBase.slice(0, 6),
@@ -85,6 +92,18 @@ export function criarId(prefixo) {
 export function numeroSeguro(valor) {
   const numero = typeof valor === "string" ? Number(valor.replace(",", ".")) : Number(valor);
   return Number.isFinite(numero) ? numero : 0;
+}
+
+export function truncarMoeda(valor) {
+  const numero = numeroSeguro(valor);
+  const sinal = numero < 0 ? -1 : 1;
+  const absoluto = Math.abs(numero);
+  const toleranciaBinaria = Number.EPSILON * Math.max(1, absoluto) * 8;
+  return sinal * (Math.floor((absoluto + toleranciaBinaria) * 100) / 100);
+}
+
+function paraCentavos(valor) {
+  return Math.round(truncarMoeda(valor) * 100);
 }
 
 export function calcularBdiDetalhado(componentes) {
@@ -106,14 +125,87 @@ export function obterBdi(orcamento) {
 
 export function totalItem(item) {
   if (item.tipo === "grupo") return 0;
-  return numeroSeguro(item.quantidade) * numeroSeguro(item.unitario);
+  return truncarMoeda(numeroSeguro(item.quantidade) * numeroSeguro(item.unitario));
 }
 
-export function totalGrupo(itens, codigoGrupo) {
+export function totalGrupo(itens, codigoGrupo, descontos = new Map()) {
   const prefixo = `${codigoGrupo}.`;
-  return itens
+  const centavos = itens
     .filter((item) => item.tipo !== "grupo" && item.codigo.startsWith(prefixo))
-    .reduce((total, item) => total + totalItem(item), 0);
+    .reduce((total, item) => (
+      total + paraCentavos(totalItem(item)) - paraCentavos(descontos.get(item.id) || 0)
+    ), 0);
+  return centavos / 100;
+}
+
+export function calcularDistribuicaoDesconto(orcamento) {
+  const servicos = (orcamento.itens || [])
+    .filter((item) => item.tipo !== "grupo")
+    .map((item) => ({ item, centavos: Math.max(0, paraCentavos(totalItem(item))) }))
+    .filter(({ centavos }) => centavos > 0);
+  const subtotalCentavos = servicos.reduce((total, item) => total + item.centavos, 0);
+  const desconto = orcamento.descontoGlobal;
+  const porItem = new Map();
+
+  if (!desconto || subtotalCentavos <= 0) {
+    return {
+      porItem,
+      subtotalBruto: subtotalCentavos / 100,
+      valorDesconto: 0,
+      percentual: 0,
+    };
+  }
+
+  const tipo = desconto.tipo === "valor" ? "valor" : "percentual";
+  const informado = Math.max(0, numeroSeguro(desconto.valor));
+  const descontoCentavos = tipo === "valor"
+    ? Math.min(subtotalCentavos, Math.max(0, paraCentavos(informado)))
+    : Math.min(
+      subtotalCentavos,
+      Math.floor((subtotalCentavos * Math.min(informado, 100)) / 100),
+    );
+  const percentual = subtotalCentavos
+    ? (descontoCentavos / subtotalCentavos) * 100
+    : 0;
+
+  const parcelas = servicos.map(({ item, centavos }) => {
+    const valorExato = (centavos * descontoCentavos) / subtotalCentavos;
+    const valorBase = Math.floor(valorExato);
+    return {
+      item,
+      centavos,
+      descontoCentavos: valorBase,
+      residuo: valorExato - valorBase,
+    };
+  });
+
+  let restante = descontoCentavos - parcelas.reduce(
+    (total, parcela) => total + parcela.descontoCentavos,
+    0,
+  );
+  const ordemDistribuicao = [...parcelas].sort(
+    (a, b) => b.residuo - a.residuo || a.item.codigo.localeCompare(b.item.codigo),
+  );
+  let indice = 0;
+  while (restante > 0 && ordemDistribuicao.length) {
+    const parcela = ordemDistribuicao[indice % ordemDistribuicao.length];
+    if (parcela.descontoCentavos < parcela.centavos) {
+      parcela.descontoCentavos += 1;
+      restante -= 1;
+    }
+    indice += 1;
+  }
+
+  parcelas.forEach(({ item, descontoCentavos: valor }) => {
+    porItem.set(item.id, valor / 100);
+  });
+
+  return {
+    porItem,
+    subtotalBruto: subtotalCentavos / 100,
+    valorDesconto: descontoCentavos / 100,
+    percentual,
+  };
 }
 
 export function proximoCodigoServico(itens, codigoGrupo, itemIgnoradoId = "") {
@@ -134,21 +226,29 @@ export function proximoCodigoGrupo(itens) {
 }
 
 export function calcularTotais(orcamento) {
-  const custoDireto = orcamento.itens.reduce((total, item) => total + totalItem(item), 0);
+  const distribuicao = calcularDistribuicaoDesconto(orcamento);
+  const subtotalBruto = distribuicao.subtotalBruto;
+  const valorDesconto = distribuicao.valorDesconto;
+  const custoDireto = truncarMoeda(subtotalBruto - valorDesconto);
   const bdi = obterBdi(orcamento);
-  const valorBdi = custoDireto * (bdi / 100);
-  const precoTotal = custoDireto + valorBdi;
+  const valorBdi = truncarMoeda(custoDireto * (bdi / 100));
+  const precoTotal = truncarMoeda(custoDireto + valorBdi);
   const pendencias = orcamento.itens.filter(
     (item) => item.tipo !== "grupo" && (!numeroSeguro(item.quantidade) || !numeroSeguro(item.unitario)),
   ).length;
 
   return {
+    subtotalBruto,
+    valorDesconto,
+    descontoPercentual: distribuicao.percentual,
     custoDireto,
     bdi,
     valorBdi,
     precoTotal,
     pendencias,
-    valorPorArea: orcamento.area ? precoTotal / numeroSeguro(orcamento.area) : 0,
+    valorPorArea: orcamento.area
+      ? truncarMoeda(precoTotal / numeroSeguro(orcamento.area))
+      : 0,
   };
 }
 
@@ -196,6 +296,8 @@ export function normalizarOrcamento(orcamento) {
   return {
     ...orcamento,
     bdiComponentes: orcamento.bdiComponentes ?? null,
+    descontoGlobal: orcamento.descontoGlobal ?? null,
+    historicoCalculo: orcamento.historicoCalculo || [],
     itens: (orcamento.itens || []).map((item) => ({
       ...item,
       id: item.id || criarId(item.tipo === "grupo" ? "grp" : "item"),
@@ -216,6 +318,8 @@ export function criarOrcamento({ id, nome, base, bdi, area }) {
     base,
     bdi: numeroSeguro(bdi),
     bdiComponentes: null,
+    descontoGlobal: null,
+    historicoCalculo: [],
     area: numeroSeguro(area),
     atualizadoEm: new Date().toISOString(),
     itens: [],

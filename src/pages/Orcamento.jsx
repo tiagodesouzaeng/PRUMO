@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   BDI_COMPONENTES_PADRAO,
   calcularBdiDetalhado,
+  calcularDistribuicaoDesconto,
   calcularTotais,
   compararSnapshots,
   proximoCodigoGrupo,
@@ -28,6 +29,14 @@ const ETAPAS = [
 
 const formatarMoeda = (valor) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
+
+const formatarPrecoUnitario = (valor) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
+  }).format(valor);
 
 function CabecalhoSecao({ etapa, exportar, novaRevisao }) {
   const textos = {
@@ -60,8 +69,8 @@ function Indicadores({ orcamento }) {
   const totais = calcularTotais(orcamento);
   return (
     <div className="orc-kpis">
-      <article><span>CUSTO DIRETO</span><strong>{formatarMoeda(totais.custoDireto)}</strong><small className="orc-positive">Calculado a partir dos serviços</small></article>
-      <article><span>BDI MÉDIO</span><strong>{totais.bdi.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong><small>Aplicado ao custo direto</small></article>
+      <article><span>CUSTO DIRETO LÍQUIDO</span><strong>{formatarMoeda(totais.custoDireto)}</strong><small className="orc-positive">{totais.valorDesconto ? `${formatarMoeda(totais.valorDesconto)} de desconto` : "Calculado a partir dos serviços"}</small></article>
+      <article><span>BDI MÉDIO</span><strong>{totais.bdi.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong><small>Aplicado após o desconto</small></article>
       <article className="orc-kpi-total"><span>PREÇO TOTAL</span><strong>{formatarMoeda(totais.precoTotal)}</strong><small>{formatarMoeda(totais.valorPorArea)} / m²</small></article>
       <article><span>PENDÊNCIAS</span><strong>{totais.pendencias} {totais.pendencias === 1 ? "item" : "itens"}</strong><small className={totais.pendencias ? "orc-warning" : "orc-positive"}>{totais.pendencias ? "Quantidade ou preço a completar" : "Planilha consistente"}</small></article>
     </div>
@@ -70,6 +79,7 @@ function Indicadores({ orcamento }) {
 
 function TabelaItens({
   itens,
+  descontoGlobal = null,
   completa = false,
   filtro = "",
   editarItem,
@@ -78,6 +88,8 @@ function TabelaItens({
   moverItem,
   itensComErro = new Set(),
 }) {
+  const distribuicao = calcularDistribuicaoDesconto({ itens, descontoGlobal });
+  const descontos = distribuicao.porItem;
   const termo = filtro.trim().toLocaleLowerCase("pt-BR");
   const filtrados = termo
     ? itens.filter((item) => [item.codigo, item.descricao, item.fonte].some((valor) => valor?.toLocaleLowerCase("pt-BR").includes(termo)))
@@ -86,16 +98,30 @@ function TabelaItens({
   return (
     <div className="orc-table-wrap">
       <table className="orc-table">
-        <thead><tr><th>ITEM</th><th>DESCRIÇÃO / FONTE</th><th>QUANTIDADE</th><th>UN.</th><th>PREÇO UNIT.</th><th>PREÇO TOTAL</th><th /></tr></thead>
+        <thead><tr><th>ITEM</th><th>DESCRIÇÃO / FONTE</th><th>QUANTIDADE</th><th>UN.</th><th>PREÇO UNIT.</th><th>BRUTO</th><th>DESCONTO</th><th>TOTAL LÍQUIDO</th><th /></tr></thead>
         <tbody>
-          {linhas.map((item, index) => (
+          {linhas.map((item, index) => {
+            const descontoItem = item.tipo === "grupo"
+              ? itens
+                .filter((servico) => servico.tipo !== "grupo" && servico.codigo.startsWith(`${item.codigo}.`))
+                .reduce((total, servico) => total + (descontos.get(servico.id) || 0), 0)
+              : (descontos.get(item.id) || 0);
+            const valorBruto = item.tipo === "grupo"
+              ? totalGrupo(itens, item.codigo)
+              : totalItem(item);
+            const valorLiquido = item.tipo === "grupo"
+              ? totalGrupo(itens, item.codigo, descontos)
+              : valorBruto - descontoItem;
+            return (
             <tr key={item.id || `${item.codigo}-${index}`} className={`${item.tipo === "grupo" ? "orc-group-row" : ""} ${itensComErro.has(item.id) ? "orc-row-error" : ""}`}>
               <td>{item.tipo === "grupo" && <i>⌄</i>}{item.codigo}</td>
               <td><strong>{item.descricao}</strong>{item.fonte && <small>{item.fonte}</small>}</td>
               <td>{item.quantidade?.toLocaleString("pt-BR") || "—"}</td>
               <td>{item.unidade || ""}</td>
-              <td>{item.unitario ? formatarMoeda(item.unitario) : ""}</td>
-              <td><strong>{formatarMoeda(item.tipo === "grupo" ? totalGrupo(itens, item.codigo) : totalItem(item))}</strong></td>
+              <td>{item.unitario ? formatarPrecoUnitario(item.unitario) : ""}</td>
+              <td>{formatarMoeda(valorBruto)}</td>
+              <td className="orc-discount-value">{descontoItem ? `− ${formatarMoeda(descontoItem)}` : "—"}</td>
+              <td><strong>{formatarMoeda(valorLiquido)}</strong></td>
               <td>
                 {editarItem && <div className="orc-row-actions">
                   <button type="button" onClick={() => moverItem(item, -1)} aria-label={`Mover item ${item.codigo} para cima`} title="Mover para cima">↑</button>
@@ -106,8 +132,9 @@ function TabelaItens({
                 </div>}
               </td>
             </tr>
-          ))}
-          {!linhas.length && <tr><td colSpan="7" className="orc-empty-table">Nenhum item encontrado.</td></tr>}
+            );
+          })}
+          {!linhas.length && <tr><td colSpan="9" className="orc-empty-table">Nenhum item encontrado.</td></tr>}
         </tbody>
       </table>
     </div>
@@ -149,9 +176,66 @@ function VisaoGeralOrcamento({ orcamento, setEtapa }) {
       </div>
       <article className="orc-card orc-budget-preview">
         <header><div><span>PLANILHA ORÇAMENTÁRIA</span><h3>Principais serviços</h3></div><button type="button" onClick={() => setEtapa("planilha")}>Ver planilha completa →</button></header>
-        <TabelaItens itens={orcamento.itens} />
+        <TabelaItens itens={orcamento.itens} descontoGlobal={orcamento.descontoGlobal} />
       </article>
     </>
+  );
+}
+
+function DescontoOrcamento({ orcamento, salvar }) {
+  const [tipo, setTipo] = useState(orcamento.descontoGlobal?.tipo || "percentual");
+  const [valor, setValor] = useState(orcamento.descontoGlobal?.valor || "");
+  const simulacao = calcularTotais({
+    ...orcamento,
+    descontoGlobal: valor ? { tipo, valor } : null,
+  });
+
+  function aplicar(event) {
+    event.preventDefault();
+    salvar({ tipo, valor });
+  }
+
+  return (
+    <article className="orc-card orc-discount-card">
+      <header>
+        <div><span>CONDIÇÃO COMERCIAL</span><h3>Desconto global do orçamento</h3></div>
+        {orcamento.descontoGlobal && <b>ATIVO</b>}
+      </header>
+      <form onSubmit={aplicar}>
+        <label>
+          <span>FORMA DE ENTRADA</span>
+          <select value={tipo} onChange={(event) => { setTipo(event.target.value); setValor(""); }}>
+            <option value="percentual">Percentual (%)</option>
+            <option value="valor">Valor global (R$)</option>
+          </select>
+        </label>
+        <label>
+          <span>{tipo === "percentual" ? "DESCONTO (%)" : "DESCONTO (R$)"}</span>
+          <input
+            required
+            type="number"
+            min="0"
+            max={tipo === "percentual" ? "100" : simulacao.subtotalBruto}
+            step="any"
+            value={valor}
+            onChange={(event) => setValor(event.target.value)}
+            placeholder={tipo === "percentual" ? "Ex.: 5" : "Ex.: 10000"}
+          />
+        </label>
+        <div className="orc-discount-preview">
+          <span><small>SUBTOTAL BRUTO</small><strong>{formatarMoeda(simulacao.subtotalBruto)}</strong></span>
+          <i>−</i>
+          <span><small>DESCONTO</small><strong>{formatarMoeda(simulacao.valorDesconto)}</strong></span>
+          <span><small>PERCENTUAL CALCULADO</small><strong>{simulacao.descontoPercentual.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}%</strong></span>
+          <span><small>SUBTOTAL LÍQUIDO</small><strong>{formatarMoeda(simulacao.custoDireto)}</strong></span>
+        </div>
+        <div className="orc-discount-actions">
+          {orcamento.descontoGlobal && <button type="button" className="orc-btn orc-btn-ghost" onClick={() => { setValor(""); salvar(null); }}>Remover desconto</button>}
+          <button type="submit" className="orc-btn orc-btn-primary">Aplicar desconto</button>
+        </div>
+      </form>
+      <footer>O desconto é rateado entre os serviços. Todos os resultados monetários são truncados em duas casas, sem arredondamento.</footer>
+    </article>
   );
 }
 
@@ -164,6 +248,7 @@ function Planilha({
   duplicarItem,
   moverItem,
   importarArquivo,
+  salvarDesconto,
 }) {
   const [filtro, setFiltro] = useState("");
   const totais = calcularTotais(orcamento);
@@ -172,6 +257,7 @@ function Planilha({
   return (
     <>
       <Indicadores orcamento={orcamento} />
+      <DescontoOrcamento key={`${orcamento.id}-${orcamento.descontoGlobal?.atualizadoEm || "sem-desconto"}`} orcamento={orcamento} salvar={salvarDesconto} />
       <article className="orc-card orc-budget-preview">
         <div className="orc-toolbar">
           <label>⌕<input value={filtro} onChange={(event) => setFiltro(event.target.value)} placeholder="Filtrar item, descrição ou código..." /></label>
@@ -184,6 +270,7 @@ function Planilha({
         {!validacoes.length && <div className="orc-validation-panel is-valid"><strong>✓ Planilha validada</strong><span>Códigos, preços, quantidades e unidades consistentes.</span></div>}
         <TabelaItens
           itens={orcamento.itens}
+          descontoGlobal={orcamento.descontoGlobal}
           completa
           filtro={filtro}
           editarItem={editarItem}
@@ -192,7 +279,10 @@ function Planilha({
           moverItem={moverItem}
           itensComErro={itensComErro}
         />
-        <footer className="orc-table-footer"><span>{orcamento.itens.filter((item) => item.tipo !== "grupo").length} itens · {orcamento.itens.filter((item) => item.tipo === "grupo").length} grupos · {totais.pendencias} pendências</span><strong>Total com BDI: {formatarMoeda(totais.precoTotal)}</strong></footer>
+        <footer className="orc-table-footer">
+          <span>{orcamento.itens.filter((item) => item.tipo !== "grupo").length} itens · {orcamento.itens.filter((item) => item.tipo === "grupo").length} grupos · {totais.pendencias} pendências</span>
+          <div><span>Líquido: {formatarMoeda(totais.custoDireto)}</span><span>BDI: {formatarMoeda(totais.valorBdi)}</span><strong>Total com BDI: {formatarMoeda(totais.precoTotal)}</strong></div>
+        </footer>
       </article>
     </>
   );
@@ -225,7 +315,9 @@ function BdiDetalhado({ orcamento, salvarBdi }) {
         <header><div><span>MEMÓRIA DE CÁLCULO</span><h3>Resultado</h3></div></header>
         <div><span>BDI anterior</span><strong>{calcularTotais(orcamento).bdi.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong></div>
         <div><span>BDI calculado</span><strong>{bdiCalculado.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong></div>
-        <div><span>Custo direto</span><strong>{formatarMoeda(calcularTotais(orcamento).custoDireto)}</strong></div>
+        <div><span>Subtotal bruto</span><strong>{formatarMoeda(calcularTotais(orcamento).subtotalBruto)}</strong></div>
+        <div><span>Desconto global</span><strong>− {formatarMoeda(calcularTotais(orcamento).valorDesconto)}</strong></div>
+        <div><span>Custo direto líquido</span><strong>{formatarMoeda(calcularTotais(orcamento).custoDireto)}</strong></div>
         <div className="total"><span>Preço com BDI</span><strong>{formatarMoeda(calcularTotais({ ...orcamento, bdiComponentes: componentes }).precoTotal)}</strong></div>
         <p>Fórmula: (((1 + AC + SG + R) × (1 + DF) × (1 + L)) ÷ (1 − I)) − 1</p>
       </aside>
@@ -315,11 +407,11 @@ function Bases({ orcamento, adicionarComposicao, removerComposicao, setAviso, si
           <input required value={novaComposicao.codigo} onChange={(event) => setNovaComposicao((atual) => ({ ...atual, codigo: event.target.value }))} placeholder="Código CPU" />
           <input required value={novaComposicao.descricao} onChange={(event) => setNovaComposicao((atual) => ({ ...atual, descricao: event.target.value }))} placeholder="Descrição da composição" />
           <select value={novaComposicao.unidade} onChange={(event) => setNovaComposicao((atual) => ({ ...atual, unidade: event.target.value }))}>{UNIDADES_ORCAMENTARIAS.map((unidade) => <option key={unidade}>{unidade}</option>)}</select>
-          <input required type="number" min="0" step="0.01" value={novaComposicao.custoUnitario} onChange={(event) => setNovaComposicao((atual) => ({ ...atual, custoUnitario: event.target.value }))} placeholder="Custo unitário" />
+          <input required type="number" min="0" step="any" value={novaComposicao.custoUnitario} onChange={(event) => setNovaComposicao((atual) => ({ ...atual, custoUnitario: event.target.value }))} placeholder="Custo unitário" />
           <button type="submit">＋ Cadastrar</button>
         </form>
         <div className="orc-composition-list">
-          {orcamento.composicoes.map((composicao) => <article key={composicao.id}><span><strong>{composicao.codigo}</strong><small>{composicao.unidade}</small></span><div><strong>{composicao.descricao}</strong><small>Composição própria versionada</small></div><b>{formatarMoeda(composicao.custoUnitario)}</b><button type="button" onClick={() => removerComposicao(composicao.id)} aria-label={`Excluir composição ${composicao.codigo}`}>×</button></article>)}
+          {orcamento.composicoes.map((composicao) => <article key={composicao.id}><span><strong>{composicao.codigo}</strong><small>{composicao.unidade}</small></span><div><strong>{composicao.descricao}</strong><small>Composição própria versionada</small></div><b>{formatarPrecoUnitario(composicao.custoUnitario)}</b><button type="button" onClick={() => removerComposicao(composicao.id)} aria-label={`Excluir composição ${composicao.codigo}`}>×</button></article>)}
           {!orcamento.composicoes.length && <p>Nenhuma composição própria cadastrada neste orçamento.</p>}
         </div>
       </section>
@@ -388,6 +480,10 @@ function Revisoes({ orcamento }) {
     autor: "Usuário atual",
     publicada: false,
     snapshot: orcamento.itens,
+    calculo: {
+      descontoGlobal: orcamento.descontoGlobal,
+      totais,
+    },
   };
   const opcoes = [estadoAtual, ...orcamento.revisoes];
   const [revisaoBaseId, setRevisaoBaseId] = useState(opcoes[1]?.id || estadoAtual.id);
@@ -421,7 +517,7 @@ function Revisoes({ orcamento }) {
       </article>
       <article className="orc-card orc-revisions">
         <header><div><span>HISTÓRICO VERSIONADO</span><h3>Revisões do orçamento {orcamento.id}</h3></div></header>
-        {opcoes.map((revisao, index) => <div key={revisao.id} className={index === 0 ? "current" : ""}><span className="orc-rev">{revisao.codigo}</span><span><strong>{revisao.status}</strong><small>{index === 0 ? "Estado editável atual" : "Snapshot preservado"}</small></span><span><small>BASE</small><strong>{revisao.base}</strong></span><span><small>PREÇO TOTAL</small><strong>{formatarMoeda(revisao.total)}</strong></span><b>{revisao.variacao ? `${revisao.variacao > 0 ? "+" : ""}${revisao.variacao.toLocaleString("pt-BR")}%` : "—"}</b><span><small>RESPONSÁVEL</small><strong>{revisao.autor}</strong></span><button type="button">•••</button></div>)}
+        {opcoes.map((revisao, index) => <div key={revisao.id} className={index === 0 ? "current" : ""}><span className="orc-rev">{revisao.codigo}</span><span><strong>{revisao.status}</strong><small>{index === 0 ? "Estado editável atual" : "Snapshot preservado"}</small></span><span><small>BASE</small><strong>{revisao.base}</strong></span><span><small>PREÇO TOTAL</small><strong>{formatarMoeda(revisao.total)}</strong>{revisao.calculo?.totais?.valorDesconto > 0 && <small>Desconto: {formatarMoeda(revisao.calculo.totais.valorDesconto)}</small>}</span><b>{revisao.variacao ? `${revisao.variacao > 0 ? "+" : ""}${revisao.variacao.toLocaleString("pt-BR")}%` : "—"}</b><span><small>RESPONSÁVEL</small><strong>{revisao.autor}</strong></span><button type="button">•••</button></div>)}
       </article>
     </>
   );
@@ -542,12 +638,12 @@ function ModalItem({
           {dados.tipo !== "grupo" && <>
             <div className="orc-sinapi-picker orc-field-wide">
               <label><span>Buscar composição SINAPI {baseSinapi ? `— ${baseSinapi.uf} ${baseSinapi.referencia}` : ""}</span><input disabled={!baseSinapi} value={buscaSinapi} onChange={(event) => setBuscaSinapi(event.target.value)} placeholder={baseSinapi ? "Digite código ou descrição da composição" : "Importe e ative uma base SINAPI primeiro"} /></label>
-              {resultadosSinapi.length > 0 && <div>{resultadosSinapi.map((referencia) => <button type="button" key={referencia.uid || referencia.codigo} onClick={() => selecionarReferenciaSinapi(referencia)}><span><strong>{referencia.codigo}</strong>{referencia.descricao}</span><b className={referencia.semPreco ? "sem-preco" : ""}>{referencia.semPreco ? "Sem preço" : formatarMoeda(referencia.preco)}</b></button>)}</div>}
+              {resultadosSinapi.length > 0 && <div>{resultadosSinapi.map((referencia) => <button type="button" key={referencia.uid || referencia.codigo} onClick={() => selecionarReferenciaSinapi(referencia)}><span><strong>{referencia.codigo}</strong>{referencia.descricao}</span><b className={referencia.semPreco ? "sem-preco" : ""}>{referencia.semPreco ? "Sem preço" : formatarPrecoUnitario(referencia.preco)}</b></button>)}</div>}
             </div>
             <label className="orc-field-wide"><span>Fonte e código</span><input value={dados.fonte} onChange={(event) => atualizar("fonte", event.target.value)} placeholder="SINAPI · 000000" /></label>
             <label><span>Quantidade</span><input required min="0" step="any" type="number" value={dados.quantidade} onChange={(event) => atualizar("quantidade", event.target.value)} /></label>
             <label><span>Unidade</span><select required value={dados.unidade} onChange={(event) => atualizar("unidade", event.target.value)}>{UNIDADES_ORCAMENTARIAS.map((unidade) => <option key={unidade}>{unidade}</option>)}</select></label>
-            <label><span>Preço unitário</span><input required min="0" step="0.01" type="number" value={dados.unitario} onChange={(event) => atualizar("unitario", event.target.value)} /></label>
+            <label><span>Preço unitário (precisão livre)</span><input required min="0" step="any" type="number" value={dados.unitario} onChange={(event) => atualizar("unitario", event.target.value)} /></label>
           </>}
         </div>
         <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">{item ? "Salvar alterações" : "Adicionar"}</button></footer>
@@ -602,6 +698,7 @@ export default function Orcamento() {
     moverItem,
     importarItens,
     atualizarBdi,
+    atualizarDescontoGlobal,
     atualizarPrecosSinapi,
     adicionarComposicao,
     removerComposicao,
@@ -667,6 +764,11 @@ export default function Orcamento() {
     notificar("Composição do BDI aplicada ao orçamento.");
   }
 
+  function salvarDesconto(dados) {
+    atualizarDescontoGlobal(dados);
+    notificar(dados ? "Desconto global aplicado e distribuído entre os serviços." : "Desconto global removido.");
+  }
+
   function aplicarPrecosSinapi() {
     if (!sinapi.baseAtiva) return;
     const total = atualizarPrecosSinapi(sinapi.referencias, sinapi.baseAtiva);
@@ -707,7 +809,7 @@ export default function Orcamento() {
       </nav>
       <CabecalhoSecao etapa={etapaAtual.id} exportar={exportar} novaRevisao={adicionarRevisao} />
       {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
-      {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} />}
+      {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} salvarDesconto={salvarDesconto} />}
       {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} />}
       {etapa === "bases" && <Bases orcamento={orcamentoAtivo} adicionarComposicao={adicionarComposicao} removerComposicao={removerComposicao} setAviso={notificar} sinapi={sinapi} atualizarPrecos={aplicarPrecosSinapi} />}
       {etapa === "cronograma" && <Cronograma />}

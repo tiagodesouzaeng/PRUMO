@@ -64,7 +64,7 @@ milhares de referências.
 
 ## Evolução posterior
 
-### Etapa 9.4 — Motor financeiro, precisão e descontos
+### Etapa 9.4 — Motor financeiro, precisão e descontos — implementada
 
 #### Preços com precisão ampliada
 
