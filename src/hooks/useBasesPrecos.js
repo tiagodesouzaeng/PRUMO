@@ -7,9 +7,17 @@ import {
   removerBasePrecos,
   salvarBasePrecos,
 } from "../services/basePrecosRepository";
+import {
+  listarComposicoesProprias,
+  removerComposicaoPropria,
+  salvarComposicaoPropria,
+} from "../services/composicoesPropriasRepository";
+
+export const BASE_PROPRIA_ID = "base-propria-prumo";
 
 export default function useBasesPrecos() {
-  const [bases, setBases] = useState([]);
+  const [basesImportadas, setBasesImportadas] = useState([]);
+  const [composicoesProprias, setComposicoesProprias] = useState(listarComposicoesProprias);
   const [baseAtivaId, setBaseAtivaId] = useState("");
   const [referencias, setReferencias] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -17,17 +25,61 @@ export default function useBasesPrecos() {
   useEffect(() => {
     listarBasesPrecos()
       .then((encontradas) => {
-        setBases(encontradas);
-        setBaseAtivaId((atual) => atual || encontradas[0]?.id || "");
+        setBasesImportadas(encontradas);
+        setBaseAtivaId((atual) => atual || encontradas[0]?.id || BASE_PROPRIA_ID);
       })
       .catch((error) => console.error("Não foi possível carregar as bases de preços.", error))
       .finally(() => setCarregando(false));
   }, []);
 
   useEffect(() => {
+    const recarregar = () => setComposicoesProprias(listarComposicoesProprias());
+    globalThis.addEventListener?.("prumo-composicoes-proprias", recarregar);
+    return () => globalThis.removeEventListener?.("prumo-composicoes-proprias", recarregar);
+  }, []);
+
+  const basePropria = useMemo(() => ({
+    id: BASE_PROPRIA_ID,
+    titulo: "Base própria PRUMO",
+    fonte: "PRÓPRIA",
+    uf: "GERAL",
+    referencia: "Atual",
+    regime: "PRÓPRIO",
+    total: composicoesProprias.length,
+    registros: composicoesProprias.length,
+    insumos: 0,
+    composicoes: composicoesProprias.length,
+    itensComposicao: composicoesProprias.reduce(
+      (total, item) => total + (item.componentes?.length || 0),
+      0,
+    ),
+    semPreco: 0,
+    statusPreco: "Base corporativa",
+    propria: true,
+  }), [composicoesProprias]);
+  const bases = useMemo(
+    () => [...basesImportadas, basePropria],
+    [basesImportadas, basePropria],
+  );
+
+  useEffect(() => {
     let ativo = true;
     if (!baseAtivaId) {
       setReferencias([]);
+      setCarregando(false);
+      return () => { ativo = false; };
+    }
+    if (baseAtivaId === BASE_PROPRIA_ID) {
+      setReferencias(composicoesProprias.map((composicao) => ({
+        uid: `${BASE_PROPRIA_ID}:composicao:${composicao.codigo}`,
+        codigo: composicao.codigo,
+        descricao: composicao.descricao,
+        unidade: composicao.unidade,
+        preco: composicao.custoUnitario,
+        tipo: "composicao",
+        basePrecoId: BASE_PROPRIA_ID,
+        semPreco: false,
+      })));
       setCarregando(false);
       return () => { ativo = false; };
     }
@@ -41,7 +93,7 @@ export default function useBasesPrecos() {
         if (ativo) setCarregando(false);
       });
     return () => { ativo = false; };
-  }, [baseAtivaId]);
+  }, [baseAtivaId, composicoesProprias]);
 
   const baseAtiva = useMemo(
     () => bases.find((base) => base.id === baseAtivaId),
@@ -53,8 +105,24 @@ export default function useBasesPrecos() {
     try {
       const resultado = await importarArquivoBasePrecos(arquivo, metadados);
       await salvarBasePrecos(resultado.base, resultado.referencias);
+      const precos = new Map(
+        resultado.referencias
+          .filter((item) => ["composicao", "insumo"].includes(item.tipo) && !item.semPreco)
+          .map((item) => [`${item.tipo}:${item.codigo}`, item.preco]),
+      );
+      composicoesProprias.forEach((composicao) => {
+        let alterada = false;
+        const componentes = (composicao.componentes || []).map((componente) => {
+          if (componente.basePrecoId !== resultado.base.id) return componente;
+          const preco = precos.get(`${componente.referenciaTipo}:${componente.referenciaCodigo}`);
+          if (preco == null) return componente;
+          alterada = true;
+          return { ...componente, preco };
+        });
+        if (alterada) salvarPropria({ ...composicao, componentes });
+      });
       const atualizadas = await listarBasesPrecos();
-      setBases(atualizadas);
+      setBasesImportadas(atualizadas);
       setBaseAtivaId(resultado.base.id);
       setReferencias(resultado.referencias);
       return resultado;
@@ -64,10 +132,36 @@ export default function useBasesPrecos() {
   }
 
   async function remover(baseId) {
+    if (baseId === BASE_PROPRIA_ID) return;
     await removerBasePrecos(baseId);
     const atualizadas = await listarBasesPrecos();
-    setBases(atualizadas);
-    setBaseAtivaId(atualizadas[0]?.id || "");
+    setBasesImportadas(atualizadas);
+    setBaseAtivaId(atualizadas[0]?.id || BASE_PROPRIA_ID);
+  }
+
+  function salvarPropria(dados) {
+    const componentes = dados.componentes || [];
+    const custoUnitario = componentes.length
+      ? componentes.reduce(
+        (total, item) => total + Number(item.coeficiente) * Number(item.preco),
+        0,
+      )
+      : Number(dados.custoUnitario) || 0;
+    const salva = salvarComposicaoPropria({ ...dados, custoUnitario, componentes });
+    setComposicoesProprias(listarComposicoesProprias());
+    return salva;
+  }
+
+  function removerPropria(composicaoId) {
+    removerComposicaoPropria(composicaoId);
+    setComposicoesProprias(listarComposicoesProprias());
+  }
+
+  async function carregarItensComposicao(baseId, codigo) {
+    if (baseId === BASE_PROPRIA_ID) {
+      return composicoesProprias.find((item) => item.codigo === codigo)?.componentes || [];
+    }
+    return carregarItensComposicaoBase(baseId, codigo);
   }
 
   return {
@@ -79,8 +173,9 @@ export default function useBasesPrecos() {
     carregando,
     importar,
     remover,
-    carregarItensComposicao: (codigo) => (
-      carregarItensComposicaoBase(baseAtivaId, codigo)
-    ),
+    composicoesProprias,
+    salvarComposicaoPropria: salvarPropria,
+    removerComposicaoPropria: removerPropria,
+    carregarItensComposicao,
   };
 }

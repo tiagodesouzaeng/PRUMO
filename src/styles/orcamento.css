@@ -309,6 +309,42 @@
 .orc-sinapi-picker button span { flex: 1; font-size: 9px; }.orc-sinapi-picker button span strong { margin-right: 7px; color: var(--orc-teal); }
 .orc-sinapi-picker button b { color: var(--orc-navy); font-size: 9px; white-space: nowrap; }.orc-sinapi-picker button b.sem-preco { color: #a66d13; }
 .orc-modal > footer { padding: 14px 20px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--orc-border); background: #f8fafb; }
+.orc-modal-wide { width: min(1120px, 96vw); }
+.base-item-publication, .base-publication-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.orc-composition-row { cursor: pointer; }.orc-composition-row:hover td { background: #f5fbfa; }
+.orc-composition-row td:nth-child(2) strong::after { content: "  ◫"; color: var(--orc-teal); font-size: 9px; }
+.composition-detail-modal { max-height: 90vh; overflow: hidden; }
+.composition-detail-summary { padding: 16px 20px; display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: 10px; background: #f5f9f9; }
+.composition-detail-summary > div { padding: 11px; border: 1px solid #dfe8e9; border-radius: 8px; background: #fff; }
+.composition-detail-summary span, .composition-detail-summary small { display: block; color: #778990; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.composition-detail-summary strong { display: block; margin: 5px 0; color: var(--orc-navy); font-size: 12px; }
+.composition-editor-table { overflow: auto; }
+.composition-detail-modal .composition-editor-table { max-height: 50vh; padding: 0 20px 18px; }
+.composition-editor-table table { width: 100%; border-collapse: collapse; font-size: 9px; }
+.composition-editor-table th { padding: 8px; background: #edf4f4; color: #60747c; text-align: left; white-space: nowrap; }
+.composition-editor-table td { padding: 9px 8px; border-bottom: 1px solid #e8eeee; color: #526871; vertical-align: top; }
+.composition-editor-table td strong, .composition-editor-table td small { display: block; }.composition-editor-table td small { margin-top: 3px; color: #839198; }
+.composition-editor-table td button { border: 0; background: transparent; color: #a54843; font-weight: 900; }
+.composition-type { display: inline-block; padding: 3px 6px; border-radius: 10px; background: #eaf4f2; color: var(--orc-teal); font-size: 7px; text-transform: uppercase; }
+.composition-type.insumo { background: #edf2f6; color: #45677a; }
+.bases-module-page { max-width: 1500px; }
+.base-library-layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; }
+.base-library-list { align-self: start; overflow: hidden; }
+.base-library-list > button { width: 100%; padding: 13px 16px; display: block; border: 0; border-top: 1px solid #e7eeee; background: #fff; color: #536872; text-align: left; }
+.base-library-list > button:hover, .base-library-list > button.is-active { background: #edf8f6; box-shadow: inset 4px 0 var(--orc-teal); }
+.base-library-list > button strong, .base-library-list > button span, .base-library-list > button small { display: block; }
+.base-library-list > button strong { color: var(--orc-navy); font-size: 11px; }.base-library-list > button span { margin-top: 4px; color: var(--orc-teal); font-size: 8px; font-weight: 900; }.base-library-list > button small { margin-top: 4px; color: #839198; font-size: 8px; }
+.base-library-catalog { min-width: 0; overflow: hidden; }
+.base-library-catalog > header { align-items: center; }
+.catalog-type-buttons { display: flex; gap: 5px; }.catalog-type-buttons button { padding: 7px 10px; border: 1px solid #d7e3e3; border-radius: 6px; background: #fff; color: #657880; font-size: 8px; font-weight: 900; }.catalog-type-buttons button.is-active { border-color: var(--orc-teal); background: var(--orc-teal); color: #fff; }
+.base-library-catalog > .base-publication-picker { padding: 14px 16px 0; }
+.base-publication-picker label { display: flex; flex-direction: column; gap: 5px; }.base-publication-picker label span { color: #71848b; font-size: 8px; font-weight: 900; text-transform: uppercase; }.base-publication-picker select { height: 36px; padding: 0 9px; border: 1px solid #d8e2e4; border-radius: 7px; background: #fff; color: #425b66; font-size: 10px; }
+.base-catalog-search { width: calc(100% - 32px); height: 39px; margin: 14px 16px; padding: 0 12px; border: 1px solid #d5e1e2; border-radius: 7px; outline: none; }
+.base-catalog-results { max-height: 580px; overflow-y: auto; border-top: 1px solid #e8eeee; }
+.base-catalog-results article { padding: 10px 16px; display: grid; grid-template-columns: 130px 1fr 130px auto; gap: 12px; align-items: center; border-bottom: 1px solid #edf1f2; }
+.base-catalog-results article > span strong, .base-catalog-results article > span small { display: block; }.base-catalog-results article > span strong { color: var(--orc-teal); font-size: 10px; }.base-catalog-results article > span small { color: #88969b; font-size: 7px; text-transform: uppercase; }
+.base-catalog-results article p { margin: 0; color: #50656e; font-size: 9px; }.base-catalog-results article b { color: var(--orc-navy); font-size: 9px; text-align: right; }.base-catalog-results article b.sem-preco { color: #a06c19; }
+.base-catalog-results article > button { border: 0; background: transparent; color: #a54843; }
 
 @media (max-width: 1120px) {
   .orc-kpis, .orc-schedule-kpis { grid-template-columns: repeat(2, 1fr); }
@@ -316,6 +352,7 @@
   .orc-project-bar { flex-wrap: wrap; }
   .orc-project-bar > div:first-child { flex-basis: 100%; }
   .orc-bdi-grid { grid-template-columns: 1fr; }
+  .base-library-layout { grid-template-columns: 1fr; }
   .orc-discount-card > form { grid-template-columns: repeat(2, 1fr); }
   .orc-discount-preview { grid-column: 1 / -1; }
   .orc-discount-actions { justify-content: flex-end; }
@@ -353,4 +390,6 @@
   .orc-composition-results { right: 11px; }
   .orc-composition-list article { min-width: 650px; }
   .orc-composition-list { overflow-x: auto; }
+  .base-item-publication, .base-publication-picker, .composition-detail-summary { grid-template-columns: 1fr; }
+  .base-catalog-results article { grid-template-columns: 90px 1fr; }.base-catalog-results article b { text-align: left; }
 }

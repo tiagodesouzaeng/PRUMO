@@ -9,6 +9,11 @@ import {
   truncarMoeda,
 } from "../domain/orcamento";
 import {
+  descendentesEap,
+  moverItemEap,
+  reclassificarEap,
+} from "../domain/eap";
+import {
   carregarOrcamentoAtivo,
   carregarOrcamentos,
   restaurarOrcamentos,
@@ -61,6 +66,8 @@ export default function useOrcamentos() {
         tipo: dados.tipo,
         codigo: codigoNovo,
         descricao: dados.descricao.trim(),
+        parentId: dados.parentId || "",
+        nivelEap: dados.tipo === "grupo" ? (dados.nivelEap || "disciplina") : "",
         fonte: dados.tipo === "grupo" ? "" : dados.fonte.trim(),
         quantidade: dados.tipo === "grupo" ? 0 : numeroSeguro(dados.quantidade),
         unidade: dados.tipo === "grupo" ? "" : dados.unidade.trim().toUpperCase(),
@@ -72,44 +79,22 @@ export default function useOrcamentos() {
       let itensAtualizados;
 
       if (itemId) {
-        itensAtualizados = orcamento.itens.map((item) => {
-          if (item.id === itemId) return { ...item, ...itemAtualizado };
-          if (
-            original?.tipo === "grupo"
-            && item.codigo.startsWith(`${original.codigo}.`)
-            && original.codigo !== codigoNovo
-          ) {
-            return { ...item, codigo: `${codigoNovo}${item.codigo.slice(original.codigo.length)}` };
-          }
-          return item;
-        });
+        itensAtualizados = orcamento.itens.map((item) => (
+          item.id === itemId ? { ...item, ...itemAtualizado } : item
+        ));
       } else {
         const novoItem = {
-          id: criarId(dados.tipo === "grupo" ? "grp" : "item"),
+          id: dados.id || criarId(dados.tipo === "grupo" ? "grp" : "item"),
           ...itemAtualizado,
         };
         itensAtualizados = [...orcamento.itens];
 
-        if (dados.tipo === "grupo") {
-          itensAtualizados.push(novoItem);
-        } else {
-          const codigoGrupo = codigoNovo.split(".").slice(0, -1).join(".");
-          const indiceGrupo = itensAtualizados.findIndex(
-            (item) => item.tipo === "grupo" && item.codigo === codigoGrupo,
-          );
-          let indiceInsercao = indiceGrupo + 1;
-          while (
-            indiceInsercao < itensAtualizados.length
-            && itensAtualizados[indiceInsercao].tipo !== "grupo"
-            && itensAtualizados[indiceInsercao].codigo.startsWith(`${codigoGrupo}.`)
-          ) indiceInsercao += 1;
-          itensAtualizados.splice(indiceGrupo >= 0 ? indiceInsercao : itensAtualizados.length, 0, novoItem);
-        }
+        itensAtualizados.push(novoItem);
       }
 
       return {
         ...orcamento,
-        itens: itensAtualizados,
+        itens: reclassificarEap(itensAtualizados),
       };
     });
   }
@@ -117,11 +102,14 @@ export default function useOrcamentos() {
   function removerItem(itemId) {
     atualizarAtivo((orcamento) => {
       const removido = orcamento.itens.find((candidato) => candidato.id === itemId);
+      const descendentes = removido?.tipo === "grupo"
+        ? descendentesEap(orcamento.itens, itemId)
+        : new Set();
       return {
         ...orcamento,
         itens: orcamento.itens.filter((item) => (
           item.id !== itemId
-          && !(removido?.tipo === "grupo" && item.codigo.startsWith(`${removido.codigo}.`))
+          && !descendentes.has(item.id)
         )),
       };
     });
@@ -138,81 +126,28 @@ export default function useOrcamentos() {
         codigo: `${original.codigo}-CÓPIA`,
         descricao: `${original.descricao} (cópia)`,
       };
-      const itens = [...orcamento.itens];
-      itens.splice(indice + 1, 0, copia);
-      return { ...orcamento, itens };
+      const itens = [...orcamento.itens, copia];
+      return { ...orcamento, itens: reclassificarEap(itens) };
     });
   }
 
   function moverItem(itemId, direcao) {
-    atualizarAtivo((orcamento) => {
-      const indice = orcamento.itens.findIndex((item) => item.id === itemId);
-      const itemAtual = orcamento.itens[indice];
-      if (itemAtual?.tipo === "grupo") {
-        let fimAtual = indice;
-        while (
-          fimAtual + 1 < orcamento.itens.length
-          && orcamento.itens[fimAtual + 1].tipo !== "grupo"
-          && orcamento.itens[fimAtual + 1].codigo.startsWith(`${itemAtual.codigo}.`)
-        ) fimAtual += 1;
-
-        const blocoAtual = orcamento.itens.slice(indice, fimAtual + 1);
-        if (direcao < 0 && indice > 0) {
-          let inicioAnterior = indice - 1;
-          while (inicioAnterior > 0 && orcamento.itens[inicioAnterior].tipo !== "grupo") inicioAnterior -= 1;
-          return {
-            ...orcamento,
-            itens: [
-              ...orcamento.itens.slice(0, inicioAnterior),
-              ...blocoAtual,
-              ...orcamento.itens.slice(inicioAnterior, indice),
-              ...orcamento.itens.slice(fimAtual + 1),
-            ],
-          };
-        }
-
-        if (direcao > 0 && fimAtual < orcamento.itens.length - 1) {
-          const inicioProximo = fimAtual + 1;
-          let fimProximo = inicioProximo;
-          const proximo = orcamento.itens[inicioProximo];
-          if (proximo.tipo === "grupo") {
-            while (
-              fimProximo + 1 < orcamento.itens.length
-              && orcamento.itens[fimProximo + 1].tipo !== "grupo"
-              && orcamento.itens[fimProximo + 1].codigo.startsWith(`${proximo.codigo}.`)
-            ) fimProximo += 1;
-          }
-          return {
-            ...orcamento,
-            itens: [
-              ...orcamento.itens.slice(0, indice),
-              ...orcamento.itens.slice(inicioProximo, fimProximo + 1),
-              ...blocoAtual,
-              ...orcamento.itens.slice(fimProximo + 1),
-            ],
-          };
-        }
-        return orcamento;
-      }
-
-      const destino = indice + direcao;
-      if (indice < 0 || destino < 0 || destino >= orcamento.itens.length) return orcamento;
-      const itens = [...orcamento.itens];
-      [itens[indice], itens[destino]] = [itens[destino], itens[indice]];
-      return { ...orcamento, itens };
-    });
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      itens: moverItemEap(orcamento.itens, itemId, direcao),
+    }));
   }
 
   function importarItens(itensImportados) {
     atualizarAtivo((orcamento) => ({
       ...orcamento,
-      itens: [
+      itens: reclassificarEap([
         ...orcamento.itens,
         ...itensImportados.map((item) => ({
           ...item,
           id: criarId(item.tipo === "grupo" ? "grp" : "item"),
         })),
-      ],
+      ]),
     }));
   }
 

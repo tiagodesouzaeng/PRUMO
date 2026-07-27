@@ -67,6 +67,22 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - atualização dos itens e componentes próprios quando uma nova versão da base
   for aplicada.
 
+## EAP e biblioteca de composições — v9.4.2
+
+- reclassificação automática dos códigos ao subir ou descer itens;
+- reposicionamento físico do serviço quando sua classificação é alterada;
+- cinco níveis de classificação: Site, Prédio, Andar, Sala e Disciplina;
+- submódulo independente de Bases de Preços abaixo de Orçamentos;
+- biblioteca separada de composições e insumos por base, mês e estado;
+- composições SINAPI sintéticas e analíticas disponíveis no catálogo;
+- memória da composição aberta ao clicar no serviço do orçamento;
+- apresentação de insumos, composições auxiliares, coeficientes, preços e bases
+  de origem;
+- editor em modal para composições próprias;
+- Base própria PRUMO independente dos orçamentos;
+- componentes próprios atualizados quando a mesma publicação externa for
+  reimportada.
+
 ## Motor financeiro — v9.4
 
 - preços unitários com precisão superior a duas casas decimais;

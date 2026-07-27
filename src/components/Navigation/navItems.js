@@ -5,6 +5,7 @@ export const SIGIU_NAV_ITEMS = [
   { id: "hidrico", label: "Consumo Hídrico", icon: "💧", grupo: "infraestrutura" },
   { id: "obras", label: "Obras", icon: "⚒", grupo: "infraestrutura" },
   { id: "orcamento", label: "Orçamentos", icon: "▤", grupo: "infraestrutura" },
+  { id: "bases-precos", label: "Bases de Preços", icon: "◫", grupo: "infraestrutura" },
   { id: "manutencao", label: "Manutenção", icon: "🔧", grupo: "infraestrutura" },
   { id: "relatorios", label: "Relatórios", icon: "▥", grupo: "gestao" },
   { id: "administracao", label: "Administração", icon: "⚙", grupo: "gestao" },

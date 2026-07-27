@@ -20,10 +20,13 @@ import Manutencao from "./pages/Manutencao";
 import Relatorios from "./pages/Relatorios";
 import Administracao from "./pages/Administracao";
 import Orcamento from "./pages/Orcamento";
+import BasesPrecos from "./pages/BasesPrecos";
+import useBasesPrecos from "./hooks/useBasesPrecos";
 
 function App() {
   const [paginaAtiva, setPaginaAtiva] = useState("visao-geral");
   const dadosPPCI = usePPCI();
+  const basesPrecos = useBasesPrecos();
 
   function renderizarPagina() {
     switch (paginaAtiva) {
@@ -53,7 +56,10 @@ function App() {
         return <Obras />;
 
       case "orcamento":
-        return <Orcamento />;
+        return <Orcamento basesPrecos={basesPrecos} />;
+
+      case "bases-precos":
+        return <BasesPrecos basesPrecos={basesPrecos} />;
 
       case "manutencao":
         return <Manutencao />;

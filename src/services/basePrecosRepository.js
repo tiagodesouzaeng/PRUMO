@@ -160,7 +160,7 @@ export async function carregarReferenciasBase(baseId, tipos = ["insumo", "compos
 export async function carregarItensComposicaoBase(baseId, composicaoCodigo) {
   if (!baseId || !composicaoCodigo) return [];
   const banco = await abrirBanco();
-  return new Promise((resolve, reject) => {
+  const itens = await new Promise((resolve, reject) => {
     const requisicao = banco
       .transaction(COMPOSITION_STORE, "readonly")
       .objectStore(COMPOSITION_STORE)
@@ -171,6 +171,23 @@ export async function carregarItensComposicaoBase(baseId, composicaoCodigo) {
         (item) => item.composicaoCodigo === String(composicaoCodigo),
       ),
     );
+  });
+  const referencias = await carregarReferenciasBase(baseId);
+  const catalogo = new Map(
+    referencias.map((item) => [`${item.tipo}:${item.codigo}`, item]),
+  );
+  return itens.map((item) => {
+    const referencia = catalogo.get(`${item.itemTipo}:${item.itemCodigo}`);
+    return {
+      ...item,
+      descricao: referencia?.descricao || item.descricao,
+      unidade: referencia?.unidade || item.unidade,
+      preco: referencia?.preco || 0,
+      semPreco: referencia?.semPreco ?? true,
+      referenciaTipo: item.itemTipo,
+      referenciaCodigo: item.itemCodigo,
+      basePrecoId: baseId,
+    };
   });
 }
 

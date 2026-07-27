@@ -1,4 +1,6 @@
-export const ORCAMENTO_STORAGE_VERSION = 3;
+import { reclassificarEap } from "./eap";
+
+export const ORCAMENTO_STORAGE_VERSION = 4;
 export const REGRA_CALCULO_ATUAL = "9.4-truncamento-2-casas";
 
 export const UNIDADES_ORCAMENTARIAS = [
@@ -297,17 +299,19 @@ export function normalizarOrcamento(orcamento) {
     bdiComponentes: orcamento.bdiComponentes ?? null,
     descontoGlobal: orcamento.descontoGlobal ?? null,
     historicoCalculo: orcamento.historicoCalculo || [],
-    itens: (orcamento.itens || []).map((item) => ({
+    itens: reclassificarEap((orcamento.itens || []).map((item) => ({
       ...item,
       id: item.id || criarId(item.tipo === "grupo" ? "grp" : "item"),
       tipo: item.tipo || "servico",
+      parentId: item.parentId || "",
+      nivelEap: item.tipo === "grupo" ? (item.nivelEap || "disciplina") : "",
       unidade: item.tipo === "grupo" ? "" : (item.unidade || "").toUpperCase(),
       basePrecoId: item.tipo === "grupo" ? "" : (item.basePrecoId || ""),
       referenciaCodigo: item.tipo === "grupo"
         ? ""
         : (item.referenciaCodigo || item.fonte?.split("·").at(-1)?.trim() || ""),
       referenciaTipo: item.tipo === "grupo" ? "" : (item.referenciaTipo || "composicao"),
-    })),
+    }))),
     composicoes: (orcamento.composicoes || []).map((composicao) => ({
       ...composicao,
       componentes: composicao.componentes || [],

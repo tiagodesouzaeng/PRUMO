@@ -13,14 +13,13 @@ import {
   validarOrcamento,
 } from "../domain/orcamento";
 import useOrcamentos from "../hooks/useOrcamentos";
-import useBasesPrecos from "../hooks/useBasesPrecos";
 import { importarPlanilhaOrcamentaria } from "../services/orcamentoImport";
+import { EAP_NIVEIS, nivelEapAnterior } from "../domain/eap";
 
 const ETAPAS = [
   { id: "visao", label: "Visão geral", icon: "⌂" },
   { id: "planilha", label: "Planilha orçamentária", icon: "▤" },
   { id: "bdi", label: "BDI e encargos", icon: "%" },
-  { id: "bases", label: "Bases e composições", icon: "◫" },
   { id: "cronograma", label: "Cronograma", icon: "◩" },
   { id: "histograma", label: "Histograma", icon: "♙" },
   { id: "medicoes", label: "Medições", icon: "✓" },
@@ -96,6 +95,7 @@ function TabelaItens({
   removerItem,
   duplicarItem,
   moverItem,
+  abrirDetalhe,
   itensComErro = new Set(),
 }) {
   const distribuicao = calcularDistribuicaoDesconto({ itens, descontoGlobal });
@@ -123,9 +123,13 @@ function TabelaItens({
               ? totalGrupo(itens, item.codigo, descontos)
               : valorBruto - descontoItem;
             return (
-            <tr key={item.id || `${item.codigo}-${index}`} className={`${item.tipo === "grupo" ? "orc-group-row" : ""} ${itensComErro.has(item.id) ? "orc-row-error" : ""}`}>
+            <tr
+              key={item.id || `${item.codigo}-${index}`}
+              className={`${item.tipo === "grupo" ? "orc-group-row" : ""} ${itensComErro.has(item.id) ? "orc-row-error" : ""} ${item.tipo !== "grupo" && item.referenciaTipo === "composicao" ? "orc-composition-row" : ""}`}
+              onClick={() => item.tipo !== "grupo" && item.referenciaTipo === "composicao" && abrirDetalhe?.(item)}
+            >
               <td>{item.tipo === "grupo" && <i>⌄</i>}{item.codigo}</td>
-              <td><strong>{item.descricao}</strong>{item.fonte && <small>{item.fonte}</small>}</td>
+              <td style={{ paddingLeft: `${10 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}><strong>{item.descricao}</strong>{item.tipo === "grupo" && <small>{EAP_NIVEIS.find((nivel) => nivel.id === item.nivelEap)?.label || "Grupo EAP"}</small>}{item.fonte && <small>{item.fonte}</small>}</td>
               <td>{item.quantidade?.toLocaleString("pt-BR") || "—"}</td>
               <td>{item.unidade || ""}</td>
               <td>{item.unitario ? formatarPrecoUnitario(item.unitario) : ""}</td>
@@ -133,7 +137,7 @@ function TabelaItens({
               <td className="orc-discount-value">{descontoItem ? `− ${formatarMoeda(descontoItem)}` : "—"}</td>
               <td><strong>{formatarMoeda(valorLiquido)}</strong></td>
               <td>
-                {editarItem && <div className="orc-row-actions">
+                {editarItem && <div className="orc-row-actions" onClick={(event) => event.stopPropagation()}>
                   <button type="button" onClick={() => moverItem(item, -1)} aria-label={`Mover item ${item.codigo} para cima`} title="Mover para cima">↑</button>
                   <button type="button" onClick={() => moverItem(item, 1)} aria-label={`Mover item ${item.codigo} para baixo`} title="Mover para baixo">↓</button>
                   <button type="button" onClick={() => editarItem(item)} aria-label={`Editar item ${item.codigo}`} title="Editar">✎</button>
@@ -257,6 +261,7 @@ function Planilha({
   removerItem,
   duplicarItem,
   moverItem,
+  abrirDetalhe,
   importarArquivo,
   salvarDesconto,
 }) {
@@ -287,6 +292,7 @@ function Planilha({
           removerItem={removerItem}
           duplicarItem={duplicarItem}
           moverItem={moverItem}
+          abrirDetalhe={abrirDetalhe}
           itensComErro={itensComErro}
         />
         <footer className="orc-table-footer">
@@ -602,32 +608,39 @@ function ModalItem({
 }) {
   const grupos = itens.filter((candidato) => candidato.tipo === "grupo");
   const grupoInicial = item?.tipo !== "grupo"
-    ? item?.codigo.split(".").slice(0, -1).join(".") || grupos[0]?.codigo || ""
-    : grupos[0]?.codigo || "";
+    ? item?.parentId || grupos.find((grupo) => item?.codigo.startsWith(`${grupo.codigo}.`))?.id || grupos[0]?.id || ""
+    : "";
+  const grupoInicialEncontrado = grupos.find((grupo) => grupo.id === grupoInicial);
+  const baseItemInicial = item?.basePrecoId
+    || basesPrecos.bases.find((base) => item?.fonte?.toUpperCase().startsWith(base.fonte))?.id
+    || basesPrecos.baseAtivaId
+    || "";
   const [dados, setDados] = useState(() => item ? {
     tipo: item.tipo || "servico",
-    grupoCodigo: grupoInicial,
+    parentId: item.parentId || grupoInicial,
+    nivelEap: item.nivelEap || "disciplina",
     codigo: item.codigo,
     descricao: item.descricao,
     fonte: item.fonte || "",
     quantidade: item.quantidade || "",
     unidade: item.unidade || "UN",
     unitario: item.unitario || "",
-    basePrecoId: item.basePrecoId || basesPrecos.baseAtivaId || "",
+    basePrecoId: baseItemInicial,
     referenciaCodigo: item.referenciaCodigo || "",
     referenciaTipo: item.referenciaTipo || "composicao",
   } : {
     tipo: tipoInicial,
-    grupoCodigo: grupoInicial,
+    parentId: grupoInicial,
+    nivelEap: "disciplina",
     codigo: tipoInicial === "grupo"
       ? proximoCodigoGrupo(itens)
-      : (grupoInicial ? proximoCodigoServico(itens, grupoInicial) : ""),
+      : (grupoInicialEncontrado ? proximoCodigoServico(itens, grupoInicialEncontrado.codigo) : ""),
     descricao: "",
     fonte: "",
     quantidade: "",
     unidade: "UN",
     unitario: "",
-    basePrecoId: basesPrecos.baseAtivaId || "",
+    basePrecoId: baseItemInicial,
     referenciaCodigo: "",
     referenciaTipo: "composicao",
   });
@@ -637,6 +650,24 @@ function ModalItem({
     descricao: "",
   });
   const [buscaReferencia, setBuscaReferencia] = useState("");
+  const baseSelecionada = basesPrecos.bases.find((base) => base.id === dados.basePrecoId);
+  const fontesDisponiveis = [...new Set(basesPrecos.bases.map((base) => base.fonte))];
+  const referenciasDisponiveis = [...new Set(
+    basesPrecos.bases
+      .filter((base) => base.fonte === baseSelecionada?.fonte)
+      .map((base) => base.referencia),
+  )];
+  const estadosDisponiveis = [...new Set(
+    basesPrecos.bases
+      .filter((base) => (
+        base.fonte === baseSelecionada?.fonte
+        && base.referencia === baseSelecionada?.referencia
+      ))
+      .map((base) => base.uf),
+  )];
+  const paisNivelSelecionado = grupos.filter(
+    (grupo) => grupo.id !== item?.id && grupo.nivelEap === nivelEapAnterior(dados.nivelEap),
+  );
   const resultadosBase = useMemo(() => {
     const termo = buscaReferencia.trim().toLocaleLowerCase("pt-BR");
     if (!termo) return [];
@@ -657,10 +688,11 @@ function ModalItem({
   }
 
   function selecionarGrupo(codigoGrupo) {
+    const grupo = grupos.find((candidato) => candidato.id === codigoGrupo);
     setDados((atuais) => ({
       ...atuais,
-      grupoCodigo: codigoGrupo,
-      codigo: proximoCodigoServico(itens, codigoGrupo, item?.id),
+      parentId: codigoGrupo,
+      codigo: grupo ? proximoCodigoServico(itens, grupo.codigo, item?.id) : "",
     }));
   }
 
@@ -668,18 +700,36 @@ function ModalItem({
     setDados((atuais) => ({
       ...atuais,
       tipo,
+      nivelEap: tipo === "grupo" ? (atuais.nivelEap || "disciplina") : "",
       codigo: tipo === "grupo"
         ? proximoCodigoGrupo(itens)
-        : (atuais.grupoCodigo ? proximoCodigoServico(itens, atuais.grupoCodigo, item?.id) : ""),
+        : (grupos.find((grupo) => grupo.id === atuais.parentId)
+          ? proximoCodigoServico(itens, grupos.find((grupo) => grupo.id === atuais.parentId).codigo, item?.id)
+          : ""),
+    }));
+  }
+
+  function alterarNivelEap(nivelEap) {
+    const nivelPai = nivelEapAnterior(nivelEap);
+    const pai = nivelPai ? grupos.find((grupo) => grupo.nivelEap === nivelPai) : null;
+    setDados((atuais) => ({
+      ...atuais,
+      nivelEap,
+      parentId: pai?.id || "",
+      codigo: pai ? `${pai.codigo}.${grupos.filter((grupo) => grupo.parentId === pai.id).length + 1}` : proximoCodigoGrupo(itens),
     }));
   }
 
   function incluirGrupoRapido() {
     if (!novoGrupo.descricao.trim()) return;
+    const novoGrupoId = `grp-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
     criarGrupo({
+      id: novoGrupoId,
       tipo: "grupo",
       codigo: novoGrupo.codigo,
       descricao: novoGrupo.descricao,
+      parentId: "",
+      nivelEap: "disciplina",
       fonte: "",
       quantidade: 0,
       unidade: "",
@@ -687,7 +737,7 @@ function ModalItem({
     });
     setDados((atuais) => ({
       ...atuais,
-      grupoCodigo: novoGrupo.codigo,
+      parentId: novoGrupoId,
       codigo: `${novoGrupo.codigo}.1`,
     }));
     setNovoGrupo((atual) => ({ ...atual, aberto: false }));
@@ -703,6 +753,18 @@ function ModalItem({
       referenciaTipo: "composicao",
       fonte: "",
     }));
+  }
+
+  function selecionarPublicacao(criterios) {
+    const fonte = criterios.fonte ?? baseSelecionada?.fonte;
+    const referencia = criterios.referencia ?? baseSelecionada?.referencia;
+    const uf = criterios.uf ?? baseSelecionada?.uf;
+    const candidata = basesPrecos.bases.find((base) => (
+      base.fonte === fonte
+      && (!referencia || base.referencia === referencia)
+      && (!uf || base.uf === uf)
+    )) || basesPrecos.bases.find((base) => base.fonte === fonte);
+    selecionarBaseItem(candidata?.id || "");
   }
 
   function selecionarReferenciaBase(referencia) {
@@ -727,12 +789,18 @@ function ModalItem({
         <header><div><span>PLANILHA ORÇAMENTÁRIA</span><h3 id="orc-novo-item">{item ? "Editar" : "Adicionar"} {dados.tipo === "grupo" ? "grupo" : "serviço"}</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
         <div className="orc-form-grid">
           <label><span>Tipo</span><select value={dados.tipo} onChange={(event) => alterarTipo(event.target.value)}><option value="servico">Serviço</option><option value="grupo">Grupo EAP</option></select></label>
-          {dados.tipo !== "grupo" && <label className="orc-field-wide"><span>Grupo da EAP</span><div className="orc-group-select"><select required value={dados.grupoCodigo} onChange={(event) => selecionarGrupo(event.target.value)}><option value="">Selecione um grupo</option>{grupos.map((grupo) => <option key={grupo.id} value={grupo.codigo}>{grupo.codigo} · {grupo.descricao}</option>)}{novoGrupo.descricao && !grupos.some((grupo) => grupo.codigo === novoGrupo.codigo) && <option value={novoGrupo.codigo}>{novoGrupo.codigo} · {novoGrupo.descricao}</option>}</select><button type="button" onClick={() => setNovoGrupo((atual) => ({ ...atual, aberto: !atual.aberto }))}>＋ Novo grupo</button></div></label>}
+          {dados.tipo === "grupo" && <label><span>Classificação da EAP</span><select value={dados.nivelEap} onChange={(event) => alterarNivelEap(event.target.value)}>{EAP_NIVEIS.map((nivel) => <option key={nivel.id} value={nivel.id}>{nivel.label}</option>)}</select></label>}
+          {dados.tipo === "grupo" && nivelEapAnterior(dados.nivelEap) && <label className="orc-field-wide"><span>{EAP_NIVEIS.find((nivel) => nivel.id === nivelEapAnterior(dados.nivelEap))?.label} superior</span><select required={paisNivelSelecionado.length > 0} value={dados.parentId} onChange={(event) => selecionarGrupo(event.target.value)}><option value="">{paisNivelSelecionado.length ? "Selecione a classificação superior" : "Sem classificação superior — estrutura legada"}</option>{paisNivelSelecionado.map((grupo) => <option key={grupo.id} value={grupo.id}>{grupo.codigo} · {grupo.descricao}</option>)}</select></label>}
+          {dados.tipo !== "grupo" && <label className="orc-field-wide"><span>Classificação da EAP</span><div className="orc-group-select"><select required value={dados.parentId} onChange={(event) => selecionarGrupo(event.target.value)}><option value="">Selecione a disciplina ou grupo</option>{grupos.map((grupo) => <option key={grupo.id} value={grupo.id}>{grupo.codigo} · {EAP_NIVEIS.find((nivel) => nivel.id === grupo.nivelEap)?.label || "Grupo"} · {grupo.descricao}</option>)}</select><button type="button" onClick={() => setNovoGrupo((atual) => ({ ...atual, aberto: !atual.aberto }))}>＋ Nova disciplina</button></div></label>}
           {novoGrupo.aberto && dados.tipo !== "grupo" && <div className="orc-inline-group orc-field-wide"><label><span>Número do grupo</span><input readOnly value={novoGrupo.codigo} /></label><label><span>Nome do novo grupo</span><input autoFocus value={novoGrupo.descricao} onChange={(event) => setNovoGrupo((atual) => ({ ...atual, descricao: event.target.value }))} placeholder="Ex.: REVESTIMENTOS" /></label><button type="button" disabled={!novoGrupo.descricao.trim()} onClick={incluirGrupoRapido}>Criar e selecionar</button></div>}
           <label><span>Código EAP</span><input required readOnly={dados.tipo !== "grupo"} value={dados.codigo} onChange={(event) => atualizar("codigo", event.target.value)} placeholder="Gerado após selecionar o grupo" /></label>
           <label className="orc-field-wide"><span>Descrição</span><input required value={dados.descricao} onChange={(event) => atualizar("descricao", event.target.value)} placeholder="Descrição do serviço" /></label>
           {dados.tipo !== "grupo" && <>
-            <label className="orc-field-wide"><span>Base de preços do item</span><select value={dados.basePrecoId} onChange={(event) => selecionarBaseItem(event.target.value)}><option value="">Composição própria ou preço manual</option>{basesPrecos.bases.map((base) => <option key={base.id} value={base.id}>{base.titulo} · {base.regime}</option>)}</select></label>
+            <div className="orc-field-wide base-item-publication">
+              <label><span>Base de preços</span><select value={baseSelecionada?.fonte || ""} onChange={(event) => selecionarPublicacao({ fonte: event.target.value, referencia: "", uf: "" })}><option value="">Preço manual</option>{fontesDisponiveis.map((fonte) => <option key={fonte}>{fonte}</option>)}</select></label>
+              <label><span>Mês</span><select disabled={!baseSelecionada} value={baseSelecionada?.referencia || ""} onChange={(event) => selecionarPublicacao({ referencia: event.target.value, uf: "" })}>{referenciasDisponiveis.map((referencia) => <option key={referencia}>{referencia}</option>)}</select></label>
+              <label><span>Estado</span><select disabled={!baseSelecionada} value={baseSelecionada?.uf || ""} onChange={(event) => selecionarPublicacao({ uf: event.target.value })}>{estadosDisponiveis.map((uf) => <option key={uf}>{uf}</option>)}</select></label>
+            </div>
             <div className="orc-sinapi-picker orc-field-wide">
               <label><span>Buscar composição ou insumo {basesPrecos.baseAtiva ? `— ${basesPrecos.baseAtiva.titulo}` : ""}</span><input disabled={!dados.basePrecoId || basesPrecos.carregando} value={buscaReferencia} onChange={(event) => setBuscaReferencia(event.target.value)} placeholder={dados.basePrecoId ? "Digite código ou descrição" : "Selecione uma base ou informe um preço manual"} /></label>
               {resultadosBase.length > 0 && <div>{resultadosBase.map((referencia) => <button type="button" key={referencia.uid || `${referencia.tipo}-${referencia.codigo}`} onClick={() => selecionarReferenciaBase(referencia)}><span><strong>{referencia.codigo}</strong>{referencia.descricao}</span><b className={referencia.semPreco ? "sem-preco" : ""}>{referencia.tipo} · {referencia.semPreco ? "Sem preço" : formatarPrecoUnitario(referencia.preco)}</b></button>)}</div>}
@@ -745,6 +813,56 @@ function ModalItem({
         </div>
         <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">{item ? "Salvar alterações" : "Adicionar"}</button></footer>
       </form>
+    </div>
+  );
+}
+
+function ModalDetalheComposicao({ item, orcamento, basesPrecos, fechar }) {
+  const [componentes, setComponentes] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const codigo = item.referenciaCodigo || item.fonte?.split("·").at(-1)?.trim() || "";
+  const base = basesPrecos.bases.find((candidata) => candidata.id === item.basePrecoId)
+    || basesPrecos.bases.find((candidata) => item.fonte?.toUpperCase().startsWith(candidata.fonte));
+
+  useEffect(() => {
+    let ativo = true;
+    const composicaoLegada = orcamento.composicoes?.find((composicao) => composicao.codigo === codigo);
+    if (composicaoLegada) {
+      setComponentes(composicaoLegada.componentes || []);
+      setCarregando(false);
+      return () => { ativo = false; };
+    }
+    basesPrecos.carregarItensComposicao(base?.id || item.basePrecoId, codigo)
+      .then((itens) => { if (ativo) setComponentes(itens); })
+      .finally(() => { if (ativo) setCarregando(false); });
+    return () => { ativo = false; };
+  }, [base?.id, codigo]);
+
+  return (
+    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
+      <section className="orc-modal orc-modal-wide composition-detail-modal" role="dialog" aria-modal="true" aria-labelledby="composition-detail-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header><div><span>MEMÓRIA DA COMPOSIÇÃO</span><h3 id="composition-detail-title">{codigo} · {item.descricao}</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
+        <div className="composition-detail-summary">
+          <div><span>Base</span><strong>{base?.titulo || item.fonte?.split("·")[0] || "Base própria"}</strong><small>{base ? `${base.uf} · ${base.referencia} · ${base.regime}` : "Referência preservada no orçamento"}</small></div>
+          <div><span>Unidade</span><strong>{item.unidade}</strong></div>
+          <div><span>Preço unitário</span><strong>{formatarPrecoUnitario(item.unitario)}</strong></div>
+          <div><span>Componentes</span><strong>{componentes.length}</strong></div>
+        </div>
+        <div className="composition-editor-table">
+          <table><thead><tr><th>Tipo</th><th>Código / descrição</th><th>Base de origem</th><th>Un.</th><th>Coeficiente</th><th>Preço</th><th>Total</th></tr></thead><tbody>
+            {componentes.map((componente, index) => {
+              const tipo = componente.referenciaTipo || componente.itemTipo;
+              const codigoComponente = componente.referenciaCodigo || componente.itemCodigo;
+              const preco = Number(componente.preco) || 0;
+              const coeficiente = Number(componente.coeficiente) || 0;
+              return <tr key={`${tipo}-${codigoComponente}-${index}`}><td><b className={`composition-type ${tipo}`}>{tipo}</b></td><td><strong>{codigoComponente}</strong><small>{componente.descricao}</small></td><td>{componente.baseTitulo || base?.titulo || "Base própria"}<small>{componente.baseUf ? `${componente.baseUf} · ${componente.baseReferencia}` : base ? `${base.uf} · ${base.referencia}` : ""}</small></td><td>{componente.unidade}</td><td>{coeficiente.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</td><td>{preco ? formatarPrecoUnitario(preco) : "Sem preço"}</td><td>{formatarPrecoUnitario(coeficiente * preco)}</td></tr>;
+            })}
+            {!carregando && !componentes.length && <tr><td colSpan="7">Nenhum componente analítico foi localizado para esta referência.</td></tr>}
+            {carregando && <tr><td colSpan="7">Carregando composição analítica...</td></tr>}
+          </tbody></table>
+        </div>
+        <footer><button type="button" className="orc-btn orc-btn-primary" onClick={fechar}>Fechar</button></footer>
+      </section>
     </div>
   );
 }
@@ -777,11 +895,12 @@ function ModalNovoOrcamento({ fechar, salvar, proximoCodigo }) {
   );
 }
 
-export default function Orcamento() {
+export default function Orcamento({ basesPrecos }) {
   const [etapa, setEtapa] = useState("visao");
   const [aviso, setAviso] = useState("");
   const [modal, setModal] = useState("");
   const [itemEmEdicao, setItemEmEdicao] = useState(null);
+  const [itemDetalhe, setItemDetalhe] = useState(null);
   const {
     orcamentos,
     orcamentoAtivo,
@@ -800,12 +919,21 @@ export default function Orcamento() {
     adicionarOrcamento,
     criarRevisao,
   } = useOrcamentos();
-  const basesPrecos = useBasesPrecos();
   const etapaAtual = useMemo(() => ETAPAS.find((item) => item.id === etapa), [etapa]);
   const proximoCodigo = useMemo(() => {
     const maior = orcamentos.reduce((atual, item) => Math.max(atual, Number(item.id.split("-").at(-1)) || 0), 0);
     return `ORC-${new Date().getFullYear()}-${String(maior + 1).padStart(4, "0")}`;
   }, [orcamentos]);
+
+  useEffect(() => {
+    const codigosExistentes = new Set(
+      basesPrecos.composicoesProprias.map((composicao) => composicao.codigo),
+    );
+    orcamentos
+      .flatMap((orcamento) => orcamento.composicoes || [])
+      .filter((composicao) => !codigosExistentes.has(composicao.codigo))
+      .forEach((composicao) => basesPrecos.salvarComposicaoPropria(composicao));
+  }, [orcamentos.length]);
 
   function notificar(mensagem) {
     setAviso(mensagem);
@@ -892,6 +1020,7 @@ export default function Orcamento() {
   return (
     <section className="sigiu-page orc-page">
       {aviso && <div className="orc-toast" role="status">{aviso}</div>}
+      {itemDetalhe && <ModalDetalheComposicao item={itemDetalhe} orcamento={orcamentoAtivo} basesPrecos={basesPrecos} fechar={() => setItemDetalhe(null)} />}
       {(modal === "item" || modal === "grupo") && <ModalItem fechar={() => { setModal(""); setItemEmEdicao(null); }} salvar={salvarDadosItem} item={itemEmEdicao} tipoInicial={modal === "grupo" ? "grupo" : "servico"} itens={orcamentoAtivo.itens} criarGrupo={(dados) => { salvarItem(dados); notificar("Novo grupo criado e selecionado."); }} basesPrecos={basesPrecos} />}
       {modal === "orcamento" && <ModalNovoOrcamento fechar={() => setModal("")} salvar={salvarNovoOrcamento} proximoCodigo={proximoCodigo} />}
       <div className="orc-project-bar">
@@ -904,9 +1033,8 @@ export default function Orcamento() {
       </nav>
       <CabecalhoSecao etapa={etapaAtual.id} exportar={exportar} novaRevisao={adicionarRevisao} />
       {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
-      {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} salvarDesconto={salvarDesconto} />}
+      {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} abrirDetalhe={setItemDetalhe} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} salvarDesconto={salvarDesconto} />}
       {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} />}
-      {etapa === "bases" && <Bases orcamento={orcamentoAtivo} adicionarComposicao={adicionarComposicao} removerComposicao={removerComposicao} setAviso={notificar} basesPrecos={basesPrecos} atualizarPrecos={aplicarPrecosBase} />}
       {etapa === "cronograma" && <Cronograma />}
       {etapa === "histograma" && <Histograma />}
       {etapa === "medicoes" && <Medicoes />}
