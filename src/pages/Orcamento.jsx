@@ -135,7 +135,7 @@ function TabelaItens({
               onClick={() => item.tipo !== "grupo" && item.referenciaTipo === "composicao" && abrirDetalhe?.(item)}
             >
               <td>{item.tipo === "grupo" && <i>⌄</i>}{item.codigo}</td>
-              <td style={{ paddingLeft: `${10 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}><strong>{item.descricao}</strong>{item.tipo === "grupo" && <small>{EAP_NIVEIS.find((nivel) => nivel.id === item.nivelEap)?.label || "Grupo EAP"}</small>}{item.fonte && <small>{item.fonte}</small>}</td>
+              <td style={{ paddingLeft: `${10 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}><strong>{item.descricao}</strong>{item.tipo === "grupo" && <small>{(() => { const nivel = EAP_NIVEIS.find((opcao) => opcao.id === item.nivelEap); return nivel ? `Nível ${nivel.nivel} · ${nivel.label}` : "Grupo EAP"; })()}</small>}{item.fonte && <small>{item.fonte}</small>}</td>
               <td>{item.quantidade?.toLocaleString("pt-BR") || "—"}</td>
               <td>{item.unidade || ""}</td>
               <td>{item.unitario ? formatarPrecoUnitario(item.unitario) : ""}</td>
@@ -709,6 +709,9 @@ function ModalItem({
   basesPrecos,
 }) {
   const grupos = itens.filter((candidato) => candidato.tipo === "grupo");
+  const disciplinas = grupos.filter((grupo) => grupo.nivelEap === "disciplina");
+  const salas = grupos.filter((grupo) => grupo.nivelEap === "sala");
+  const gruposServico = disciplinas.length ? disciplinas : grupos;
   const grupoInicial = item?.tipo !== "grupo"
     ? item?.parentId || grupos.find((grupo) => item?.codigo.startsWith(`${grupo.codigo}.`))?.id || grupos[0]?.id || ""
     : "";
@@ -732,8 +735,8 @@ function ModalItem({
     referenciaTipo: item.referenciaTipo || "composicao",
   } : {
     tipo: tipoInicial,
-    parentId: grupoInicial,
-    nivelEap: "disciplina",
+    parentId: tipoInicial === "grupo" ? "" : grupoInicial,
+    nivelEap: "site",
     codigo: tipoInicial === "grupo"
       ? proximoCodigoGrupo(itens)
       : (grupoInicialEncontrado ? proximoCodigoServico(itens, grupoInicialEncontrado.codigo) : ""),
@@ -748,9 +751,13 @@ function ModalItem({
   });
   const [novoGrupo, setNovoGrupo] = useState({
     aberto: false,
-    codigo: proximoCodigoGrupo(itens),
     descricao: "",
+    parentId: salas[0]?.id || "",
   });
+  const salaNovoGrupo = salas.find((grupo) => grupo.id === novoGrupo.parentId);
+  const codigoNovoGrupo = salaNovoGrupo
+    ? proximoCodigoServico(itens, salaNovoGrupo.codigo)
+    : "";
   const [buscaReferencia, setBuscaReferencia] = useState("");
   const baseSelecionada = basesPrecos.bases.find((base) => base.id === dados.basePrecoId);
   const fontesDisponiveis = [...new Set(basesPrecos.bases.map((base) => base.fonte))];
@@ -802,7 +809,8 @@ function ModalItem({
     setDados((atuais) => ({
       ...atuais,
       tipo,
-      nivelEap: tipo === "grupo" ? (atuais.nivelEap || "disciplina") : "",
+      nivelEap: tipo === "grupo" ? (atuais.nivelEap || "site") : "",
+      parentId: tipo === "grupo" ? "" : atuais.parentId,
       codigo: tipo === "grupo"
         ? proximoCodigoGrupo(itens)
         : (grupos.find((grupo) => grupo.id === atuais.parentId)
@@ -823,14 +831,14 @@ function ModalItem({
   }
 
   function incluirGrupoRapido() {
-    if (!novoGrupo.descricao.trim()) return;
+    if (!novoGrupo.descricao.trim() || !salaNovoGrupo) return;
     const novoGrupoId = `grp-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
     criarGrupo({
       id: novoGrupoId,
       tipo: "grupo",
-      codigo: novoGrupo.codigo,
+      codigo: codigoNovoGrupo,
       descricao: novoGrupo.descricao,
-      parentId: "",
+      parentId: salaNovoGrupo.id,
       nivelEap: "disciplina",
       fonte: "",
       quantidade: 0,
@@ -840,7 +848,7 @@ function ModalItem({
     setDados((atuais) => ({
       ...atuais,
       parentId: novoGrupoId,
-      codigo: `${novoGrupo.codigo}.1`,
+      codigo: `${codigoNovoGrupo}.1`,
     }));
     setNovoGrupo((atual) => ({ ...atual, aberto: false }));
   }
@@ -891,11 +899,11 @@ function ModalItem({
         <header><div><span>PLANILHA ORÇAMENTÁRIA</span><h3 id="orc-novo-item">{item ? "Editar" : "Adicionar"} {dados.tipo === "grupo" ? "grupo" : "serviço"}</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
         <div className="orc-form-grid">
           <label><span>Tipo</span><select value={dados.tipo} onChange={(event) => alterarTipo(event.target.value)}><option value="servico">Serviço</option><option value="grupo">Grupo EAP</option></select></label>
-          {dados.tipo === "grupo" && <label><span>Classificação da EAP</span><select value={dados.nivelEap} onChange={(event) => alterarNivelEap(event.target.value)}>{EAP_NIVEIS.map((nivel) => <option key={nivel.id} value={nivel.id}>{nivel.label}</option>)}</select></label>}
-          {dados.tipo === "grupo" && nivelEapAnterior(dados.nivelEap) && <label className="orc-field-wide"><span>{EAP_NIVEIS.find((nivel) => nivel.id === nivelEapAnterior(dados.nivelEap))?.label} superior</span><select required={paisNivelSelecionado.length > 0} value={dados.parentId} onChange={(event) => selecionarGrupo(event.target.value)}><option value="">{paisNivelSelecionado.length ? "Selecione a classificação superior" : "Sem classificação superior — estrutura legada"}</option>{paisNivelSelecionado.map((grupo) => <option key={grupo.id} value={grupo.id}>{grupo.codigo} · {grupo.descricao}</option>)}</select></label>}
-          {dados.tipo !== "grupo" && <label className="orc-field-wide"><span>Classificação da EAP</span><div className="orc-group-select"><select required value={dados.parentId} onChange={(event) => selecionarGrupo(event.target.value)}><option value="">Selecione a disciplina ou grupo</option>{grupos.map((grupo) => <option key={grupo.id} value={grupo.id}>{grupo.codigo} · {EAP_NIVEIS.find((nivel) => nivel.id === grupo.nivelEap)?.label || "Grupo"} · {grupo.descricao}</option>)}</select><button type="button" onClick={() => setNovoGrupo((atual) => ({ ...atual, aberto: !atual.aberto }))}>＋ Nova disciplina</button></div></label>}
-          {novoGrupo.aberto && dados.tipo !== "grupo" && <div className="orc-inline-group orc-field-wide"><label><span>Número do grupo</span><input readOnly value={novoGrupo.codigo} /></label><label><span>Nome do novo grupo</span><input autoFocus value={novoGrupo.descricao} onChange={(event) => setNovoGrupo((atual) => ({ ...atual, descricao: event.target.value }))} placeholder="Ex.: REVESTIMENTOS" /></label><button type="button" disabled={!novoGrupo.descricao.trim()} onClick={incluirGrupoRapido}>Criar e selecionar</button></div>}
-          <label><span>Código EAP</span><input required readOnly={dados.tipo !== "grupo"} value={dados.codigo} onChange={(event) => atualizar("codigo", event.target.value)} placeholder="Gerado após selecionar o grupo" /></label>
+          {dados.tipo === "grupo" && <label><span>Classificação da EAP</span><select value={dados.nivelEap} onChange={(event) => alterarNivelEap(event.target.value)}>{EAP_NIVEIS.map((nivel) => <option key={nivel.id} value={nivel.id}>Nível {nivel.nivel} — {nivel.label} ({nivel.exemplo})</option>)}</select></label>}
+          {dados.tipo === "grupo" && nivelEapAnterior(dados.nivelEap) && <label className="orc-field-wide"><span>{EAP_NIVEIS.find((nivel) => nivel.id === nivelEapAnterior(dados.nivelEap))?.label} superior</span><select required value={dados.parentId} onChange={(event) => selecionarGrupo(event.target.value)}><option value="">{paisNivelSelecionado.length ? "Selecione a classificação superior" : `Cadastre primeiro o nível ${EAP_NIVEIS.find((nivel) => nivel.id === nivelEapAnterior(dados.nivelEap))?.nivel}`}</option>{paisNivelSelecionado.map((grupo) => <option key={grupo.id} value={grupo.id}>{grupo.codigo} · {grupo.descricao}</option>)}</select></label>}
+          {dados.tipo !== "grupo" && <label className="orc-field-wide"><span>Disciplina da EAP (nível 5)</span><div className="orc-group-select"><select required value={dados.parentId} onChange={(event) => selecionarGrupo(event.target.value)}><option value="">Selecione a disciplina</option>{gruposServico.map((grupo) => <option key={grupo.id} value={grupo.id}>{grupo.codigo} · {EAP_NIVEIS.find((nivel) => nivel.id === grupo.nivelEap)?.label || "Grupo"} · {grupo.descricao}</option>)}</select><button type="button" disabled={!salas.length} title={salas.length ? "Criar uma disciplina dentro de uma sala" : "Cadastre primeiro uma Sala no nível 4"} onClick={() => setNovoGrupo((atual) => ({ ...atual, aberto: !atual.aberto }))}>＋ Nova disciplina</button></div></label>}
+          {novoGrupo.aberto && dados.tipo !== "grupo" && <div className="orc-inline-group orc-field-wide"><label><span>Sala superior (nível 4)</span><select value={novoGrupo.parentId} onChange={(event) => setNovoGrupo((atual) => ({ ...atual, parentId: event.target.value }))}>{salas.map((sala) => <option key={sala.id} value={sala.id}>{sala.codigo} · {sala.descricao}</option>)}</select></label><label><span>Código da disciplina</span><input readOnly value={codigoNovoGrupo} /></label><label><span>Nome da disciplina</span><input autoFocus value={novoGrupo.descricao} onChange={(event) => setNovoGrupo((atual) => ({ ...atual, descricao: event.target.value }))} placeholder="Ex.: ARQUITETURA" /></label><button type="button" disabled={!novoGrupo.descricao.trim() || !salaNovoGrupo} onClick={incluirGrupoRapido}>Criar e selecionar</button></div>}
+          <label><span>Código EAP (automático)</span><input required readOnly value={dados.codigo} placeholder="Gerado pela posição hierárquica" /></label>
           <label className="orc-field-wide"><span>Descrição</span><input required value={dados.descricao} onChange={(event) => atualizar("descricao", event.target.value)} placeholder="Descrição do serviço" /></label>
           {dados.tipo !== "grupo" && <>
             <div className="orc-field-wide base-item-publication">

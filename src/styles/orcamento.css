@@ -292,7 +292,7 @@
 .orc-form-grid .orc-field-wide { grid-column: 1 / -1; }
 .orc-group-select { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
 .orc-group-select button { padding: 0 12px; border: 1px solid var(--orc-teal); border-radius: 7px; background: #edf7f5; color: var(--orc-teal); font-size: 10px; font-weight: 900; white-space: nowrap; }
-.orc-inline-group { padding: 12px; display: grid; grid-template-columns: 110px 1fr auto; gap: 9px; align-items: end; border: 1px solid #cfe4e0; border-radius: 8px; background: #f2f9f7; }
+.orc-inline-group { padding: 12px; display: grid; grid-template-columns: minmax(180px, 1fr) 140px minmax(180px, 1fr) auto; gap: 9px; align-items: end; border: 1px solid #cfe4e0; border-radius: 8px; background: #f2f9f7; }
 .orc-inline-group button { height: 39px; padding: 0 13px; border: 0; border-radius: 7px; background: var(--orc-teal); color: #fff; font-size: 10px; font-weight: 900; }
 .orc-inline-group button:disabled { opacity: .45; }
 .orc-file-drop { padding: 14px; border: 1px dashed #b9cecf; border-radius: 8px; background: #f7fafb; }

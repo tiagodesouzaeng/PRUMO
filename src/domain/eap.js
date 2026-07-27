@@ -1,10 +1,14 @@
 export const EAP_NIVEIS = [
-  { id: "site", label: "Site" },
-  { id: "predio", label: "Prédio" },
-  { id: "andar", label: "Andar" },
-  { id: "sala", label: "Sala" },
-  { id: "disciplina", label: "Disciplina" },
+  { id: "site", label: "Site", nivel: 1, exemplo: "1, 2, 3..." },
+  { id: "predio", label: "Prédio", nivel: 2, exemplo: "1.1, 1.2, 2.1..." },
+  { id: "andar", label: "Andar", nivel: 3, exemplo: "1.1.1, 1.1.2, 3.2.1..." },
+  { id: "sala", label: "Sala", nivel: 4, exemplo: "1.1.1.1, 1.1.1.2, 2.1.2.1..." },
+  { id: "disciplina", label: "Disciplina", nivel: 5, exemplo: "1.1.1.1.1..." },
 ];
+
+export function nivelEapPorProfundidade(profundidade = 1) {
+  return EAP_NIVEIS[Math.max(0, Math.min(EAP_NIVEIS.length - 1, profundidade - 1))];
+}
 
 export function nivelEapAnterior(nivel) {
   const indice = EAP_NIVEIS.findIndex((item) => item.id === nivel);
@@ -28,7 +32,9 @@ function prepararItens(itens) {
     return {
       ...item,
       parentId,
-      nivelEap: item.tipo === "grupo" ? (item.nivelEap || "disciplina") : "",
+      nivelEap: item.tipo === "grupo"
+        ? (item.nivelEap || nivelEapPorProfundidade(String(item.codigo || "1").split(".").length).id)
+        : "",
       __indice: indice,
     };
   });
@@ -54,14 +60,17 @@ export function reclassificarEap(itens = []) {
 
   const resultado = [];
   const visitados = new Set();
-  function visitar(parentId = "", prefixo = "") {
+  function visitar(parentId = "", prefixo = "", profundidade = 1) {
     (filhos.get(parentId) || []).forEach((item, indice) => {
       if (visitados.has(item.id)) return;
       visitados.add(item.id);
       const codigo = prefixo ? `${prefixo}.${indice + 1}` : String(indice + 1);
       const { __indice, ...limpo } = item;
-      resultado.push({ ...limpo, codigo, ordemEap: indice });
-      visitar(item.id, codigo);
+      const nivelEap = item.tipo === "grupo"
+        ? nivelEapPorProfundidade(profundidade).id
+        : "";
+      resultado.push({ ...limpo, codigo, ordemEap: indice, nivelEap });
+      visitar(item.id, codigo, profundidade + 1);
     });
   }
   visitar();
@@ -70,7 +79,12 @@ export function reclassificarEap(itens = []) {
     .filter((item) => !visitados.has(item.id))
     .forEach((item) => {
       const { __indice, ...limpo } = item;
-      resultado.push({ ...limpo, parentId: "", codigo: String(resultado.length + 1) });
+      resultado.push({
+        ...limpo,
+        parentId: "",
+        codigo: String(resultado.length + 1),
+        nivelEap: item.tipo === "grupo" ? "site" : "",
+      });
     });
   return resultado;
 }
