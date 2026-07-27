@@ -1,6 +1,6 @@
 import { reclassificarEap } from "./eap";
 
-export const ORCAMENTO_STORAGE_VERSION = 4;
+export const ORCAMENTO_STORAGE_VERSION = 5;
 export const REGRA_CALCULO_ATUAL = "9.4-truncamento-2-casas";
 
 export const UNIDADES_ORCAMENTARIAS = [
@@ -14,6 +14,16 @@ export const BDI_COMPONENTES_PADRAO = {
   despesasFinanceiras: 1.23,
   lucro: 7.4,
   tributos: 8.65,
+};
+
+export const ENCARGOS_SOCIAIS_PADRAO = {
+  fonte: "SINAPI",
+  uf: "RS",
+  referencia: "02/2026",
+  regime: "Sem desoneração",
+  horista: 111.95,
+  mensalista: 69.29,
+  observacoes: "Referência inicial extraída da base estratégica BASE DE CUSTOS 022026-R00.",
 };
 
 const itensBase = [
@@ -297,6 +307,7 @@ export function normalizarOrcamento(orcamento) {
   return {
     ...dadosOrcamento,
     bdiComponentes: orcamento.bdiComponentes ?? null,
+    encargosSociais: orcamento.encargosSociais ?? { ...ENCARGOS_SOCIAIS_PADRAO },
     descontoGlobal: orcamento.descontoGlobal ?? null,
     historicoCalculo: orcamento.historicoCalculo || [],
     itens: reclassificarEap((orcamento.itens || []).map((item) => ({
@@ -333,6 +344,7 @@ export function criarOrcamento({ id, nome, bdi, area }) {
     revisao: "R01",
     bdi: numeroSeguro(bdi),
     bdiComponentes: null,
+    encargosSociais: { ...ENCARGOS_SOCIAIS_PADRAO },
     descontoGlobal: null,
     historicoCalculo: [],
     area: numeroSeguro(area),

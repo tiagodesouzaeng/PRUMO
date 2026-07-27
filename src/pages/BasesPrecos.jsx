@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { BASE_PROPRIA_ID } from "../hooks/useBasesPrecos";
 import { UNIDADES_ORCAMENTARIAS } from "../domain/orcamento";
+import ModalComposicaoRastreavel from "../components/Orcamento/ModalComposicaoRastreavel";
 import "../styles/orcamento.css";
 
 const ufs = ["GERAL","AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
@@ -163,10 +164,15 @@ export default function BasesPrecos({ basesPrecos }) {
   const [aviso, setAviso] = useState("");
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState("composicao");
-  const referencias = basesPrecos.referencias
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true);
+  const [detalhe, setDetalhe] = useState(null);
+  const referenciasFiltradas = useMemo(() => basesPrecos.referencias
     .filter((item) => item.tipo === tipo)
-    .filter((item) => !busca.trim() || `${item.codigo} ${item.descricao}`.toLocaleLowerCase("pt-BR").includes(busca.trim().toLocaleLowerCase("pt-BR")))
-    .slice(0, 80);
+    .filter((item) => !busca.trim() || `${item.codigo} ${item.descricao} ${item.unidade || ""}`.toLocaleLowerCase("pt-BR").includes(busca.trim().toLocaleLowerCase("pt-BR"))), [basesPrecos.referencias, busca, tipo]);
+  const referencias = referenciasFiltradas.slice(0, 80);
+  const baseAtiva = basesPrecos.baseAtiva;
+  const totalRegistros = Number(baseAtiva?.registros)
+    || Number(baseAtiva?.composicoes || 0) + Number(baseAtiva?.insumos || 0);
 
   function avisar(texto) {
     setAviso(texto);
@@ -178,25 +184,50 @@ export default function BasesPrecos({ basesPrecos }) {
       {aviso && <div className="orc-toast" role="status">{aviso}</div>}
       {modal === "importar" && <ModalImportar fechar={() => setModal("")} basesPrecos={basesPrecos} avisar={avisar} />}
       {modal === "composicao" && <ModalComposicaoPropria fechar={() => setModal("")} basesPrecos={basesPrecos} avisar={avisar} />}
+      {detalhe && <ModalComposicaoRastreavel referencia={detalhe} basesPrecos={basesPrecos} fechar={() => setDetalhe(null)} tituloContexto="Rastreabilidade da base" />}
       <div className="orc-section-heading">
         <div><span>SUBMÓDULO INDEPENDENTE</span><h2>Bases de preços</h2><p>Publicações oficiais, composições analíticas, insumos e base corporativa fora dos orçamentos.</p></div>
         <div className="orc-heading-actions"><button className="orc-btn orc-btn-ghost" type="button" onClick={() => setModal("importar")}>⇧ Importar base</button><button className="orc-btn orc-btn-primary" type="button" onClick={() => { basesPrecos.setBaseAtivaId(BASE_PROPRIA_ID); setModal("composicao"); }}>＋ Composição própria</button></div>
       </div>
-      <div className="base-library-layout">
-        <aside className="orc-card base-library-list">
-          <header><div><span>PUBLICAÇÕES</span><h3>Bases disponíveis</h3></div></header>
-          {basesPrecos.bases.map((base) => <button type="button" key={base.id} className={base.id === basesPrecos.baseAtivaId ? "is-active" : ""} onClick={() => basesPrecos.setBaseAtivaId(base.id)}><strong>{base.titulo}</strong><span>{base.fonte} · {base.uf} · {base.referencia}</span><small>{base.composicoes.toLocaleString("pt-BR")} composições · {base.insumos.toLocaleString("pt-BR")} insumos</small></button>)}
-        </aside>
-        <main className="orc-card base-library-catalog">
-          <header><div><span>CATÁLOGO</span><h3>{basesPrecos.baseAtiva?.titulo || "Selecione uma base"}</h3></div><div className="catalog-type-buttons"><button type="button" className={tipo === "composicao" ? "is-active" : ""} onClick={() => setTipo("composicao")}>Composições</button><button type="button" className={tipo === "insumo" ? "is-active" : ""} onClick={() => setTipo("insumo")}>Insumos</button></div></header>
-          <SeletorPublicacao basesPrecos={basesPrecos} />
-          <input className="base-catalog-search" value={busca} onChange={(event) => setBusca(event.target.value)} placeholder={`Buscar ${tipo === "composicao" ? "composição" : "insumo"} por código ou descrição`} />
-          <div className="base-catalog-results">
-            {referencias.map((item) => <article key={`${item.tipo}-${item.codigo}`}><span><strong>{item.codigo}</strong><small>{item.tipo}</small></span><p>{item.descricao}</p><b className={item.semPreco ? "sem-preco" : ""}>{item.semPreco ? "Sem preço nesta UF" : moeda(item.preco)}</b>{basesPrecos.baseAtiva?.propria && <button type="button" onClick={() => basesPrecos.removerComposicaoPropria(basesPrecos.composicoesProprias.find((cpu) => cpu.codigo === item.codigo)?.id)}>×</button>}</article>)}
-            {!referencias.length && <div className="orc-empty-base"><strong>Nenhum registro encontrado</strong><span>Troque o mês, o estado, o tipo ou o termo pesquisado.</span></div>}
-          </div>
-        </main>
+      <section className="base-monitor-header">
+        <div><span>BASES MONITORADAS</span><strong>{basesPrecos.bases.length} publicações cadastradas</strong></div>
+        <div className="base-monitor-pills">
+          <b>{referenciasFiltradas.length.toLocaleString("pt-BR")} VISÍVEIS</b>
+          <b>{baseAtiva?.fonte || "SEM BASE"} · {baseAtiva?.uf || "—"} · {baseAtiva?.referencia || "—"}</b>
+          <div className="catalog-type-buttons"><button type="button" className={tipo === "composicao" ? "is-active" : ""} onClick={() => setTipo("composicao")}>COMPOSIÇÕES</button><button type="button" className={tipo === "insumo" ? "is-active" : ""} onClick={() => setTipo("insumo")}>INSUMOS</button></div>
+        </div>
+      </section>
+      <section className="orc-card base-filter-panel">
+        <div className="base-filter-primary">
+          <label><span>BUSCAR NA BASE</span><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Pesquisar por código, descrição ou unidade..." /></label>
+          <button type="button" className="orc-btn orc-btn-primary" onClick={() => setBusca((atual) => atual.trim())}>Atualizar</button>
+        </div>
+        <button className="base-filter-toggle" type="button" onClick={() => setFiltrosAbertos((aberto) => !aberto)}><span><i>{filtrosAbertos ? "−" : "+"}</i> Filtros da publicação</span><b>{referenciasFiltradas.length.toLocaleString("pt-BR")} de {Number(baseAtiva?.[tipo === "composicao" ? "composicoes" : "insumos"] || 0).toLocaleString("pt-BR")}</b></button>
+        {filtrosAbertos && <div className="base-filter-options"><SeletorPublicacao basesPrecos={basesPrecos} /><div className="base-publication-tabs">{basesPrecos.bases.map((base) => <button type="button" key={base.id} className={base.id === basesPrecos.baseAtivaId ? "is-active" : ""} onClick={() => basesPrecos.setBaseAtivaId(base.id)}><strong>{base.fonte}</strong><span>{base.uf} · {base.referencia}</span><small>{Number(base.composicoes || 0).toLocaleString("pt-BR")} comp. · {Number(base.insumos || 0).toLocaleString("pt-BR")} insumos · {Number(base.registros || (Number(base.composicoes || 0) + Number(base.insumos || 0))).toLocaleString("pt-BR")} itens</small></button>)}</div></div>}
+      </section>
+      <div className="base-count-grid">
+        <article><span>COMPOSIÇÕES</span><strong>{Number(baseAtiva?.composicoes || 0).toLocaleString("pt-BR")}</strong><small>Serviços compostos</small></article>
+        <article><span>INSUMOS</span><strong>{Number(baseAtiva?.insumos || 0).toLocaleString("pt-BR")}</strong><small>Materiais, mão de obra e equipamentos</small></article>
+        <article><span>ITENS DA BASE</span><strong>{totalRegistros.toLocaleString("pt-BR")}</strong><small>Registros catalogados</small></article>
+        <article><span>PUBLICAÇÃO ATIVA</span><strong>{baseAtiva?.referencia || "—"}</strong><small>{baseAtiva?.titulo || "Selecione uma publicação"}</small></article>
       </div>
+      <main className="orc-card base-library-catalog">
+        <header><div><span>CATÁLOGO</span><h3>{baseAtiva?.titulo || "Selecione uma base"}</h3></div><small>Clique em uma composição para abrir sua memória e navegar pelos níveis internos.</small></header>
+        <div className="base-catalog-results">
+          {referencias.map((item) => (
+            <article key={`${item.tipo}-${item.codigo}`} className={item.tipo === "composicao" ? "is-clickable" : ""} onClick={() => item.tipo === "composicao" && setDetalhe({ basePrecoId: baseAtiva?.id, codigo: item.codigo, descricao: item.descricao, unidade: item.unidade, preco: item.preco })}>
+              <span><strong>{item.codigo}</strong><small>{item.tipo}</small></span>
+              <p>{item.descricao}</p>
+              <span className="base-item-unit"><small>UNIDADE</small><strong>{item.unidade || "—"}</strong></span>
+              <b className={item.semPreco ? "sem-preco" : ""}>{item.semPreco ? "Sem preço nesta UF" : moeda(item.preco)}</b>
+              {baseAtiva?.propria && <button type="button" onClick={(event) => { event.stopPropagation(); basesPrecos.removerComposicaoPropria(basesPrecos.composicoesProprias.find((cpu) => cpu.codigo === item.codigo)?.id); }}>×</button>}
+            </article>
+          ))}
+          {!referencias.length && <div className="orc-empty-base"><strong>Nenhum registro encontrado</strong><span>Troque o mês, o estado, o tipo ou o termo pesquisado.</span></div>}
+        </div>
+        {referenciasFiltradas.length > referencias.length && <footer className="base-results-limit">Exibindo os primeiros {referencias.length} de {referenciasFiltradas.length.toLocaleString("pt-BR")} registros para manter a navegação rápida.</footer>}
+      </main>
+      <aside className="orc-card procurement-roadmap-note"><span>EVOLUÇÃO PLANEJADA</span><strong>Relatório de suprimentos</strong><p>A decomposição recursiva das composições preparada nesta etapa será a base para calcular insumos, consumo por cronograma e datas de compra com antecedência configurável.</p></aside>
     </section>
   );
 }

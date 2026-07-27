@@ -155,6 +155,10 @@ export default function useOrcamentos() {
     atualizarAtivo((orcamento) => ({ ...orcamento, bdiComponentes }));
   }
 
+  function atualizarEncargosSociais(encargosSociais) {
+    atualizarAtivo((orcamento) => ({ ...orcamento, encargosSociais }));
+  }
+
   function atualizarDescontoGlobal(dados) {
     atualizarAtivo((orcamento) => {
       const agora = new Date().toISOString();
@@ -342,6 +346,7 @@ export default function useOrcamentos() {
     moverItem,
     importarItens,
     atualizarBdi,
+    atualizarEncargosSociais,
     atualizarDescontoGlobal,
     atualizarPrecosBase,
     adicionarComposicao,

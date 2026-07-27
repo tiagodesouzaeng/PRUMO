@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BDI_COMPONENTES_PADRAO,
+  ENCARGOS_SOCIAIS_PADRAO,
   calcularBdiDetalhado,
   calcularDistribuicaoDesconto,
   calcularTotais,
@@ -15,6 +16,7 @@ import {
 import useOrcamentos from "../hooks/useOrcamentos";
 import { importarPlanilhaOrcamentaria } from "../services/orcamentoImport";
 import { EAP_NIVEIS, nivelEapAnterior } from "../domain/eap";
+import ModalComposicaoRastreavel from "../components/Orcamento/ModalComposicaoRastreavel";
 
 const ETAPAS = [
   { id: "visao", label: "Visão geral", icon: "⌂" },
@@ -23,6 +25,7 @@ const ETAPAS = [
   { id: "cronograma", label: "Cronograma", icon: "◩" },
   { id: "histograma", label: "Histograma", icon: "♙" },
   { id: "medicoes", label: "Medições", icon: "✓" },
+  { id: "comercial", label: "Condições comerciais", icon: "$" },
   { id: "revisoes", label: "Revisões", icon: "⇄" },
 ];
 
@@ -56,6 +59,7 @@ function CabecalhoSecao({ etapa, exportar, novaRevisao }) {
     cronograma: ["Cronograma físico-financeiro", "Distribuição planejada e realizada por período da obra."],
     histograma: ["Histograma de mão de obra", "Equipes projetadas a partir dos coeficientes das composições."],
     medicoes: ["Medições e saldos", "Avanço físico, valor medido, retenções e saldo contratual."],
+    comercial: ["Condições comerciais", "Descontos, critérios de negociação e memória das condições aplicadas."],
     revisoes: ["Revisões e cenários", "Histórico imutável, comparativos e fluxo de aprovação."],
   };
   const [titulo, descricao] = textos[etapa];
@@ -263,7 +267,6 @@ function Planilha({
   moverItem,
   abrirDetalhe,
   importarArquivo,
-  salvarDesconto,
 }) {
   const [filtro, setFiltro] = useState("");
   const totais = calcularTotais(orcamento);
@@ -272,7 +275,6 @@ function Planilha({
   return (
     <>
       <Indicadores orcamento={orcamento} />
-      <DescontoOrcamento key={`${orcamento.id}-${orcamento.descontoGlobal?.atualizadoEm || "sem-desconto"}`} orcamento={orcamento} salvar={salvarDesconto} />
       <article className="orc-card orc-budget-preview">
         <div className="orc-toolbar">
           <label>⌕<input value={filtro} onChange={(event) => setFiltro(event.target.value)} placeholder="Filtrar item, descrição ou código..." /></label>
@@ -304,9 +306,27 @@ function Planilha({
   );
 }
 
-function BdiDetalhado({ orcamento, salvarBdi }) {
+function CondicoesComerciais({ orcamento, salvarDesconto }) {
+  return (
+    <>
+      <Indicadores orcamento={orcamento} />
+      <DescontoOrcamento key={`${orcamento.id}-${orcamento.descontoGlobal?.atualizadoEm || "sem-desconto"}`} orcamento={orcamento} salvar={salvarDesconto} />
+      <aside className="orc-card commercial-audit-note">
+        <span>MEMÓRIA COMERCIAL</span>
+        <strong>Condição vinculada à revisão {orcamento.revisao}</strong>
+        <p>Alterações de desconto ficam registradas no histórico de cálculo, com percentual efetivo e regra de truncamento utilizada.</p>
+      </aside>
+    </>
+  );
+}
+
+function BdiDetalhado({ orcamento, salvarBdi, salvarEncargos }) {
+  const [guia, setGuia] = useState("bdi");
   const [componentes, setComponentes] = useState(
     () => ({ ...(orcamento.bdiComponentes || BDI_COMPONENTES_PADRAO) }),
+  );
+  const [encargos, setEncargos] = useState(
+    () => ({ ...(orcamento.encargosSociais || ENCARGOS_SOCIAIS_PADRAO) }),
   );
   const bdiCalculado = calcularBdiDetalhado(componentes);
   const campos = [
@@ -319,7 +339,12 @@ function BdiDetalhado({ orcamento, salvarBdi }) {
   ];
 
   return (
-    <div className="orc-bdi-grid">
+    <>
+      <nav className="bdi-subnav" aria-label="BDI e encargos">
+        <button type="button" className={guia === "bdi" ? "is-active" : ""} onClick={() => setGuia("bdi")}>Composição do BDI</button>
+        <button type="button" className={guia === "encargos" ? "is-active" : ""} onClick={() => setGuia("encargos")}>Encargos sociais</button>
+      </nav>
+      {guia === "bdi" && <div className="orc-bdi-grid">
       <article className="orc-card">
         <header><div><span>COMPOSIÇÃO DO BDI</span><h3>Componentes percentuais</h3></div><strong>{bdiCalculado.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong></header>
         <div className="orc-bdi-form">
@@ -337,7 +362,32 @@ function BdiDetalhado({ orcamento, salvarBdi }) {
         <div className="total"><span>Preço com BDI</span><strong>{formatarMoeda(calcularTotais({ ...orcamento, bdiComponentes: componentes }).precoTotal)}</strong></div>
         <p>Fórmula: (((1 + AC + SG + R) × (1 + DF) × (1 + L)) ÷ (1 − I)) − 1</p>
       </aside>
-    </div>
+      </div>}
+      {guia === "encargos" && (
+        <div className="social-charges-grid">
+          <article className="orc-card">
+            <header><div><span>ENCARGOS SOCIAIS</span><h3>Referência aplicada ao orçamento</h3></div><strong>{encargos.regime}</strong></header>
+            <div className="social-charges-form">
+              <label><span>Fonte</span><input value={encargos.fonte} onChange={(event) => setEncargos((atual) => ({ ...atual, fonte: event.target.value }))} /></label>
+              <label><span>Estado</span><input maxLength="5" value={encargos.uf} onChange={(event) => setEncargos((atual) => ({ ...atual, uf: event.target.value.toUpperCase() }))} /></label>
+              <label><span>Mês de referência</span><input value={encargos.referencia} onChange={(event) => setEncargos((atual) => ({ ...atual, referencia: event.target.value }))} /></label>
+              <label><span>Regime</span><select value={encargos.regime} onChange={(event) => setEncargos((atual) => ({ ...atual, regime: event.target.value }))}><option>Sem desoneração</option><option>Desonerado</option><option>Personalizado</option></select></label>
+              <label><span>Taxa horista</span><div><input type="number" min="0" step="0.01" value={encargos.horista} onChange={(event) => setEncargos((atual) => ({ ...atual, horista: Number(event.target.value) }))} /><b>%</b></div></label>
+              <label><span>Taxa mensalista</span><div><input type="number" min="0" step="0.01" value={encargos.mensalista} onChange={(event) => setEncargos((atual) => ({ ...atual, mensalista: Number(event.target.value) }))} /><b>%</b></div></label>
+              <label className="orc-field-wide"><span>Observações</span><textarea rows="3" value={encargos.observacoes || ""} onChange={(event) => setEncargos((atual) => ({ ...atual, observacoes: event.target.value }))} /></label>
+            </div>
+            <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={() => setEncargos({ ...ENCARGOS_SOCIAIS_PADRAO })}>Restaurar referência</button><button type="button" className="orc-btn orc-btn-primary" onClick={() => salvarEncargos(encargos)}>Aplicar encargos</button></footer>
+          </article>
+          <aside className="orc-card social-charges-summary">
+            <header><div><span>RESUMO</span><h3>Taxas de referência</h3></div></header>
+            <div><span>Horista</span><strong>{Number(encargos.horista || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>
+            <div><span>Mensalista</span><strong>{Number(encargos.mensalista || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>
+            <div><span>Publicação</span><strong>{encargos.fonte} · {encargos.uf} · {encargos.referencia}</strong></div>
+            <p>A memória analítica dos grupos A, B, C e D permanece preservada na planilha estratégica arquivada. Esta configuração registra a taxa utilizada em cada orçamento.</p>
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -817,56 +867,6 @@ function ModalItem({
   );
 }
 
-function ModalDetalheComposicao({ item, orcamento, basesPrecos, fechar }) {
-  const [componentes, setComponentes] = useState([]);
-  const [carregando, setCarregando] = useState(true);
-  const codigo = item.referenciaCodigo || item.fonte?.split("·").at(-1)?.trim() || "";
-  const base = basesPrecos.bases.find((candidata) => candidata.id === item.basePrecoId)
-    || basesPrecos.bases.find((candidata) => item.fonte?.toUpperCase().startsWith(candidata.fonte));
-
-  useEffect(() => {
-    let ativo = true;
-    const composicaoLegada = orcamento.composicoes?.find((composicao) => composicao.codigo === codigo);
-    if (composicaoLegada) {
-      setComponentes(composicaoLegada.componentes || []);
-      setCarregando(false);
-      return () => { ativo = false; };
-    }
-    basesPrecos.carregarItensComposicao(base?.id || item.basePrecoId, codigo)
-      .then((itens) => { if (ativo) setComponentes(itens); })
-      .finally(() => { if (ativo) setCarregando(false); });
-    return () => { ativo = false; };
-  }, [base?.id, codigo]);
-
-  return (
-    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
-      <section className="orc-modal orc-modal-wide composition-detail-modal" role="dialog" aria-modal="true" aria-labelledby="composition-detail-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><span>MEMÓRIA DA COMPOSIÇÃO</span><h3 id="composition-detail-title">{codigo} · {item.descricao}</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
-        <div className="composition-detail-summary">
-          <div><span>Base</span><strong>{base?.titulo || item.fonte?.split("·")[0] || "Base própria"}</strong><small>{base ? `${base.uf} · ${base.referencia} · ${base.regime}` : "Referência preservada no orçamento"}</small></div>
-          <div><span>Unidade</span><strong>{item.unidade}</strong></div>
-          <div><span>Preço unitário</span><strong>{formatarPrecoUnitario(item.unitario)}</strong></div>
-          <div><span>Componentes</span><strong>{componentes.length}</strong></div>
-        </div>
-        <div className="composition-editor-table">
-          <table><thead><tr><th>Tipo</th><th>Código / descrição</th><th>Base de origem</th><th>Un.</th><th>Coeficiente</th><th>Preço</th><th>Total</th></tr></thead><tbody>
-            {componentes.map((componente, index) => {
-              const tipo = componente.referenciaTipo || componente.itemTipo;
-              const codigoComponente = componente.referenciaCodigo || componente.itemCodigo;
-              const preco = Number(componente.preco) || 0;
-              const coeficiente = Number(componente.coeficiente) || 0;
-              return <tr key={`${tipo}-${codigoComponente}-${index}`}><td><b className={`composition-type ${tipo}`}>{tipo}</b></td><td><strong>{codigoComponente}</strong><small>{componente.descricao}</small></td><td>{componente.baseTitulo || base?.titulo || "Base própria"}<small>{componente.baseUf ? `${componente.baseUf} · ${componente.baseReferencia}` : base ? `${base.uf} · ${base.referencia}` : ""}</small></td><td>{componente.unidade}</td><td>{coeficiente.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</td><td>{preco ? formatarPrecoUnitario(preco) : "Sem preço"}</td><td>{formatarPrecoUnitario(coeficiente * preco)}</td></tr>;
-            })}
-            {!carregando && !componentes.length && <tr><td colSpan="7">Nenhum componente analítico foi localizado para esta referência.</td></tr>}
-            {carregando && <tr><td colSpan="7">Carregando composição analítica...</td></tr>}
-          </tbody></table>
-        </div>
-        <footer><button type="button" className="orc-btn orc-btn-primary" onClick={fechar}>Fechar</button></footer>
-      </section>
-    </div>
-  );
-}
-
 function ModalNovoOrcamento({ fechar, salvar, proximoCodigo }) {
   const [dados, setDados] = useState({
     id: proximoCodigo,
@@ -912,6 +912,7 @@ export default function Orcamento({ basesPrecos }) {
     moverItem,
     importarItens,
     atualizarBdi,
+    atualizarEncargosSociais,
     atualizarDescontoGlobal,
     atualizarPrecosBase,
     adicionarComposicao,
@@ -987,6 +988,11 @@ export default function Orcamento({ basesPrecos }) {
     notificar("Composição do BDI aplicada ao orçamento.");
   }
 
+  function salvarEncargos(encargos) {
+    atualizarEncargosSociais(encargos);
+    notificar("Encargos sociais aplicados ao orçamento.");
+  }
+
   function salvarDesconto(dados) {
     atualizarDescontoGlobal(dados);
     notificar(dados ? "Desconto global aplicado e distribuído entre os serviços." : "Desconto global removido.");
@@ -1016,11 +1022,23 @@ export default function Orcamento({ basesPrecos }) {
   }
 
   if (!orcamentoAtivo) return null;
+  const baseDetalhe = itemDetalhe && (
+    basesPrecos.bases.find((base) => base.id === itemDetalhe.basePrecoId)
+    || basesPrecos.bases.find((base) => itemDetalhe.fonte?.toUpperCase().startsWith(base.fonte))
+  );
+  const referenciaDetalhe = itemDetalhe ? {
+    basePrecoId: baseDetalhe?.id || itemDetalhe.basePrecoId,
+    codigo: itemDetalhe.referenciaCodigo || itemDetalhe.fonte?.split("·").at(-1)?.trim() || "",
+    descricao: itemDetalhe.descricao,
+    unidade: itemDetalhe.unidade,
+    preco: itemDetalhe.unitario,
+    baseTitulo: baseDetalhe?.titulo || itemDetalhe.fonte?.split("·")[0],
+  } : null;
 
   return (
     <section className="sigiu-page orc-page">
       {aviso && <div className="orc-toast" role="status">{aviso}</div>}
-      {itemDetalhe && <ModalDetalheComposicao item={itemDetalhe} orcamento={orcamentoAtivo} basesPrecos={basesPrecos} fechar={() => setItemDetalhe(null)} />}
+      {referenciaDetalhe && <ModalComposicaoRastreavel referencia={referenciaDetalhe} basesPrecos={basesPrecos} fechar={() => setItemDetalhe(null)} />}
       {(modal === "item" || modal === "grupo") && <ModalItem fechar={() => { setModal(""); setItemEmEdicao(null); }} salvar={salvarDadosItem} item={itemEmEdicao} tipoInicial={modal === "grupo" ? "grupo" : "servico"} itens={orcamentoAtivo.itens} criarGrupo={(dados) => { salvarItem(dados); notificar("Novo grupo criado e selecionado."); }} basesPrecos={basesPrecos} />}
       {modal === "orcamento" && <ModalNovoOrcamento fechar={() => setModal("")} salvar={salvarNovoOrcamento} proximoCodigo={proximoCodigo} />}
       <div className="orc-project-bar">
@@ -1033,11 +1051,12 @@ export default function Orcamento({ basesPrecos }) {
       </nav>
       <CabecalhoSecao etapa={etapaAtual.id} exportar={exportar} novaRevisao={adicionarRevisao} />
       {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
-      {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} abrirDetalhe={setItemDetalhe} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} salvarDesconto={salvarDesconto} />}
-      {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} />}
+      {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} abrirDetalhe={setItemDetalhe} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} />}
+      {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} salvarEncargos={salvarEncargos} />}
       {etapa === "cronograma" && <Cronograma />}
       {etapa === "histograma" && <Histograma />}
       {etapa === "medicoes" && <Medicoes />}
+      {etapa === "comercial" && <CondicoesComerciais orcamento={orcamentoAtivo} salvarDesconto={salvarDesconto} />}
       {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} />}
     </section>
   );
