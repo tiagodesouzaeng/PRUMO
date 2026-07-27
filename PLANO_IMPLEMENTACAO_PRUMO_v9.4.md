@@ -59,3 +59,71 @@ truncamento monetário, desconto global e aplicação do BDI.
 - BDI incide somente depois do desconto;
 - remover o desconto restaura os totais sem alterar os itens;
 - dados permanecem após recarregar a aplicação.
+
+## Próximas etapas
+
+### Etapa 9.5 — Submódulo de Licitações e Concorrência
+
+Criar um ambiente para preparar e gerar o pacote de planilhas utilizado em
+licitações, tomadas de preço e concorrências.
+
+#### Arquivo consolidado
+
+O formato padrão será um único arquivo XLSX, com as seguintes abas:
+
+1. `00_Instruções`: identificação da concorrência, versão, data-base,
+   orientações de preenchimento e legenda das células;
+2. `01_Orçamento_Completo`: planilha integral do orçamento de referência, com
+   EAP, quantidades, preços, descontos, BDI e fórmulas dos custos;
+3. `02_Proposta_de_Preços`: modelo para o concorrente preencher somente os
+   valores unitários permitidos;
+4. `03_BDI_e_Encargos`: componentes do BDI e encargos com memória de cálculo;
+5. `04_Cronograma`: cronograma físico-financeiro com períodos e fórmulas;
+6. `05_Histograma`: histograma de mão de obra e recursos.
+
+#### Proteção e edição
+
+- bloquear células estruturais, fórmulas, identificadores, quantidades e totais;
+- deixar desbloqueadas somente as células destinadas ao preenchimento;
+- destacar visualmente as células editáveis e incluir validações de dados;
+- proteger cada aba e a estrutura do arquivo;
+- impedir inserção, exclusão ou renomeação acidental das abas;
+- preservar as fórmulas ao abrir o arquivo no Excel e em aplicativos
+  compatíveis;
+- não utilizar macros nem vínculos externos;
+- informar que a proteção de planilha evita alterações acidentais, mas não
+  substitui segurança criptográfica.
+
+#### Regras das fórmulas
+
+- usar `TRUNC(...;2)` ou equivalente para reproduzir a regra financeira da
+  v9.4;
+- calcular os totais a partir dos preços unitários preenchidos;
+- aplicar desconto, encargos e BDI na mesma ordem do orçamento de origem;
+- incluir conferências entre subtotal, desconto, BDI e total;
+- sinalizar células obrigatórias vazias e valores inválidos;
+- manter fórmulas bloqueadas e campos de entrada desbloqueados.
+
+#### Rastreabilidade
+
+- identificar orçamento, revisão, base SINAPI e regra de cálculo;
+- registrar data e responsável pela geração;
+- gerar hash do arquivo para controle da versão distribuída;
+- incluir cabeçalho e rodapé com identificação da concorrência;
+- manter o arquivo gerado vinculado à revisão do orçamento.
+
+#### Critérios de aceite
+
+- gerar todas as cinco planilhas operacionais em um único XLSX;
+- abrir o arquivo sem alertas de corrupção ou reparação;
+- permitir edição somente nos campos explicitamente liberados;
+- manter todas as fórmulas protegidas;
+- recalcular corretamente custos, BDI, cronograma e histograma;
+- reproduzir o truncamento monetário da aplicação;
+- preservar impressão, filtros, congelamento de painéis e larguras de coluna;
+- validar o arquivo no Microsoft Excel e em pelo menos um leitor compatível.
+
+### Etapa 9.6 — Integração automatizada final
+
+Substituir importações manuais por integrações estruturadas quando as fontes
+oficiais e a infraestrutura compartilhada estiverem disponíveis.

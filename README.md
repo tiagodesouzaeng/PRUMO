@@ -64,6 +64,16 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - aplicação do BDI sobre o custo direto líquido;
 - preservação da regra financeira e dos totais nas novas revisões.
 
+## Licitações e concorrência — etapa planejada v9.5
+
+- submódulo para geração do pacote de planilhas da concorrência;
+- arquivo XLSX único com abas de instruções, orçamento completo, proposta de
+  preços, BDI e encargos, cronograma e histograma;
+- fórmulas protegidas e células de preenchimento explicitamente desbloqueadas;
+- cálculos compatíveis com o truncamento monetário da v9.4;
+- identificação da revisão, base de preços e versão do arquivo distribuído;
+- validações, filtros, impressão e congelamento de painéis preparados para uso.
+
 ## Execução
 
 Requisitos já utilizados na validação:

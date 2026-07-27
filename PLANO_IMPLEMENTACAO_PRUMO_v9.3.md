@@ -131,7 +131,23 @@ coincida com o valor global informado.
   casas, embora o preço unitário possa apresentar precisão ampliada;
 - nenhum cálculo monetário usa arredondamento convencional.
 
-### Integração futura do SINAPI
+### Etapa 9.5 — Submódulo de Licitações e Concorrência
+
+- exportar a planilha completa do orçamento em XLSX, com fórmulas e memória dos
+  custos unitários;
+- gerar modelo XLSX para preenchimento dos preços unitários pelos concorrentes;
+- gerar planilha de BDI e encargos com fórmulas;
+- gerar cronograma físico-financeiro com fórmulas;
+- gerar histograma de mão de obra e recursos com fórmulas;
+- reunir as planilhas em um único arquivo com abas distintas;
+- bloquear estrutura e fórmulas, mantendo editáveis somente os campos de
+  preenchimento;
+- reproduzir no XLSX a regra de truncamento monetário da v9.4;
+- identificar orçamento, revisão, base e versão do arquivo distribuído.
+
+O detalhamento técnico e os critérios de aceite estão no plano da v9.4.
+
+### Etapa 9.6 — Integração futura do SINAPI
 
 Quando a CAIXA disponibilizar uma interface estruturada ou API pública estável,
 o importador de arquivos poderá ser substituído por um conector automático sem
