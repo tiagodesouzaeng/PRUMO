@@ -9,7 +9,7 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
   relatórios e administração;
 - novo módulo de Orçamentos no menu lateral e na navegação móvel;
 - planilha orçamentária e EAP;
-- bases SINAPI versionadas e composições;
+- bases de preços versionadas e independentes dos orçamentos;
 - BDI, encargos e indicadores;
 - cronograma físico-financeiro;
 - histograma de mão de obra;
@@ -51,6 +51,22 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - alerta e bloqueio de atualização para referências com preço zerado;
 - atualização dos preços dos serviços vinculados à base ativa.
 
+## Correção e generalização das bases de preços — v9.4.1
+
+- leitura do pacote ZIP completo publicado pela CAIXA, incluindo referência,
+  famílias e coeficientes, manutenções e mão de obra;
+- reconhecimento dos cabeçalhos oficiais em linhas variáveis e dos códigos de
+  composições armazenados em fórmulas de hiperlink;
+- catálogo unificado de insumos e composições, com vínculos analíticos
+  preservados para consulta sob demanda;
+- importador genérico para PLEO, SBC, ORSE e futuras bases tabulares;
+- bases de preços persistidas fora dos orçamentos;
+- escolha explícita da base e da referência em cada serviço;
+- composições próprias formadas por insumos ou composições de qualquer base
+  importada;
+- atualização dos itens e componentes próprios quando uma nova versão da base
+  for aplicada.
+
 ## Motor financeiro — v9.4
 
 - preços unitários com precisão superior a duas casas decimais;
@@ -71,7 +87,7 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
   preços, BDI e encargos, cronograma e histograma;
 - fórmulas protegidas e células de preenchimento explicitamente desbloqueadas;
 - cálculos compatíveis com o truncamento monetário da v9.4;
-- identificação da revisão, base de preços e versão do arquivo distribuído;
+- identificação da revisão, bases utilizadas pelos itens e versão do arquivo distribuído;
 - validações, filtros, impressão e congelamento de painéis preparados para uso.
 
 ## Execução
@@ -98,6 +114,6 @@ manter instalações reproduzíveis entre os ambientes.
 ## Observação
 
 O módulo oferece persistência local, motor orçamentário editável e importação
-manual das publicações SINAPI. A autenticação, o banco relacional compartilhado
-e uma futura integração automatizada com fonte estruturada devem ser conectados
+manual de bases versionadas. A autenticação, o banco relacional compartilhado
+e futuras integrações automatizadas com as fontes oficiais devem ser conectados
 nas próximas etapas.

@@ -26,9 +26,9 @@ const itensBase = [
 ];
 
 const revisoesBase = [
-  { id: "rev-3", codigo: "R03", status: "Em elaboração", base: "SINAPI RS · 06/2026", total: 1836000.42, variacao: 3.2, autor: "Tiago Souza", publicada: false, data: "2026-07-26T10:42:00.000Z", snapshot: itensBase },
-  { id: "rev-2", codigo: "R02", status: "Aprovada", base: "SINAPI RS · 05/2026", total: 1779096.68, variacao: 1.7, autor: "Marina Alves", publicada: true, data: "2026-06-30T14:10:00.000Z", snapshot: itensBase.map((item) => item.tipo === "grupo" ? item : { ...item, unitario: item.unitario * 0.968 }) },
-  { id: "rev-1", codigo: "R01", status: "Substituída", base: "SINAPI RS · 04/2026", total: 1749406.77, variacao: 0, autor: "Tiago Souza", publicada: true, data: "2026-05-29T09:15:00.000Z", snapshot: itensBase.slice(0, -1).map((item) => item.tipo === "grupo" ? item : { ...item, unitario: item.unitario * 0.951 }) },
+  { id: "rev-3", codigo: "R03", status: "Em elaboração", bases: "Própria, SINAPI", total: 1836000.42, variacao: 3.2, autor: "Tiago Souza", publicada: false, data: "2026-07-26T10:42:00.000Z", snapshot: itensBase },
+  { id: "rev-2", codigo: "R02", status: "Aprovada", bases: "Própria, SINAPI", total: 1779096.68, variacao: 1.7, autor: "Marina Alves", publicada: true, data: "2026-06-30T14:10:00.000Z", snapshot: itensBase.map((item) => item.tipo === "grupo" ? item : { ...item, unitario: item.unitario * 0.968 }) },
+  { id: "rev-1", codigo: "R01", status: "Substituída", bases: "Própria, SINAPI", total: 1749406.77, variacao: 0, autor: "Tiago Souza", publicada: true, data: "2026-05-29T09:15:00.000Z", snapshot: itensBase.slice(0, -1).map((item) => item.tipo === "grupo" ? item : { ...item, unitario: item.unitario * 0.951 }) },
 ];
 
 export const ORCAMENTOS_INICIAIS = [
@@ -37,7 +37,6 @@ export const ORCAMENTOS_INICIAIS = [
     nome: "Centro Administrativo Canoas",
     status: "Em elaboração",
     revisao: "R03",
-    base: "SINAPI RS · 06/2026",
     bdi: 24.73,
     bdiComponentes: BDI_COMPONENTES_PADRAO,
     descontoGlobal: null,
@@ -55,7 +54,6 @@ export const ORCAMENTOS_INICIAIS = [
     nome: "Reforma Bloco C",
     status: "Em elaboração",
     revisao: "R01",
-    base: "SINAPI RS · 06/2026",
     bdi: 22.5,
     bdiComponentes: null,
     descontoGlobal: null,
@@ -71,7 +69,6 @@ export const ORCAMENTOS_INICIAIS = [
     nome: "Cobertura do Ginásio",
     status: "Aprovado",
     revisao: "R02",
-    base: "SINAPI RS · 05/2026",
     bdi: 21.8,
     bdiComponentes: null,
     descontoGlobal: null,
@@ -293,8 +290,10 @@ export function compararSnapshots(revisaoBase, revisaoComparada) {
 }
 
 export function normalizarOrcamento(orcamento) {
+  const dadosOrcamento = { ...orcamento };
+  delete dadosOrcamento.base;
   return {
-    ...orcamento,
+    ...dadosOrcamento,
     bdiComponentes: orcamento.bdiComponentes ?? null,
     descontoGlobal: orcamento.descontoGlobal ?? null,
     historicoCalculo: orcamento.historicoCalculo || [],
@@ -303,19 +302,31 @@ export function normalizarOrcamento(orcamento) {
       id: item.id || criarId(item.tipo === "grupo" ? "grp" : "item"),
       tipo: item.tipo || "servico",
       unidade: item.tipo === "grupo" ? "" : (item.unidade || "").toUpperCase(),
+      basePrecoId: item.tipo === "grupo" ? "" : (item.basePrecoId || ""),
+      referenciaCodigo: item.tipo === "grupo"
+        ? ""
+        : (item.referenciaCodigo || item.fonte?.split("·").at(-1)?.trim() || ""),
+      referenciaTipo: item.tipo === "grupo" ? "" : (item.referenciaTipo || "composicao"),
     })),
-    composicoes: orcamento.composicoes || [],
-    revisoes: orcamento.revisoes || [],
+    composicoes: (orcamento.composicoes || []).map((composicao) => ({
+      ...composicao,
+      componentes: composicao.componentes || [],
+    })),
+    revisoes: (orcamento.revisoes || []).map((revisao) => {
+      const dadosRevisao = { ...revisao };
+      const bases = revisao.bases || revisao.base || "Própria";
+      delete dadosRevisao.base;
+      return { ...dadosRevisao, bases };
+    }),
   };
 }
 
-export function criarOrcamento({ id, nome, base, bdi, area }) {
+export function criarOrcamento({ id, nome, bdi, area }) {
   return {
     id,
     nome,
     status: "Em elaboração",
     revisao: "R01",
-    base,
     bdi: numeroSeguro(bdi),
     bdiComponentes: null,
     descontoGlobal: null,

@@ -6,6 +6,7 @@ import {
   criarOrcamento,
   numeroSeguro,
   REGRA_CALCULO_ATUAL,
+  truncarMoeda,
 } from "../domain/orcamento";
 import {
   carregarOrcamentoAtivo,
@@ -14,6 +15,16 @@ import {
   salvarOrcamentoAtivo,
   salvarOrcamentos,
 } from "../services/orcamentoRepository";
+
+function resumirBasesDosItens(itens) {
+  const nomes = [...new Set(
+    itens
+      .filter((item) => item.tipo !== "grupo")
+      .map((item) => item.fonte?.split("·")[0]?.trim())
+      .filter(Boolean),
+  )];
+  return nomes.join(", ") || "Preços manuais";
+}
 
 export default function useOrcamentos() {
   const [orcamentos, setOrcamentos] = useState(carregarOrcamentos);
@@ -54,6 +65,9 @@ export default function useOrcamentos() {
         quantidade: dados.tipo === "grupo" ? 0 : numeroSeguro(dados.quantidade),
         unidade: dados.tipo === "grupo" ? "" : dados.unidade.trim().toUpperCase(),
         unitario: dados.tipo === "grupo" ? 0 : numeroSeguro(dados.unitario),
+        basePrecoId: dados.tipo === "grupo" ? "" : (dados.basePrecoId || ""),
+        referenciaCodigo: dados.tipo === "grupo" ? "" : (dados.referenciaCodigo || ""),
+        referenciaTipo: dados.tipo === "grupo" ? "" : (dados.referenciaTipo || "composicao"),
       };
       let itensAtualizados;
 
@@ -242,35 +256,79 @@ export default function useOrcamentos() {
     });
   }
 
-  function atualizarPrecosSinapi(referencias, base) {
+  function atualizarPrecosBase(referencias, base) {
     const precos = new Map(
-      referencias
-        .filter((item) => item.tipo === "composicao" && !item.semPreco && item.preco > 0)
-        .map((item) => [String(item.codigo), item]),
+      referencias.filter((item) => (
+        ["composicao", "insumo"].includes(item.tipo) && !item.semPreco && item.preco > 0
+      )).map((item) => [`${item.tipo}:${item.codigo}`, item]),
     );
     const atualizaveis = orcamentoAtivo.itens.filter((item) => {
-      const codigoFonte = item.fonte?.split("·").at(-1)?.trim();
-      return item.tipo !== "grupo" && precos.has(codigoFonte);
+      const codigo = item.referenciaCodigo || item.fonte?.split("·").at(-1)?.trim();
+      const tipo = item.referenciaTipo || "composicao";
+      const pertenceBase = item.basePrecoId
+        ? item.basePrecoId === base.id
+        : item.fonte?.toUpperCase().startsWith(base.fonte);
+      return item.tipo !== "grupo" && pertenceBase && precos.has(`${tipo}:${codigo}`);
     });
 
     atualizarAtivo((orcamento) => ({
       ...orcamento,
-      base: base.titulo,
       itens: orcamento.itens.map((item) => {
-        const codigoFonte = item.fonte?.split("·").at(-1)?.trim();
-        const referencia = precos.get(codigoFonte);
+        const codigo = item.referenciaCodigo || item.fonte?.split("·").at(-1)?.trim();
+        const tipo = item.referenciaTipo || "composicao";
+        const pertenceBase = item.basePrecoId
+          ? item.basePrecoId === base.id
+          : item.fonte?.toUpperCase().startsWith(base.fonte);
+        const referencia = pertenceBase ? precos.get(`${tipo}:${codigo}`) : null;
         return referencia ? {
           ...item,
           fonte: `${base.titulo} · ${referencia.codigo}`,
+          basePrecoId: base.id,
+          referenciaCodigo: referencia.codigo,
+          referenciaTipo: referencia.tipo,
           unidade: referencia.unidade || item.unidade,
           unitario: referencia.preco,
         } : item;
+      }),
+      composicoes: orcamento.composicoes.map((composicao) => {
+        const componentes = (composicao.componentes || []).map((componente) => {
+          if (componente.basePrecoId !== base.id) return componente;
+          const referencia = precos.get(`${componente.referenciaTipo}:${componente.referenciaCodigo}`);
+          return referencia ? { ...componente, preco: referencia.preco } : componente;
+        });
+        const possuiComponentes = componentes.length > 0;
+        return {
+          ...composicao,
+          componentes,
+          custoUnitario: possuiComponentes
+            ? truncarMoeda(componentes.reduce(
+              (total, componente) => (
+                total + numeroSeguro(componente.coeficiente) * numeroSeguro(componente.preco)
+              ),
+              0,
+            ))
+            : composicao.custoUnitario,
+        };
       }),
     }));
     return atualizaveis.length;
   }
 
   function adicionarComposicao(dados) {
+    const componentes = (dados.componentes || []).map((componente) => ({
+      ...componente,
+      id: componente.id || criarId("comp-item"),
+      coeficiente: numeroSeguro(componente.coeficiente),
+      preco: numeroSeguro(componente.preco),
+    }));
+    const custoCalculado = componentes.length
+      ? truncarMoeda(componentes.reduce(
+        (total, componente) => (
+          total + numeroSeguro(componente.coeficiente) * numeroSeguro(componente.preco)
+        ),
+        0,
+      ))
+      : numeroSeguro(dados.custoUnitario);
     atualizarAtivo((orcamento) => ({
       ...orcamento,
       composicoes: [
@@ -280,7 +338,8 @@ export default function useOrcamentos() {
           codigo: dados.codigo.trim().toUpperCase(),
           descricao: dados.descricao.trim(),
           unidade: dados.unidade.trim().toUpperCase(),
-          custoUnitario: numeroSeguro(dados.custoUnitario),
+          custoUnitario: custoCalculado,
+          componentes,
         },
       ],
     }));
@@ -308,7 +367,7 @@ export default function useOrcamentos() {
         id: criarId("rev"),
         codigo,
         status: "Em elaboração",
-        base: orcamento.base,
+        bases: resumirBasesDosItens(orcamento.itens),
         total: totais.precoTotal,
         variacao: 0,
         autor: "Usuário atual",
@@ -349,7 +408,7 @@ export default function useOrcamentos() {
     importarItens,
     atualizarBdi,
     atualizarDescontoGlobal,
-    atualizarPrecosSinapi,
+    atualizarPrecosBase,
     adicionarComposicao,
     removerComposicao,
     adicionarOrcamento,
