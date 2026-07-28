@@ -1,11 +1,79 @@
 import { reclassificarEap } from "./eap.js";
 
-export const ORCAMENTO_STORAGE_VERSION = 6;
+export const ORCAMENTO_STORAGE_VERSION = 7;
 export const REGRA_CALCULO_ATUAL = "9.4-truncamento-2-casas";
 
 export const UNIDADES_ORCAMENTARIAS = [
   "UN", "M", "M²", "M³", "KG", "T", "H", "DIA", "MÊS", "VB",
 ];
+
+function dataIsoValida(valor) {
+  const texto = String(valor || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return false;
+  const data = new Date(`${texto}T12:00:00.000Z`);
+  return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === texto;
+}
+
+function dataUtc(valor) {
+  return new Date(`${valor}T12:00:00.000Z`);
+}
+
+function dataIso(data) {
+  return data.toISOString().slice(0, 10);
+}
+
+export function normalizarPlanejamentoObra(planejamento = {}) {
+  const referencia = dataIsoValida(planejamento.inicioObra)
+    ? planejamento.inicioObra
+    : dataIsoValida(String(planejamento.atualizadoEm || "").slice(0, 10))
+      ? String(planejamento.atualizadoEm).slice(0, 10)
+      : dataIso(new Date());
+  const inicio = dataUtc(referencia);
+  const fimPadrao = new Date(inicio);
+  fimPadrao.setUTCFullYear(fimPadrao.getUTCFullYear() + 1);
+  fimPadrao.setUTCDate(fimPadrao.getUTCDate() - 1);
+  const fimInformado = dataIsoValida(planejamento.fimObra)
+    ? dataUtc(planejamento.fimObra)
+    : fimPadrao;
+  const fim = fimInformado >= inicio ? fimInformado : fimPadrao;
+  const intervalo = Math.min(
+    365,
+    Math.max(1, Math.round(numeroSeguro(planejamento.intervaloMedicaoDias) || 30)),
+  );
+  return {
+    inicioObra: dataIso(inicio),
+    fimObra: dataIso(fim),
+    intervaloMedicaoDias: intervalo,
+  };
+}
+
+export function criarPeriodosMedicao(planejamento = {}) {
+  const normalizado = normalizarPlanejamentoObra(planejamento);
+  const fimObra = dataUtc(normalizado.fimObra);
+  const periodos = [];
+  let inicio = dataUtc(normalizado.inicioObra);
+  let indice = 1;
+  while (inicio <= fimObra) {
+    const fim = new Date(inicio);
+    fim.setUTCDate(fim.getUTCDate() + normalizado.intervaloMedicaoDias - 1);
+    if (fim > fimObra) fim.setTime(fimObra.getTime());
+    const rotuloData = (data) => data.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone: "UTC",
+    });
+    periodos.push({
+      indice,
+      inicio: dataIso(inicio),
+      fim: dataIso(fim),
+      label: `M${String(indice).padStart(2, "0")} ${rotuloData(inicio)}–${rotuloData(fim)}`,
+    });
+    inicio = new Date(fim);
+    inicio.setUTCDate(inicio.getUTCDate() + 1);
+    indice += 1;
+  }
+  return periodos;
+}
 
 export const BDI_COMPONENTES_PADRAO = {
   estrutura: "planilha-022026-r00",
@@ -105,6 +173,9 @@ export const ORCAMENTOS_INICIAIS = [
     descontoGlobal: null,
     historicoCalculo: [],
     area: 5840,
+    inicioObra: "2026-07-01",
+    fimObra: "2027-06-30",
+    intervaloMedicaoDias: 30,
     atualizadoEm: "2026-07-26T10:42:00.000Z",
     itens: itensBase,
     composicoes: [
@@ -122,6 +193,9 @@ export const ORCAMENTOS_INICIAIS = [
     descontoGlobal: null,
     historicoCalculo: [],
     area: 1920,
+    inicioObra: "2026-08-01",
+    fimObra: "2027-01-31",
+    intervaloMedicaoDias: 30,
     atualizadoEm: "2026-07-18T15:20:00.000Z",
     itens: itensBase.slice(0, 4),
     composicoes: [],
@@ -137,6 +211,9 @@ export const ORCAMENTOS_INICIAIS = [
     descontoGlobal: null,
     historicoCalculo: [],
     area: 2460,
+    inicioObra: "2026-09-01",
+    fimObra: "2027-04-30",
+    intervaloMedicaoDias: 30,
     atualizadoEm: "2026-07-10T11:30:00.000Z",
     itens: itensBase.slice(0, 6),
     composicoes: [],
@@ -384,8 +461,10 @@ function normalizarBdiComponentes(componentes) {
 export function normalizarOrcamento(orcamento) {
   const dadosOrcamento = { ...orcamento };
   delete dadosOrcamento.base;
+  const planejamento = normalizarPlanejamentoObra(orcamento);
   return {
     ...dadosOrcamento,
+    ...planejamento,
     bdiComponentes: normalizarBdiComponentes(orcamento.bdiComponentes),
     encargosSociais: orcamento.encargosSociais?.estrutura === ENCARGOS_SOCIAIS_PADRAO.estrutura
       && Array.isArray(orcamento.encargosSociais?.grupos)
@@ -424,7 +503,20 @@ export function normalizarOrcamento(orcamento) {
   };
 }
 
-export function criarOrcamento({ id, nome, bdi, area }) {
+export function criarOrcamento({
+  id,
+  nome,
+  bdi,
+  area,
+  inicioObra,
+  fimObra,
+  intervaloMedicaoDias,
+}) {
+  const planejamento = normalizarPlanejamentoObra({
+    inicioObra,
+    fimObra,
+    intervaloMedicaoDias,
+  });
   return {
     id,
     nome,
@@ -436,6 +528,7 @@ export function criarOrcamento({ id, nome, bdi, area }) {
     descontoGlobal: null,
     historicoCalculo: [],
     area: numeroSeguro(area),
+    ...planejamento,
     atualizadoEm: new Date().toISOString(),
     itens: [],
     composicoes: [],

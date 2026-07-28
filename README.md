@@ -130,9 +130,19 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - cálculos compatíveis com o truncamento monetário da v9.4;
 - identificação da revisão, bases utilizadas pelos itens e versão do arquivo distribuído;
 - filtros e congelamento de painéis preparados para uso;
-- cronograma percentual de 12 meses e histograma de mão de obra vinculados por
-  fórmulas;
+- cronograma e histograma de mão de obra vinculados por fórmulas;
 - arquivo preparado para recálculo automático ao abrir no Excel.
+
+## EAP e planejamento da obra nas licitações — v9.5.1
+
+- prazo contratual definido por data de início e conclusão no orçamento;
+- intervalo de medição configurável em dias, com recomendação inicial de 30 dias;
+- períodos gerados de forma contínua até a data final, inclusive quando o último
+  período for menor que o intervalo padrão;
+- identificação dos cinco níveis da EAP — Site, Prédio, Andar, Sala e Disciplina —
+  nas abas Orçamento Completo, Proposta de Preços, Cronograma e Histograma;
+- cronograma e histograma dimensionados conforme os períodos reais de medição;
+- prazo e frequência de medição identificados em todas as abas do pacote.
 
 ## Execução
 

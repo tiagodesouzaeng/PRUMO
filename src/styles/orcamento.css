@@ -23,6 +23,11 @@
 .orc-project-bar select { width: min(520px, 100%); border: 0; outline: 0; background: transparent; color: var(--orc-navy); font-size: 14px; font-weight: 800; }
 .orc-project-bar strong { display: block; font-size: 12px; color: #405660; }
 .orc-project-bar .orc-status { color: #a66d13; }
+.orc-project-deadline { min-width: 255px; padding: 7px 10px; border: 1px solid #cfe0df; border-radius: 8px; background: #f3f9f7; text-align: left; }
+.orc-project-deadline small, .orc-project-deadline strong, .orc-project-deadline span { display: block; }
+.orc-project-deadline small { color: var(--orc-teal); }
+.orc-project-deadline strong { color: var(--orc-navy); font-size: 9px; }
+.orc-project-deadline span { margin-top: 3px; color: #71848b; font-size: 7px; }
 .orc-new-budget { min-height: 34px; padding: 0 12px; border: 1px solid #cfe0df; border-radius: 7px; background: #edf7f5; color: var(--orc-teal); font-size: 10px; font-weight: 900; white-space: nowrap; }
 .orc-back-portfolio { min-height: 34px; padding: 0 11px; border: 1px solid #d6e1e3; border-radius: 7px; background: #fff; color: #5d727b; font-size: 9px; font-weight: 900; white-space: nowrap; }
 
@@ -429,6 +434,10 @@
 .orc-bid-checklist span strong, .orc-bid-checklist span small { display: block; }
 .orc-bid-checklist span strong { color: var(--orc-navy); font-size: 9px; }
 .orc-bid-checklist span small { margin-top: 3px; color: #74868d; font-size: 8px; }
+.orc-deadline-modal { max-width: 760px; }
+.orc-deadline-preview { min-height: 74px; padding: 12px 14px; align-self: end; border: 1px solid #cfe1de; border-radius: 8px; background: #eef8f5; }
+.orc-deadline-preview span, .orc-deadline-preview small { display: block; color: #6f8389; font-size: 7px; font-weight: 900; }
+.orc-deadline-preview strong { display: block; margin: 5px 0; color: var(--orc-teal); font-size: 20px; }
 
 @media (max-width: 1120px) {
   .orc-kpis, .orc-schedule-kpis { grid-template-columns: repeat(2, 1fr); }

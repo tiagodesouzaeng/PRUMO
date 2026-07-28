@@ -4,6 +4,7 @@ import {
   calcularTotais,
   criarId,
   criarOrcamento,
+  normalizarPlanejamentoObra,
   numeroSeguro,
   REGRA_CALCULO_ATUAL,
   truncarMoeda,
@@ -40,6 +41,9 @@ function capturarEstadoRevisao(orcamento) {
     encargosSociais: orcamento.encargosSociais,
     descontoGlobal: orcamento.descontoGlobal,
     historicoCalculo: orcamento.historicoCalculo,
+    inicioObra: orcamento.inicioObra,
+    fimObra: orcamento.fimObra,
+    intervaloMedicaoDias: orcamento.intervaloMedicaoDias,
   });
 }
 
@@ -231,6 +235,16 @@ export default function useOrcamentos() {
     });
   }
 
+  function atualizarPlanejamento(dados) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      ...normalizarPlanejamentoObra({
+        ...orcamento,
+        ...dados,
+      }),
+    }));
+  }
+
   function atualizarPrecosBase(referencias, base) {
     const precos = new Map(
       referencias.filter((item) => (
@@ -388,6 +402,9 @@ export default function useOrcamentos() {
         encargosSociais: structuredClone(estado.encargosSociais || orcamento.encargosSociais),
         descontoGlobal: structuredClone(estado.descontoGlobal ?? alvo.calculo?.descontoGlobal ?? null),
         historicoCalculo: structuredClone(estado.historicoCalculo || orcamento.historicoCalculo),
+        inicioObra: estado.inicioObra || orcamento.inicioObra,
+        fimObra: estado.fimObra || orcamento.fimObra,
+        intervaloMedicaoDias: estado.intervaloMedicaoDias || orcamento.intervaloMedicaoDias,
         revisoes,
       };
     });
@@ -432,6 +449,7 @@ export default function useOrcamentos() {
     atualizarBdi,
     atualizarEncargosSociais,
     atualizarDescontoGlobal,
+    atualizarPlanejamento,
     atualizarPrecosBase,
     adicionarComposicao,
     removerComposicao,

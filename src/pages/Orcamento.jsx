@@ -7,6 +7,7 @@ import {
   calcularTotalPercentuais,
   calcularTotais,
   compararSnapshots,
+  criarPeriodosMedicao,
   criarId,
   proximoCodigoGrupo,
   proximoCodigoServico,
@@ -46,6 +47,10 @@ const formatarPrecoUnitario = (valor) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 8,
   }).format(valor);
+
+const formatarDataObra = (valor) => valor
+  ? new Date(`${valor}T12:00:00`).toLocaleDateString("pt-BR")
+  : "Não definida";
 
 const resumirBasesDosItens = (itens) => {
   const bases = [...new Set(
@@ -601,21 +606,26 @@ function Bases({ orcamento, adicionarComposicao, removerComposicao, setAviso, ba
   );
 }
 
-function Cronograma() {
-  const meses = ["Jul/26","Ago/26","Set/26","Out/26","Nov/26","Dez/26","Jan/27","Fev/27"];
-  const valores = [340,590,790,960,835,650,510,305];
+function Cronograma({ orcamento }) {
+  const periodos = criarPeriodosMedicao(orcamento);
+  const exibidos = periodos.slice(0, 8);
+  const totais = calcularTotais(orcamento);
+  const valores = exibidos.map((_, indice) => (
+    totais.precoTotal * ((indice + 1) / exibidos.reduce((soma, __, itemIndex) => soma + itemIndex + 1, 0))
+  ));
   return (
     <>
-      <div className="orc-schedule-kpis"><div><span>VALOR PLANEJADO</span><strong>R$ 5.346.911</strong></div><div><span>AVANÇO PLANEJADO</span><strong>38,4%</strong></div><div><span>AVANÇO REAL</span><strong>31,8%</strong></div><div><span>DESVIO</span><strong className="orc-warning">-6,6 p.p.</strong></div></div>
+      <div className="orc-schedule-kpis"><div><span>VALOR PLANEJADO</span><strong>{formatarMoeda(totais.precoTotal)}</strong></div><div><span>INÍCIO DA OBRA</span><strong>{formatarDataObra(orcamento.inicioObra)}</strong></div><div><span>FIM DA OBRA</span><strong>{formatarDataObra(orcamento.fimObra)}</strong></div><div><span>MEDIÇÕES</span><strong>A cada {orcamento.intervaloMedicaoDias} dias</strong></div></div>
       <article className="orc-card orc-schedule">
-        <header><div><span>DISTRIBUIÇÃO MENSAL</span><h3>Planejado × realizado</h3></div></header>
-        <div className="orc-bars">{valores.map((valor, index) => <div key={meses[index]}><span style={{ height: `${valor / 10}px` }}><i style={{ height: `${Math.max(8, valor / 14)}px` }} /></span><small>{meses[index]}</small><b>{formatarMoeda(valor * 1000).replace(",00","")}</b></div>)}</div>
+        <header><div><span>PERÍODOS DE MEDIÇÃO</span><h3>Planejamento por intervalo contratual</h3></div><strong>{periodos.length} períodos previstos</strong></header>
+        <div className="orc-bars">{valores.map((valor, index) => <div key={exibidos[index].inicio}><span style={{ height: `${Math.max(18, (valor / Math.max(...valores)) * 90)}px` }}><i style={{ height: `${Math.max(8, (valor / Math.max(...valores)) * 62)}px` }} /></span><small>{exibidos[index].label}</small><b>{formatarMoeda(valor).replace(",00","")}</b></div>)}</div>
       </article>
     </>
   );
 }
 
-function Histograma() {
+function Histograma({ orcamento }) {
+  const periodos = criarPeriodosMedicao(orcamento).slice(0, 6);
   const equipes = [
     ["Pedreiro", 18, 24, 28, 25, 14, 8],
     ["Servente", 24, 32, 38, 34, 20, 12],
@@ -626,14 +636,14 @@ function Histograma() {
     <article className="orc-card orc-histogram">
       <header><div><span>MÃO DE OBRA</span><h3>Dimensionamento das equipes</h3></div><strong>Pico: 84 profissionais · Outubro/2026</strong></header>
       <div className="orc-hist-grid">
-        <div className="orc-hist-head"><span>FUNÇÃO</span>{["Jul","Ago","Set","Out","Nov","Dez"].map(m => <span key={m}>{m}</span>)}</div>
+        <div className="orc-hist-head"><span>FUNÇÃO</span>{periodos.map((periodo) => <span key={periodo.inicio}>{periodo.label.split(" ")[0]}</span>)}</div>
         {equipes.map(([nome, ...valores]) => <div className="orc-hist-row" key={nome}><strong>{nome}</strong>{valores.map((valor, i) => <span key={i}><i style={{ width: `${Number(valor) * 2.2}%` }} />{valor}</span>)}</div>)}
       </div>
     </article>
   );
 }
 
-function Medicoes() {
+function Medicoes({ orcamento }) {
   const medicoes = [
     ["MED-003","Junho/2026","Em conferência","R$ 612.438,16","11,5%"],
     ["MED-002","Maio/2026","Aprovada","R$ 548.207,30","10,3%"],
@@ -643,7 +653,7 @@ function Medicoes() {
     <>
       <div className="orc-schedule-kpis"><div><span>TOTAL MEDIDO</span><strong>R$ 1.704.684</strong></div><div><span>RETENÇÕES</span><strong>R$ 85.234</strong></div><div><span>SALDO CONTRATUAL</span><strong>R$ 3.642.227</strong></div><div><span>AVANÇO ACUMULADO</span><strong>31,8%</strong></div></div>
       <article className="orc-card orc-measurements">
-        <header><div><span>BOLETINS</span><h3>Histórico de medições</h3></div><button type="button">＋ Nova medição</button></header>
+        <header><div><span>BOLETINS · INTERVALO DE {orcamento.intervaloMedicaoDias} DIAS</span><h3>Histórico de medições</h3></div><button type="button">＋ Nova medição</button></header>
         {medicoes.map(([id, periodo,status,valor,avanco]) => <div key={id}><span className="orc-measure-id">{id}</span><span><strong>{periodo}</strong><small>Centro Administrativo Canoas</small></span><b className={status === "Aprovada" ? "approved" : ""}>{status}</b><strong>{valor}</strong><span><strong>{avanco}</strong><small>do contrato</small></span><button type="button">Abrir →</button></div>)}
       </article>
     </>
@@ -657,7 +667,7 @@ function Licitacoes({ orcamento, gerar, gerando }) {
     ["02", "Orçamento completo", "Memória com custos, bases, desconto, BDI e preço total.", "Bloqueada"],
     ["03", "Proposta de preços", "Preços unitários e observações para o concorrente.", "Preenchível"],
     ["04", "BDI e encargos", "Percentuais analíticos e resultados calculados.", "Preenchível"],
-    ["05", "Cronograma", "Distribuição percentual de cada serviço em 12 meses.", "Preenchível"],
+    ["05", "Cronograma", "Distribuição percentual de cada serviço nos períodos de medição configurados.", "Preenchível"],
     ["06", "Histograma", "Horas de mão de obra derivadas do cronograma.", "Calculada"],
   ];
   return (
@@ -665,7 +675,7 @@ function Licitacoes({ orcamento, gerar, gerando }) {
       <div className="orc-bid-kpis">
         <article><span>ARQUIVO</span><strong>1 XLSX</strong><small>{resumo.abas} abas integradas</small></article>
         <article><span>SERVIÇOS</span><strong>{resumo.servicos}</strong><small>Itens disponíveis na proposta</small></article>
-        <article><span>COMPOSIÇÕES PRÓPRIAS</span><strong>{resumo.composicoes}</strong><small>Rastreáveis no orçamento</small></article>
+        <article><span>PERÍODOS DE MEDIÇÃO</span><strong>{resumo.periodos}</strong><small>Intervalos de {orcamento.intervaloMedicaoDias} dias</small></article>
         <article><span>REVISÃO DISTRIBUÍDA</span><strong>{orcamento.revisao}</strong><small>{orcamento.id}</small></article>
       </div>
       <article className="orc-card orc-bid-package">
@@ -676,7 +686,7 @@ function Licitacoes({ orcamento, gerar, gerando }) {
         <div className="orc-bid-summary">
           <div><span>ORÇAMENTO</span><strong>{orcamento.nome}</strong><small>{orcamento.id}</small></div>
           <div><span>PREÇO DE REFERÊNCIA</span><strong>{formatarMoeda(resumo.precoTotal)}</strong><small>BDI de {resumo.bdi.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</small></div>
-          <div><span>PROTEÇÃO</span><strong>Fórmulas bloqueadas</strong><small>Entradas destacadas em amarelo</small></div>
+          <div><span>PRAZO CONTRATUAL</span><strong>{formatarDataObra(orcamento.inicioObra)} → {formatarDataObra(orcamento.fimObra)}</strong><small>Fórmulas bloqueadas e entradas em amarelo</small></div>
         </div>
         <section className="orc-bid-sheet-list">
           {abas.map(([numero, nome, descricao, modo]) => (
@@ -1035,11 +1045,17 @@ function ModalItem({
 }
 
 function ModalNovoOrcamento({ fechar, salvar, proximoCodigo }) {
+  const hoje = new Date();
+  const fimPadrao = new Date(hoje);
+  fimPadrao.setFullYear(fimPadrao.getFullYear() + 1);
   const [dados, setDados] = useState({
     id: proximoCodigo,
     nome: "",
     bdi: "24.73",
     area: "",
+    inicioObra: hoje.toISOString().slice(0, 10),
+    fimObra: fimPadrao.toISOString().slice(0, 10),
+    intervaloMedicaoDias: "30",
   });
 
   function atualizar(campo, valor) {
@@ -1055,8 +1071,38 @@ function ModalNovoOrcamento({ fechar, salvar, proximoCodigo }) {
           <label className="orc-field-wide"><span>Nome do empreendimento</span><input required value={dados.nome} onChange={(event) => atualizar("nome", event.target.value)} placeholder="Nome da obra ou projeto" /></label>
           <label><span>BDI (%)</span><input required min="0" step="0.01" type="number" value={dados.bdi} onChange={(event) => atualizar("bdi", event.target.value)} /></label>
           <label><span>Área (m²)</span><input min="0" step="0.01" type="number" value={dados.area} onChange={(event) => atualizar("area", event.target.value)} /></label>
+          <label><span>Início previsto da obra</span><input required type="date" value={dados.inicioObra} onChange={(event) => atualizar("inicioObra", event.target.value)} /></label>
+          <label><span>Conclusão prevista</span><input required min={dados.inicioObra} type="date" value={dados.fimObra} onChange={(event) => atualizar("fimObra", event.target.value)} /></label>
+          <label><span>Intervalo entre medições (dias)</span><input required min="1" max="365" step="1" type="number" value={dados.intervaloMedicaoDias} onChange={(event) => atualizar("intervaloMedicaoDias", event.target.value)} /><small>Recomendado: 30 dias.</small></label>
         </div>
         <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">Criar orçamento</button></footer>
+      </form>
+    </div>
+  );
+}
+
+function ModalPrazoObra({ orcamento, fechar, salvar }) {
+  const [dados, setDados] = useState({
+    inicioObra: orcamento.inicioObra,
+    fimObra: orcamento.fimObra,
+    intervaloMedicaoDias: String(orcamento.intervaloMedicaoDias || 30),
+  });
+  const periodos = criarPeriodosMedicao(dados);
+  return (
+    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
+      <form className="orc-modal orc-deadline-modal" role="dialog" aria-modal="true" aria-labelledby="orc-prazo-obra" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); salvar(dados); }}>
+        <header><div><span>PLANEJAMENTO CONTRATUAL</span><h3 id="orc-prazo-obra">Prazo da obra e medições</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
+        <div className="orc-form-grid">
+          <label><span>Início previsto da obra</span><input required type="date" value={dados.inicioObra} onChange={(event) => setDados((atuais) => ({ ...atuais, inicioObra: event.target.value }))} /></label>
+          <label><span>Conclusão prevista</span><input required min={dados.inicioObra} type="date" value={dados.fimObra} onChange={(event) => setDados((atuais) => ({ ...atuais, fimObra: event.target.value }))} /></label>
+          <label><span>Intervalo entre medições (dias)</span><input required min="1" max="365" step="1" type="number" value={dados.intervaloMedicaoDias} onChange={(event) => setDados((atuais) => ({ ...atuais, intervaloMedicaoDias: event.target.value }))} /><small>O padrão recomendado é uma medição a cada 30 dias.</small></label>
+          <aside className="orc-deadline-preview">
+            <span>PERÍODOS GERADOS</span>
+            <strong>{periodos.length}</strong>
+            <small>{periodos[0]?.label} até {periodos.at(-1)?.label}</small>
+          </aside>
+        </div>
+        <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">Aplicar ao orçamento</button></footer>
       </form>
     </div>
   );
@@ -1083,6 +1129,7 @@ export default function Orcamento({ basesPrecos }) {
     atualizarBdi,
     atualizarEncargosSociais,
     atualizarDescontoGlobal,
+    atualizarPlanejamento,
     atualizarPrecosBase,
     adicionarComposicao,
     removerComposicao,
@@ -1130,6 +1177,12 @@ export default function Orcamento({ basesPrecos }) {
     setEtapa("planilha");
     setModoCarteira(false);
     notificar("Novo orçamento criado e salvo.");
+  }
+
+  function salvarPlanejamento(dados) {
+    atualizarPlanejamento(dados);
+    setModal("");
+    notificar("Prazo da obra e intervalo de medição atualizados.");
   }
 
   function confirmarRemocao(item) {
@@ -1241,11 +1294,12 @@ export default function Orcamento({ basesPrecos }) {
       {referenciaDetalhe && <ModalComposicaoRastreavel referencia={referenciaDetalhe} basesPrecos={basesPrecos} fechar={() => setItemDetalhe(null)} />}
       {(modal === "item" || modal === "grupo") && <ModalItem fechar={() => { setModal(""); setItemEmEdicao(null); }} salvar={salvarDadosItem} item={itemEmEdicao} tipoInicial={modal === "grupo" ? "grupo" : "servico"} itens={orcamentoAtivo.itens} criarGrupo={(dados) => { salvarItem(dados); notificar("Novo grupo criado e selecionado."); }} basesPrecos={basesPrecos} />}
       {modal === "orcamento" && <ModalNovoOrcamento fechar={() => setModal("")} salvar={salvarNovoOrcamento} proximoCodigo={proximoCodigo} />}
+      {modal === "prazo" && <ModalPrazoObra orcamento={orcamentoAtivo} fechar={() => setModal("")} salvar={salvarPlanejamento} />}
       <div className="orc-project-bar">
         <button type="button" className="orc-back-portfolio" onClick={() => setModoCarteira(true)}>← Dashboard</button>
         <div className="orc-active-budget-select"><span>ORÇAMENTO ATIVO</span><select value={orcamentoAtivoId} onChange={(event) => setOrcamentoAtivoId(event.target.value)}>{orcamentos.map((orcamento) => <option key={orcamento.id} value={orcamento.id}>{orcamento.id} · {orcamento.nome}</option>)}</select></div>
         <button type="button" className="orc-new-budget" onClick={() => setModal("orcamento")}>＋ Novo orçamento</button>
-        <div><small>REVISÃO</small><strong>{orcamentoAtivo.revisao}</strong></div><div><small>STATUS</small><strong className="orc-status">{orcamentoAtivo.status}</strong></div><div><small>BASES NOS ITENS</small><strong>{resumirBasesDosItens(orcamentoAtivo.itens)}</strong></div>
+        <div><small>REVISÃO</small><strong>{orcamentoAtivo.revisao}</strong></div><div><small>STATUS</small><strong className="orc-status">{orcamentoAtivo.status}</strong></div><button type="button" className="orc-project-deadline" onClick={() => setModal("prazo")}><small>PRAZO E MEDIÇÕES</small><strong>{formatarDataObra(orcamentoAtivo.inicioObra)} → {formatarDataObra(orcamentoAtivo.fimObra)}</strong><span>A cada {orcamentoAtivo.intervaloMedicaoDias} dias · editar</span></button><div><small>BASES NOS ITENS</small><strong>{resumirBasesDosItens(orcamentoAtivo.itens)}</strong></div>
       </div>
       <nav className="orc-module-nav" aria-label="Etapas do orçamento">
         {ETAPAS.map((item) => <button type="button" key={item.id} className={etapa === item.id ? "is-active" : ""} onClick={() => setEtapa(item.id)}><span>{item.icon}</span>{item.label}</button>)}
@@ -1254,9 +1308,9 @@ export default function Orcamento({ basesPrecos }) {
       {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
       {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} abrirDetalhe={setItemDetalhe} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} />}
       {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} salvarEncargos={salvarEncargos} />}
-      {etapa === "cronograma" && <Cronograma />}
-      {etapa === "histograma" && <Histograma />}
-      {etapa === "medicoes" && <Medicoes />}
+      {etapa === "cronograma" && <Cronograma orcamento={orcamentoAtivo} />}
+      {etapa === "histograma" && <Histograma orcamento={orcamentoAtivo} />}
+      {etapa === "medicoes" && <Medicoes orcamento={orcamentoAtivo} />}
       {etapa === "comercial" && <CondicoesComerciais orcamento={orcamentoAtivo} salvarDesconto={salvarDesconto} />}
       {etapa === "licitacoes" && <Licitacoes orcamento={orcamentoAtivo} gerar={gerarPacoteLicitacao} gerando={gerandoLicitacao} />}
       {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} ativarRevisao={ativarRevisao} alternarRevisaoInativa={alternarRevisaoInativa} excluirRevisao={excluirRevisao} avisar={notificar} />}

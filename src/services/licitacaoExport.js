@@ -1,8 +1,10 @@
 import {
   calcularDistribuicaoDesconto,
   calcularTotais,
+  criarPeriodosMedicao,
   obterBdi,
 } from "../domain/orcamento.js";
+import { mapearHierarquiaEap } from "../domain/eap.js";
 
 const COR = {
   marinho: "173B4A",
@@ -17,6 +19,8 @@ const COR = {
 
 const formatoMoeda = '"R$" #,##0.00';
 const formatoPercentual = "0.00%";
+const CABECALHOS_EAP = ["SITE", "PRÉDIO", "ANDAR", "SALA", "DISCIPLINA"];
+const CHAVES_EAP = ["site", "predio", "andar", "sala", "disciplina"];
 
 function aplicarEstiloCabecalho(aba, intervalo) {
   const XLSX = globalThis.__PRUMO_XLSX__;
@@ -112,31 +116,30 @@ function nomeSeguroArquivo(valor) {
     .replace(/-+/g, "-");
 }
 
-function mesesCronograma(orcamento) {
-  const inicio = new Date(orcamento.inicioObra || orcamento.atualizadoEm || "2026-07-01");
-  return Array.from({ length: 12 }, (_, indice) => {
-    const data = new Date(inicio.getFullYear(), inicio.getMonth() + indice, 1);
-    return data.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" })
-      .replace(".", "")
-      .replace(" de ", "/");
-  });
+function valoresHierarquia(hierarquia = {}) {
+  return CHAVES_EAP.map((chave) => hierarquia[chave] || "");
+}
+
+function subtituloPacote(orcamento) {
+  return `${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao} · `
+    + `${orcamento.inicioObra} a ${orcamento.fimObra} · medições a cada ${orcamento.intervaloMedicaoDias} dias`;
 }
 
 function criarInstrucoes(XLSX, orcamento) {
   const dados = [
     ["PACOTE DE LICITAÇÃO E CONCORRÊNCIA", "", ""],
-    [`${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, "", ""],
+    [subtituloPacote(orcamento), "", ""],
     ["GUIA", "FINALIDADE", "EDIÇÃO"],
     ["Orçamento Completo", "Memória da planilha com bases, custos, desconto e BDI.", "Somente leitura"],
     ["Proposta de Preços", "Preenchimento dos preços unitários pelos concorrentes.", "Células amarelas"],
     ["BDI e Encargos", "Preenchimento analítico dos percentuais de BDI e encargos.", "Células amarelas"],
-    ["Cronograma", "Distribuição percentual dos serviços em até 12 meses.", "Células amarelas"],
+    ["Cronograma", "Distribuição percentual conforme os períodos de medição da obra.", "Células amarelas"],
     ["Histograma", "Horas de mão de obra derivadas do cronograma.", "Somente leitura"],
     ["", "", ""],
     ["REGRAS", "", ""],
     ["1", "Não alterar códigos, descrições, unidades ou fórmulas.", ""],
     ["2", "Preencher somente as células amarelas.", ""],
-    ["3", "Os percentuais mensais do cronograma devem totalizar 100% por serviço.", ""],
+    ["3", "Os percentuais dos períodos de medição devem totalizar 100% por serviço.", ""],
     ["4", "Valores monetários são calculados com truncamento após a segunda casa decimal.", ""],
     ["5", "Senha de proteção administrativa: PRUMO.", ""],
   ];
@@ -157,21 +160,51 @@ function criarInstrucoes(XLSX, orcamento) {
 function criarOrcamentoCompleto(XLSX, orcamento) {
   const distribuicao = calcularDistribuicaoDesconto(orcamento);
   const bdi = obterBdi(orcamento) / 100;
+  const hierarquias = mapearHierarquiaEap(orcamento.itens);
+  const cabecalho = [
+    "ITEM",
+    ...CABECALHOS_EAP,
+    "DESCRIÇÃO",
+    "BASE / REFERÊNCIA",
+    "UN.",
+    "QUANTIDADE",
+    "CUSTO UNITÁRIO",
+    "VALOR BRUTO",
+    "DESCONTO",
+    "VALOR LÍQUIDO",
+    "BDI",
+    "PREÇO TOTAL",
+  ];
   const linhas = [
-    ["ORÇAMENTO COMPLETO", "", "", "", "", "", "", "", "", "", ""],
-    [`${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, "", "", "", "", "", "", "", "", "", ""],
-    ["ITEM", "DESCRIÇÃO", "BASE / REFERÊNCIA", "UN.", "QUANTIDADE", "CUSTO UNITÁRIO", "VALOR BRUTO", "DESCONTO", "VALOR LÍQUIDO", "BDI", "PREÇO TOTAL"],
+    ["ORÇAMENTO COMPLETO", ...Array(cabecalho.length - 1).fill("")],
+    [subtituloPacote(orcamento), ...Array(cabecalho.length - 1).fill("")],
+    cabecalho,
   ];
   const linhasServico = new Map();
   orcamento.itens.forEach((item) => {
     const linha = linhas.length + 1;
+    const hierarquia = valoresHierarquia(hierarquias.get(item.id));
     if (item.tipo === "grupo") {
-      linhas.push([item.codigo, item.descricao, `EAP · ${item.nivelEap || ""}`, "", "", "", "", "", "", "", ""]);
+      linhas.push([
+        item.codigo,
+        ...hierarquia,
+        item.descricao,
+        `EAP · ${item.nivelEap || ""}`,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
       return;
     }
     linhasServico.set(item.id, linha);
     linhas.push([
       item.codigo,
+      ...hierarquia,
       item.descricao,
       item.fonte || "Preço manual",
       item.unidade,
@@ -184,53 +217,65 @@ function criarOrcamentoCompleto(XLSX, orcamento) {
       null,
     ]);
     const desconto = distribuicao.porItem.get(item.id) || 0;
-    linhas[linha - 1][7] = desconto;
+    linhas[linha - 1][12] = desconto;
   });
   const totalLinha = linhas.length + 1;
-  linhas.push(["", "TOTAL GERAL", "", "", "", "", null, null, null, "", null]);
+  linhas.push(["", ...Array(5).fill(""), "TOTAL GERAL", "", "", "", "", null, null, null, "", null]);
   const aba = XLSX.utils.aoa_to_sheet(linhas);
-  adicionarTitulo(XLSX, aba, "ORÇAMENTO COMPLETO", `${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, "K");
-  aplicarEstiloCabecalho(aba, "A3:K3");
+  adicionarTitulo(XLSX, aba, "ORÇAMENTO COMPLETO", subtituloPacote(orcamento), "P");
+  aplicarEstiloCabecalho(aba, "A3:P3");
   for (let linha = 4; linha < totalLinha; linha += 1) {
     const item = orcamento.itens[linha - 4];
     if (item.tipo === "grupo") {
-      enderecosIntervalo(XLSX, `A${linha}:K${linha}`).forEach((endereco) => {
+      enderecosIntervalo(XLSX, `A${linha}:P${linha}`).forEach((endereco) => {
         estilizarCelula(aba[endereco], { preenchimento: COR.cinza, negrito: true });
       });
       continue;
     }
-    aba[`G${linha}`] = { t: "n", f: `IF(D${linha}="","",TRUNC(E${linha}*F${linha},2))` };
-    aba[`I${linha}`] = { t: "n", f: `IF(G${linha}="","",TRUNC(G${linha}-H${linha},2))` };
-    aba[`K${linha}`] = { t: "n", f: `IF(I${linha}="","",TRUNC(I${linha}*(1+J${linha}),2))` };
-    ["F", "G", "H", "I", "K"].forEach((coluna) => estilizarCelula(aba[`${coluna}${linha}`], {
+    aba[`L${linha}`] = { t: "n", f: `IF(I${linha}="","",TRUNC(J${linha}*K${linha},2))` };
+    aba[`N${linha}`] = { t: "n", f: `IF(L${linha}="","",TRUNC(L${linha}-M${linha},2))` };
+    aba[`P${linha}`] = { t: "n", f: `IF(N${linha}="","",TRUNC(N${linha}*(1+O${linha}),2))` };
+    ["K", "L", "M", "N", "P"].forEach((coluna) => estilizarCelula(aba[`${coluna}${linha}`], {
       formato: formatoMoeda,
       alinhamento: "right",
     }));
-    estilizarCelula(aba[`J${linha}`], { formato: formatoPercentual, alinhamento: "right" });
+    estilizarCelula(aba[`O${linha}`], { formato: formatoPercentual, alinhamento: "right" });
   }
-  aba[`G${totalLinha}`] = { t: "n", f: `SUM(G4:G${totalLinha - 1})` };
-  aba[`H${totalLinha}`] = { t: "n", f: `SUM(H4:H${totalLinha - 1})` };
-  aba[`I${totalLinha}`] = { t: "n", f: `SUM(I4:I${totalLinha - 1})` };
-  aba[`K${totalLinha}`] = { t: "n", f: `SUM(K4:K${totalLinha - 1})` };
-  enderecosIntervalo(XLSX, `A${totalLinha}:K${totalLinha}`).forEach((endereco) => {
+  aba[`L${totalLinha}`] = { t: "n", f: `SUM(L4:L${totalLinha - 1})` };
+  aba[`M${totalLinha}`] = { t: "n", f: `SUM(M4:M${totalLinha - 1})` };
+  aba[`N${totalLinha}`] = { t: "n", f: `SUM(N4:N${totalLinha - 1})` };
+  aba[`P${totalLinha}`] = { t: "n", f: `SUM(P4:P${totalLinha - 1})` };
+  enderecosIntervalo(XLSX, `A${totalLinha}:P${totalLinha}`).forEach((endereco) => {
     estilizarCelula(aba[endereco], {
       preenchimento: COR.claro,
       negrito: true,
-      formato: ["G", "H", "I", "K"].includes(endereco[0]) ? formatoMoeda : undefined,
+      formato: ["L", "M", "N", "P"].includes(endereco.match(/^[A-Z]+/)?.[0]) ? formatoMoeda : undefined,
     });
   });
-  prepararAba(aba, [12, 48, 28, 9, 13, 16, 16, 15, 16, 10, 17], `A3:K${totalLinha}`);
+  prepararAba(aba, [11, 20, 20, 20, 20, 22, 44, 26, 9, 13, 16, 16, 15, 16, 10, 17], `A3:P${totalLinha}`);
   return { aba, linhasServico };
 }
 
 function criarProposta(XLSX, orcamento) {
   const servicos = orcamento.itens.filter((item) => item.tipo !== "grupo");
+  const hierarquias = mapearHierarquiaEap(orcamento.itens);
+  const cabecalho = [
+    "ITEM",
+    ...CABECALHOS_EAP,
+    "DESCRIÇÃO",
+    "UN.",
+    "QUANTIDADE",
+    "PREÇO UNITÁRIO PROPOSTO",
+    "PREÇO TOTAL",
+    "OBSERVAÇÃO",
+  ];
   const linhas = [
-    ["PROPOSTA DE PREÇOS", "", "", "", "", "", ""],
-    [`${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, "", "", "", "", "", ""],
-    ["ITEM", "DESCRIÇÃO", "UN.", "QUANTIDADE", "PREÇO UNITÁRIO PROPOSTO", "PREÇO TOTAL", "OBSERVAÇÃO"],
+    ["PROPOSTA DE PREÇOS", ...Array(cabecalho.length - 1).fill("")],
+    [subtituloPacote(orcamento), ...Array(cabecalho.length - 1).fill("")],
+    cabecalho,
     ...servicos.map((item) => [
       item.codigo,
+      ...valoresHierarquia(hierarquias.get(item.id)),
       item.descricao,
       item.unidade,
       Number(item.quantidade) || 0,
@@ -240,32 +285,32 @@ function criarProposta(XLSX, orcamento) {
     ]),
   ];
   const totalLinha = linhas.length + 1;
-  linhas.push(["", "TOTAL DA PROPOSTA", "", "", "", null, ""]);
+  linhas.push(["", ...Array(5).fill(""), "TOTAL DA PROPOSTA", "", "", "", null, ""]);
   const aba = XLSX.utils.aoa_to_sheet(linhas);
-  adicionarTitulo(XLSX, aba, "PROPOSTA DE PREÇOS", `${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, "G");
-  aplicarEstiloCabecalho(aba, "A3:G3");
+  adicionarTitulo(XLSX, aba, "PROPOSTA DE PREÇOS", subtituloPacote(orcamento), "L");
+  aplicarEstiloCabecalho(aba, "A3:L3");
   for (let linha = 4; linha < totalLinha; linha += 1) {
-    aba[`F${linha}`] = { t: "n", f: `IF(ISNUMBER(E${linha}),TRUNC(D${linha}*E${linha},2),0)` };
-    estilizarCelula(aba[`E${linha}`] || (aba[`E${linha}`] = { t: "s", v: "" }), {
+    aba[`K${linha}`] = { t: "n", f: `IF(ISNUMBER(J${linha}),TRUNC(I${linha}*J${linha},2),0)` };
+    estilizarCelula(aba[`J${linha}`] || (aba[`J${linha}`] = { t: "s", v: "" }), {
       preenchimento: COR.entrada,
       bloqueada: false,
       formato: formatoMoeda,
     });
-    estilizarCelula(aba[`F${linha}`], { formato: formatoMoeda });
-    estilizarCelula(aba[`G${linha}`] || (aba[`G${linha}`] = { t: "s", v: "" }), {
+    estilizarCelula(aba[`K${linha}`], { formato: formatoMoeda });
+    estilizarCelula(aba[`L${linha}`] || (aba[`L${linha}`] = { t: "s", v: "" }), {
       preenchimento: COR.entrada,
       bloqueada: false,
     });
   }
-  aba[`F${totalLinha}`] = { t: "n", f: `SUM(F4:F${totalLinha - 1})` };
-  enderecosIntervalo(XLSX, `A${totalLinha}:G${totalLinha}`).forEach((endereco) => {
+  aba[`K${totalLinha}`] = { t: "n", f: `SUM(K4:K${totalLinha - 1})` };
+  enderecosIntervalo(XLSX, `A${totalLinha}:L${totalLinha}`).forEach((endereco) => {
     estilizarCelula(aba[endereco], {
       preenchimento: COR.claro,
       negrito: true,
-      formato: endereco === `F${totalLinha}` ? formatoMoeda : undefined,
+      formato: endereco === `K${totalLinha}` ? formatoMoeda : undefined,
     });
   });
-  prepararAba(aba, [12, 55, 9, 13, 22, 18, 32], `A3:G${totalLinha}`);
+  prepararAba(aba, [11, 20, 20, 20, 20, 22, 48, 9, 13, 22, 18, 30], `A3:L${totalLinha}`);
   return aba;
 }
 
@@ -315,7 +360,7 @@ function criarBdiEncargos(XLSX, orcamento) {
   const linhaEncargos = linhas.length + 1;
   linhas.push(["", "TOTAL GERAL DOS ENCARGOS", null, "RESULTADO", ""]);
   const aba = XLSX.utils.aoa_to_sheet(linhas);
-  adicionarTitulo(XLSX, aba, "BDI E ENCARGOS SOCIAIS", `${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, "E");
+  adicionarTitulo(XLSX, aba, "BDI E ENCARGOS SOCIAIS", subtituloPacote(orcamento), "E");
   aplicarEstiloCabecalho(aba, "A3:E3");
 
   Object.values(totaisBdi).forEach(({ linhaTotal, inicio, fim }) => {
@@ -367,34 +412,58 @@ function criarBdiEncargos(XLSX, orcamento) {
 }
 
 function criarCronograma(XLSX, orcamento, linhasOrcamento) {
-  const meses = mesesCronograma(orcamento);
+  const periodos = criarPeriodosMedicao(orcamento);
   const servicos = orcamento.itens.filter((item) => item.tipo !== "grupo");
-  const cabecalho = ["ITEM", "DESCRIÇÃO", "VALOR LÍQUIDO", ...meses, "TOTAL DISTRIBUÍDO", "STATUS"];
+  const hierarquias = mapearHierarquiaEap(orcamento.itens);
+  const cabecalho = [
+    "ITEM",
+    ...CABECALHOS_EAP,
+    "DESCRIÇÃO",
+    "VALOR LÍQUIDO",
+    ...periodos.map((periodo) => periodo.label),
+    "TOTAL DISTRIBUÍDO",
+    "STATUS",
+  ];
   const linhas = [
     ["CRONOGRAMA FÍSICO-FINANCEIRO", ...Array(cabecalho.length - 1).fill("")],
-    [`${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, ...Array(cabecalho.length - 1).fill("")],
+    [subtituloPacote(orcamento), ...Array(cabecalho.length - 1).fill("")],
     cabecalho,
     ...servicos.map((item) => [
       item.codigo,
+      ...valoresHierarquia(hierarquias.get(item.id)),
       item.descricao,
       null,
-      ...Array(12).fill(0),
+      ...Array(periodos.length).fill(0),
       null,
       null,
     ]),
   ];
   const resumoLinha = linhas.length + 2;
   linhas.push(Array(cabecalho.length).fill(""));
-  linhas.push(["", "VALOR PLANEJADO POR MÊS", "", ...Array(12).fill(null), "", ""]);
+  linhas.push([
+    "",
+    ...Array(5).fill(""),
+    "VALOR PLANEJADO POR PERÍODO",
+    "",
+    ...Array(periodos.length).fill(null),
+    "",
+    "",
+  ]);
   const aba = XLSX.utils.aoa_to_sheet(linhas);
   const ultimaColuna = XLSX.utils.encode_col(cabecalho.length - 1);
-  adicionarTitulo(XLSX, aba, "CRONOGRAMA FÍSICO-FINANCEIRO", `${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, ultimaColuna);
+  const colunaValor = 7;
+  const colunaInicioPeriodos = 8;
+  const colunaFimPeriodos = colunaInicioPeriodos + periodos.length - 1;
+  const colunaTotal = colunaFimPeriodos + 1;
+  const colunaStatus = colunaTotal + 1;
+  adicionarTitulo(XLSX, aba, "CRONOGRAMA FÍSICO-FINANCEIRO", subtituloPacote(orcamento), ultimaColuna);
   aplicarEstiloCabecalho(aba, `A3:${ultimaColuna}3`);
   servicos.forEach((item, indice) => {
     const linha = indice + 4;
     const linhaOrcamento = linhasOrcamento.get(item.id);
-    aba[`C${linha}`] = { t: "n", f: `='Orçamento Completo'!I${linhaOrcamento}` };
-    for (let coluna = 3; coluna < 15; coluna += 1) {
+    const letraValor = XLSX.utils.encode_col(colunaValor);
+    aba[`${letraValor}${linha}`] = { t: "n", f: `='Orçamento Completo'!N${linhaOrcamento}` };
+    for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
       const endereco = `${XLSX.utils.encode_col(coluna)}${linha}`;
       estilizarCelula(aba[endereco], {
         preenchimento: COR.entrada,
@@ -402,33 +471,48 @@ function criarCronograma(XLSX, orcamento, linhasOrcamento) {
         formato: formatoPercentual,
       });
     }
-    aba[`P${linha}`] = { t: "n", f: `SUM(D${linha}:O${linha})` };
-    aba[`Q${linha}`] = { t: "s", f: `IF(ABS(P${linha}-1)<0.0001,"OK","REVISAR")` };
-    estilizarCelula(aba[`C${linha}`], { formato: formatoMoeda });
-    estilizarCelula(aba[`P${linha}`], { formato: formatoPercentual });
+    const letraInicio = XLSX.utils.encode_col(colunaInicioPeriodos);
+    const letraFim = XLSX.utils.encode_col(colunaFimPeriodos);
+    const letraTotal = XLSX.utils.encode_col(colunaTotal);
+    const letraStatus = XLSX.utils.encode_col(colunaStatus);
+    aba[`${letraTotal}${linha}`] = { t: "n", f: `SUM(${letraInicio}${linha}:${letraFim}${linha})` };
+    aba[`${letraStatus}${linha}`] = { t: "s", f: `IF(ABS(${letraTotal}${linha}-1)<0.0001,"OK","REVISAR")` };
+    estilizarCelula(aba[`${letraValor}${linha}`], { formato: formatoMoeda });
+    estilizarCelula(aba[`${letraTotal}${linha}`], { formato: formatoPercentual });
   });
-  for (let coluna = 3; coluna < 15; coluna += 1) {
+  for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
     const letra = XLSX.utils.encode_col(coluna);
+    const letraValor = XLSX.utils.encode_col(colunaValor);
     aba[`${letra}${resumoLinha}`] = {
       t: "n",
-      f: `SUMPRODUCT($C$4:$C$${servicos.length + 3},${letra}$4:${letra}$${servicos.length + 3})`,
+      f: `SUMPRODUCT($${letraValor}$4:$${letraValor}$${servicos.length + 3},${letra}$4:${letra}$${servicos.length + 3})`,
     };
     estilizarCelula(aba[`${letra}${resumoLinha}`], { formato: formatoMoeda, negrito: true });
   }
-  enderecosIntervalo(XLSX, `A${resumoLinha}:Q${resumoLinha}`).forEach((endereco) => {
+  enderecosIntervalo(XLSX, `A${resumoLinha}:${ultimaColuna}${resumoLinha}`).forEach((endereco) => {
+    const coluna = XLSX.utils.decode_cell(endereco).c;
     estilizarCelula(aba[endereco], {
       preenchimento: COR.claro,
       negrito: true,
-      formato: endereco.match(/^[D-O]/) ? formatoMoeda : undefined,
+      formato: coluna >= colunaInicioPeriodos && coluna <= colunaFimPeriodos ? formatoMoeda : undefined,
     });
   });
-  prepararAba(aba, [11, 44, 17, ...Array(12).fill(12), 16, 13], `A3:Q${resumoLinha}`);
-  return { aba, linhasServico: new Map(servicos.map((item, indice) => [item.id, indice + 4])) };
+  prepararAba(
+    aba,
+    [11, 20, 20, 20, 20, 22, 44, 17, ...Array(periodos.length).fill(17), 16, 13],
+    `A3:${ultimaColuna}${resumoLinha}`,
+  );
+  return {
+    aba,
+    periodos,
+    linhasServico: new Map(servicos.map((item, indice) => [item.id, indice + 4])),
+  };
 }
 
-function criarHistograma(XLSX, orcamento, linhasCronograma) {
-  const meses = mesesCronograma(orcamento);
+function criarHistograma(XLSX, orcamento, cronograma) {
+  const { periodos, linhasServico: linhasCronograma } = cronograma;
   const composicoes = new Map((orcamento.composicoes || []).map((item) => [item.codigo, item]));
+  const hierarquias = mapearHierarquiaEap(orcamento.itens);
   const recursos = [];
   orcamento.itens.filter((item) => item.tipo !== "grupo").forEach((item) => {
     const codigo = item.referenciaCodigo || item.fonte?.split("·").at(-1)?.trim();
@@ -452,46 +536,64 @@ function criarHistograma(XLSX, orcamento, linhasCronograma) {
       { item: null, descricao: "Encanador", coeficiente: 0 },
     );
   }
-  const cabecalho = ["ITEM", "RECURSO DE MÃO DE OBRA", "COEFICIENTE (H)", "HORAS TOTAIS", ...meses];
+  const cabecalho = [
+    "ITEM",
+    ...CABECALHOS_EAP,
+    "RECURSO DE MÃO DE OBRA",
+    "COEFICIENTE (H)",
+    "HORAS TOTAIS",
+    ...periodos.map((periodo) => periodo.label),
+  ];
   const linhas = [
     ["HISTOGRAMA DE MÃO DE OBRA", ...Array(cabecalho.length - 1).fill("")],
-    [`${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, ...Array(cabecalho.length - 1).fill("")],
+    [subtituloPacote(orcamento), ...Array(cabecalho.length - 1).fill("")],
     cabecalho,
     ...recursos.map((recurso) => [
       recurso.item?.codigo || "",
+      ...valoresHierarquia(recurso.item ? hierarquias.get(recurso.item.id) : null),
       recurso.descricao,
       recurso.coeficiente,
       recurso.item ? (Number(recurso.item.quantidade) || 0) * recurso.coeficiente : 0,
-      ...Array(12).fill(null),
+      ...Array(periodos.length).fill(null),
     ]),
   ];
   const totalLinha = linhas.length + 1;
-  linhas.push(["", "TOTAL DE HORAS", "", null, ...Array(12).fill(null)]);
+  linhas.push(["", ...Array(5).fill(""), "TOTAL DE HORAS", "", null, ...Array(periodos.length).fill(null)]);
   const aba = XLSX.utils.aoa_to_sheet(linhas);
   const ultimaColuna = XLSX.utils.encode_col(cabecalho.length - 1);
-  adicionarTitulo(XLSX, aba, "HISTOGRAMA DE MÃO DE OBRA", `${orcamento.id} · ${orcamento.nome} · revisão ${orcamento.revisao}`, ultimaColuna);
+  const colunaHoras = 8;
+  const colunaInicioPeriodos = 9;
+  const colunaFimPeriodos = colunaInicioPeriodos + periodos.length - 1;
+  adicionarTitulo(XLSX, aba, "HISTOGRAMA DE MÃO DE OBRA", subtituloPacote(orcamento), ultimaColuna);
   aplicarEstiloCabecalho(aba, `A3:${ultimaColuna}3`);
   recursos.forEach((recurso, indice) => {
     const linha = indice + 4;
-    for (let coluna = 4; coluna < 16; coluna += 1) {
+    for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
       const letra = XLSX.utils.encode_col(coluna);
       const linhaCronograma = recurso.item ? linhasCronograma.get(recurso.item.id) : null;
       aba[`${letra}${linha}`] = {
         t: "n",
-        f: linhaCronograma ? `TRUNC($D${linha}*'Cronograma'!${XLSX.utils.encode_col(coluna - 1)}${linhaCronograma},2)` : "0",
+        f: linhaCronograma
+          ? `TRUNC($${XLSX.utils.encode_col(colunaHoras)}${linha}*'Cronograma'!${XLSX.utils.encode_col(coluna - 1)}${linhaCronograma},2)`
+          : "0",
       };
       estilizarCelula(aba[`${letra}${linha}`], { formato: "#,##0.00" });
     }
   });
-  aba[`D${totalLinha}`] = { t: "n", f: `SUM(D4:D${totalLinha - 1})` };
-  for (let coluna = 4; coluna < 16; coluna += 1) {
+  const letraHoras = XLSX.utils.encode_col(colunaHoras);
+  aba[`${letraHoras}${totalLinha}`] = { t: "n", f: `SUM(${letraHoras}4:${letraHoras}${totalLinha - 1})` };
+  for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
     const letra = XLSX.utils.encode_col(coluna);
     aba[`${letra}${totalLinha}`] = { t: "n", f: `SUM(${letra}4:${letra}${totalLinha - 1})` };
   }
   enderecosIntervalo(XLSX, `A${totalLinha}:${ultimaColuna}${totalLinha}`).forEach((endereco) => {
     estilizarCelula(aba[endereco], { preenchimento: COR.claro, negrito: true, formato: "#,##0.00" });
   });
-  prepararAba(aba, [11, 38, 17, 16, ...Array(12).fill(12)], `A3:${ultimaColuna}${totalLinha}`);
+  prepararAba(
+    aba,
+    [11, 20, 20, 20, 20, 22, 38, 17, 16, ...Array(periodos.length).fill(17)],
+    `A3:${ultimaColuna}${totalLinha}`,
+  );
   return aba;
 }
 
@@ -507,7 +609,7 @@ export async function criarPacoteLicitacao(orcamento) {
     ["Proposta de Preços", criarProposta(XLSX, orcamento)],
     ["BDI e Encargos", criarBdiEncargos(XLSX, orcamento)],
     ["Cronograma", cronograma.aba],
-    ["Histograma", criarHistograma(XLSX, orcamento, cronograma.linhasServico)],
+    ["Histograma", criarHistograma(XLSX, orcamento, cronograma)],
   ];
   abas.forEach(([nome, aba]) => XLSX.utils.book_append_sheet(workbook, aba, nome));
   workbook.Workbook = {
@@ -551,6 +653,13 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
     font: { bold: true, color: { argb: COR.branco }, size: 9 },
     alignment: { vertical: "middle", horizontal: "center", wrapText: true },
   };
+  const colunaPorCabecalho = (aba, cabecalho) => {
+    let encontrada = 0;
+    aba.getRow(3).eachCell((celula, coluna) => {
+      if (String(celula.value || "") === cabecalho) encontrada = coluna;
+    });
+    return encontrada;
+  };
 
   workbookFinal.eachSheet((aba) => {
     aba.views = [{ state: "frozen", ySplit: 3 }];
@@ -583,10 +692,12 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
   instrucoes.getRow(10).eachCell({ includeEmpty: true }, (celula) => Object.assign(celula, estiloCabecalho));
 
   const completa = workbookFinal.getWorksheet("Orçamento Completo");
+  const colunaBaseCompleta = colunaPorCabecalho(completa, "BASE / REFERÊNCIA");
+  const colunaDescricaoCompleta = colunaPorCabecalho(completa, "DESCRIÇÃO");
   completa.eachRow((linha, numeroLinha) => {
     if (numeroLinha < 4) return;
-    const grupo = String(linha.getCell(3).value || "").startsWith("EAP");
-    const total = String(linha.getCell(2).value || "").startsWith("TOTAL");
+    const grupo = String(linha.getCell(colunaBaseCompleta).value || "").startsWith("EAP");
+    const total = String(linha.getCell(colunaDescricaoCompleta).value || "").startsWith("TOTAL");
     if (grupo || total) {
       linha.eachCell({ includeEmpty: true }, (celula) => {
         celula.fill = {
@@ -600,9 +711,12 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
   });
 
   const proposta = workbookFinal.getWorksheet("Proposta de Preços");
+  const colunaPrecoProposto = colunaPorCabecalho(proposta, "PREÇO UNITÁRIO PROPOSTO");
+  const colunaTotalProposta = colunaPorCabecalho(proposta, "PREÇO TOTAL");
+  const colunaObservacao = colunaPorCabecalho(proposta, "OBSERVAÇÃO");
   proposta.eachRow((linha, numeroLinha) => {
     if (numeroLinha < 4 || !linha.getCell(1).value) return;
-    [5, 7].forEach((coluna) => {
+    [colunaPrecoProposto, colunaObservacao].forEach((coluna) => {
       const celula = linha.getCell(coluna);
       celula.style = {
         ...(celula.style || {}),
@@ -610,8 +724,8 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
         protection: { locked: false },
       };
     });
-    linha.getCell(5).numFmt = formatoMoeda;
-    linha.getCell(6).numFmt = formatoMoeda;
+    linha.getCell(colunaPrecoProposto).numFmt = formatoMoeda;
+    linha.getCell(colunaTotalProposta).numFmt = formatoMoeda;
   });
 
   const bdiEncargos = workbookFinal.getWorksheet("BDI e Encargos");
@@ -642,9 +756,11 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
   });
 
   const cronograma = workbookFinal.getWorksheet("Cronograma");
+  const colunaValorCronograma = colunaPorCabecalho(cronograma, "VALOR LÍQUIDO");
+  const colunaTotalCronograma = colunaPorCabecalho(cronograma, "TOTAL DISTRIBUÍDO");
   cronograma.eachRow((linha, numeroLinha) => {
     if (numeroLinha < 4 || !linha.getCell(1).value) return;
-    for (let coluna = 4; coluna <= 15; coluna += 1) {
+    for (let coluna = colunaValorCronograma + 1; coluna < colunaTotalCronograma; coluna += 1) {
       const celula = linha.getCell(coluna);
       celula.style = {
         ...(celula.style || {}),
@@ -691,6 +807,7 @@ export function resumirPacoteLicitacao(orcamento) {
     abas: 6,
     servicos: orcamento.itens.filter((item) => item.tipo !== "grupo").length,
     composicoes: orcamento.composicoes?.length || 0,
+    periodos: criarPeriodosMedicao(orcamento).length,
     precoTotal: totais.precoTotal,
     bdi: totais.bdi,
   };
