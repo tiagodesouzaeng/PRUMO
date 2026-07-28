@@ -121,15 +121,18 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - exclusão unitária remove catálogo, composições analíticas e arquivo-fonte da
   publicação selecionada.
 
-## Licitações e concorrência — etapa planejada v9.5
+## Licitações e concorrência — v9.5
 
-- submódulo para geração do pacote de planilhas da concorrência;
+- submódulo integrado ao orçamento para geração do pacote da concorrência;
 - arquivo XLSX único com abas de instruções, orçamento completo, proposta de
   preços, BDI e encargos, cronograma e histograma;
 - fórmulas protegidas e células de preenchimento explicitamente desbloqueadas;
 - cálculos compatíveis com o truncamento monetário da v9.4;
 - identificação da revisão, bases utilizadas pelos itens e versão do arquivo distribuído;
-- validações, filtros, impressão e congelamento de painéis preparados para uso.
+- filtros e congelamento de painéis preparados para uso;
+- cronograma percentual de 12 meses e histograma de mão de obra vinculados por
+  fórmulas;
+- arquivo preparado para recálculo automático ao abrir no Excel.
 
 ## Execução
 

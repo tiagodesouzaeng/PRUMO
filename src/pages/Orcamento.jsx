@@ -17,6 +17,10 @@ import {
 } from "../domain/orcamento";
 import useOrcamentos from "../hooks/useOrcamentos";
 import { importarPlanilhaOrcamentaria } from "../services/orcamentoImport";
+import {
+  baixarPacoteLicitacao,
+  resumirPacoteLicitacao,
+} from "../services/licitacaoExport";
 import { EAP_NIVEIS, nivelEapAnterior } from "../domain/eap";
 import ModalComposicaoRastreavel from "../components/Orcamento/ModalComposicaoRastreavel";
 
@@ -28,6 +32,7 @@ const ETAPAS = [
   { id: "histograma", label: "Histograma", icon: "♙" },
   { id: "medicoes", label: "Medições", icon: "✓" },
   { id: "comercial", label: "Condições comerciais", icon: "$" },
+  { id: "licitacoes", label: "Licitações", icon: "▦" },
   { id: "revisoes", label: "Revisões", icon: "⇄" },
 ];
 
@@ -62,6 +67,7 @@ function CabecalhoSecao({ etapa, exportar, novaRevisao }) {
     histograma: ["Histograma de mão de obra", "Equipes projetadas a partir dos coeficientes das composições."],
     medicoes: ["Medições e saldos", "Avanço físico, valor medido, retenções e saldo contratual."],
     comercial: ["Condições comerciais", "Descontos, critérios de negociação e memória das condições aplicadas."],
+    licitacoes: ["Licitações e concorrência", "Pacote protegido para orçamento, proposta, BDI, encargos, cronograma e histograma."],
     revisoes: ["Revisões e cenários", "Histórico imutável, comparativos e fluxo de aprovação."],
   };
   const [titulo, descricao] = textos[etapa];
@@ -644,6 +650,54 @@ function Medicoes() {
   );
 }
 
+function Licitacoes({ orcamento, gerar, gerando }) {
+  const resumo = resumirPacoteLicitacao(orcamento);
+  const abas = [
+    ["01", "Instruções", "Regras de preenchimento e identificação da revisão.", "Bloqueada"],
+    ["02", "Orçamento completo", "Memória com custos, bases, desconto, BDI e preço total.", "Bloqueada"],
+    ["03", "Proposta de preços", "Preços unitários e observações para o concorrente.", "Preenchível"],
+    ["04", "BDI e encargos", "Percentuais analíticos e resultados calculados.", "Preenchível"],
+    ["05", "Cronograma", "Distribuição percentual de cada serviço em 12 meses.", "Preenchível"],
+    ["06", "Histograma", "Horas de mão de obra derivadas do cronograma.", "Calculada"],
+  ];
+  return (
+    <>
+      <div className="orc-bid-kpis">
+        <article><span>ARQUIVO</span><strong>1 XLSX</strong><small>{resumo.abas} abas integradas</small></article>
+        <article><span>SERVIÇOS</span><strong>{resumo.servicos}</strong><small>Itens disponíveis na proposta</small></article>
+        <article><span>COMPOSIÇÕES PRÓPRIAS</span><strong>{resumo.composicoes}</strong><small>Rastreáveis no orçamento</small></article>
+        <article><span>REVISÃO DISTRIBUÍDA</span><strong>{orcamento.revisao}</strong><small>{orcamento.id}</small></article>
+      </div>
+      <article className="orc-card orc-bid-package">
+        <header>
+          <div><span>PACOTE DA CONCORRÊNCIA</span><h3>Planilhas integradas e protegidas</h3></div>
+          <button type="button" disabled={gerando} onClick={gerar}>{gerando ? "Gerando arquivo…" : "⇩ Gerar pacote XLSX"}</button>
+        </header>
+        <div className="orc-bid-summary">
+          <div><span>ORÇAMENTO</span><strong>{orcamento.nome}</strong><small>{orcamento.id}</small></div>
+          <div><span>PREÇO DE REFERÊNCIA</span><strong>{formatarMoeda(resumo.precoTotal)}</strong><small>BDI de {resumo.bdi.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</small></div>
+          <div><span>PROTEÇÃO</span><strong>Fórmulas bloqueadas</strong><small>Entradas destacadas em amarelo</small></div>
+        </div>
+        <section className="orc-bid-sheet-list">
+          {abas.map(([numero, nome, descricao, modo]) => (
+            <div key={numero}>
+              <b>{numero}</b>
+              <span><strong>{nome}</strong><small>{descricao}</small></span>
+              <em className={modo === "Preenchível" ? "is-editable" : ""}>{modo}</em>
+            </div>
+          ))}
+        </section>
+      </article>
+      <article className="orc-card orc-bid-checklist">
+        <header><div><span>CONTROLE DE EMISSÃO</span><h3>Verificações antes da distribuição</h3></div></header>
+        <div><i>✓</i><span><strong>Revisão identificada</strong><small>O código {orcamento.revisao} será registrado em todas as abas.</small></span></div>
+        <div><i>✓</i><span><strong>Cálculos auditáveis</strong><small>Totais, BDI, encargos, cronograma e histograma permanecem baseados em fórmulas.</small></span></div>
+        <div><i>✓</i><span><strong>Campos de entrada controlados</strong><small>Somente preços, observações e percentuais destinados ao concorrente ficam desbloqueados.</small></span></div>
+      </article>
+    </>
+  );
+}
+
 function Revisoes({
   orcamento,
   ativarRevisao,
@@ -1015,6 +1069,7 @@ export default function Orcamento({ basesPrecos }) {
   const [modal, setModal] = useState("");
   const [itemEmEdicao, setItemEmEdicao] = useState(null);
   const [itemDetalhe, setItemDetalhe] = useState(null);
+  const [gerandoLicitacao, setGerandoLicitacao] = useState(false);
   const {
     orcamentos,
     orcamentoAtivo,
@@ -1128,7 +1183,24 @@ export default function Orcamento({ basesPrecos }) {
     notificar("Nova revisão criada a partir da versão atual.");
   }
 
+  async function gerarPacoteLicitacao() {
+    setGerandoLicitacao(true);
+    try {
+      await baixarPacoteLicitacao(orcamentoAtivo);
+      notificar("Pacote XLSX da concorrência gerado com 6 abas.");
+    } catch (error) {
+      console.error(error);
+      notificar("Não foi possível gerar o pacote XLSX.");
+    } finally {
+      setGerandoLicitacao(false);
+    }
+  }
+
   function exportar() {
+    if (etapa === "licitacoes") {
+      gerarPacoteLicitacao();
+      return;
+    }
     const arquivo = new Blob([JSON.stringify(orcamentoAtivo, null, 2)], { type: "application/json" });
     const endereco = URL.createObjectURL(arquivo);
     const link = document.createElement("a");
@@ -1186,6 +1258,7 @@ export default function Orcamento({ basesPrecos }) {
       {etapa === "histograma" && <Histograma />}
       {etapa === "medicoes" && <Medicoes />}
       {etapa === "comercial" && <CondicoesComerciais orcamento={orcamentoAtivo} salvarDesconto={salvarDesconto} />}
+      {etapa === "licitacoes" && <Licitacoes orcamento={orcamentoAtivo} gerar={gerarPacoteLicitacao} gerando={gerandoLicitacao} />}
       {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} ativarRevisao={ativarRevisao} alternarRevisaoInativa={alternarRevisaoInativa} excluirRevisao={excluirRevisao} avisar={notificar} />}
     </section>
   );

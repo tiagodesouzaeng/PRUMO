@@ -403,6 +403,33 @@
 .analytic-rate-editor > section > div { padding: 7px 10px; display: grid; grid-template-columns: 55px minmax(220px, 1fr) 125px 28px; gap: 8px; align-items: center; border-top: 1px solid #e7edef; }.analytic-rate-editor > section > div > span { color: #657980; font-size: 8px; font-weight: 900; }.analytic-rate-editor > section > div > input { padding: 6px 8px; border: 1px solid #d7e2e3; border-radius: 5px; color: #435d66; font-size: 9px; }.analytic-rate-editor > section > div label { display: flex; }.analytic-rate-editor > section > div label input { width: 92px; padding: 6px 8px; border: 1px solid #d7e2e3; border-radius: 5px 0 0 5px; }.analytic-rate-editor > section > div label b { padding: 6px; border: 1px solid #d7e2e3; border-left: 0; border-radius: 0 5px 5px 0; color: var(--orc-teal); }.analytic-rate-editor > section > div > button { border: 0; background: transparent; color: #a64f45; font-size: 14px; }
 .analytic-rate-editor > section > footer { padding: 8px 10px; display: flex; justify-content: space-between; border-top: 1px solid #e4ebec; background: #fafcfc; }.analytic-rate-editor > section > footer button, .analytic-add-group { border: 0; background: transparent; color: var(--orc-teal); font-size: 8px; font-weight: 900; }.analytic-rate-editor > section > footer strong { color: var(--orc-navy); font-size: 8px; }.analytic-add-group { margin-top: 12px; padding: 8px 10px; border: 1px dashed #8cbcb2; border-radius: 6px; }
 
+.orc-bid-kpis { margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.orc-bid-kpis article { padding: 14px 16px; border: 1px solid #dbe5e6; border-radius: 9px; background: #fff; }
+.orc-bid-kpis span, .orc-bid-kpis small { display: block; color: #75888f; font-size: 7px; font-weight: 900; }
+.orc-bid-kpis strong { display: block; margin: 7px 0 4px; color: var(--orc-navy); font-size: 18px; }
+.orc-bid-package { overflow: hidden; }
+.orc-bid-package > header { align-items: center; }
+.orc-bid-package > header button { padding: 10px 14px; border: 0; border-radius: 7px; background: var(--orc-teal); color: #fff; font-size: 9px; font-weight: 950; }
+.orc-bid-package > header button:disabled { opacity: .55; cursor: wait; }
+.orc-bid-summary { padding: 15px 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; background: #f4f8f7; border-top: 1px solid #e2eaea; }
+.orc-bid-summary > div { padding-right: 12px; border-right: 1px solid #dce6e5; }
+.orc-bid-summary > div:last-child { border-right: 0; }
+.orc-bid-summary span, .orc-bid-summary small { display: block; color: #71858c; font-size: 7px; font-weight: 900; }
+.orc-bid-summary strong { display: block; margin: 5px 0 4px; color: var(--orc-navy); font-size: 10px; }
+.orc-bid-sheet-list > div { padding: 12px 18px; display: grid; grid-template-columns: 34px minmax(0, 1fr) 90px; gap: 12px; align-items: center; border-top: 1px solid #e7eded; }
+.orc-bid-sheet-list > div > b { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; background: #e6f3f0; color: var(--orc-teal); font-size: 9px; }
+.orc-bid-sheet-list span strong, .orc-bid-sheet-list span small { display: block; }
+.orc-bid-sheet-list span strong { color: var(--orc-navy); font-size: 9px; }
+.orc-bid-sheet-list span small { margin-top: 3px; color: #71838a; font-size: 8px; }
+.orc-bid-sheet-list em { padding: 5px 8px; border-radius: 12px; background: #eef2f3; color: #657a82; font-size: 7px; font-style: normal; font-weight: 900; text-align: center; }
+.orc-bid-sheet-list em.is-editable { background: #fff2c7; color: #8c6819; }
+.orc-bid-checklist { margin-top: 12px; overflow: hidden; }
+.orc-bid-checklist > div { padding: 11px 18px; display: flex; gap: 11px; align-items: center; border-top: 1px solid #e7eded; }
+.orc-bid-checklist i { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #e8f5f2; color: var(--orc-teal); font-size: 10px; font-style: normal; font-weight: 950; }
+.orc-bid-checklist span strong, .orc-bid-checklist span small { display: block; }
+.orc-bid-checklist span strong { color: var(--orc-navy); font-size: 9px; }
+.orc-bid-checklist span small { margin-top: 3px; color: #74868d; font-size: 8px; }
+
 @media (max-width: 1120px) {
   .orc-kpis, .orc-schedule-kpis { grid-template-columns: repeat(2, 1fr); }
   .orc-dashboard-grid, .orc-bases-grid { grid-template-columns: 1fr; }
@@ -418,6 +445,7 @@
   .orc-discount-preview { grid-column: 1 / -1; }
   .orc-discount-actions { justify-content: flex-end; }
   .orc-composition-main { grid-template-columns: repeat(2, 1fr); }
+  .orc-bid-kpis { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 760px) {
@@ -461,4 +489,9 @@
   .social-charges-form.compact { grid-template-columns: repeat(2, 1fr); }
   .base-filter-options, .base-filter-options.compact { grid-template-columns: 1fr; }.base-filter-actions { justify-content: stretch; }.base-filter-actions button { flex: 1; }.state-prices-grid { grid-template-columns: repeat(3, 1fr); }
   .analytic-rate-editor > section > div { grid-template-columns: 42px 1fr; }.analytic-rate-editor > section > div label, .analytic-rate-editor > section > div > button { grid-column: 2; }
+  .orc-bid-kpis, .orc-bid-summary { grid-template-columns: 1fr; }
+  .orc-bid-summary > div { padding: 0 0 10px; border-right: 0; border-bottom: 1px solid #dce6e5; }
+  .orc-bid-summary > div:last-child { padding-bottom: 0; border-bottom: 0; }
+  .orc-bid-sheet-list > div { grid-template-columns: 34px minmax(0, 1fr); }
+  .orc-bid-sheet-list em { grid-column: 2; justify-self: start; }
 }
