@@ -127,3 +127,14 @@ O formato padrão será um único arquivo XLSX, com as seguintes abas:
 
 Substituir importações manuais por integrações estruturadas quando as fontes
 oficiais e a infraestrutura compartilhada estiverem disponíveis.
+
+#### Entrega intermediária v9.6.0
+
+- central administrativa de integrações por fonte;
+- configuração de URL direta para o arquivo oficial;
+- execução assistida de download e importação;
+- validação de transporte seguro e formatos aceitos;
+- reaproveitamento integral do importador, versionamento, hash e auditoria;
+- conectores preparados para SINAPI, PLEO, SBC e ORSE;
+- agendamento automático condicionado à implantação de backend e à existência de
+  endpoint oficial estável.

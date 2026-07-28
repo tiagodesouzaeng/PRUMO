@@ -14,9 +14,15 @@ import {
   SIGIU_ADMIN_FONTES_DADOS,
   SIGIU_ADMIN_PARAMETROS_ALERTA,
   SIGIU_ADMIN_PERFIS,
-  SIGIU_ADMIN_SYNC_STATUS,
   SIGIU_ADMIN_USUARIOS,
 } from "../config/adminConfig";
+import {
+  baixarArquivoIntegracao,
+  carregarAuditoriaIntegracoes,
+  carregarIntegracoesBases,
+  registrarAuditoriaIntegracao,
+  salvarIntegracoesBases,
+} from "../services/integracaoBasesPrecos";
 
 const ABAS_ADMIN = [
   { id: "geral", label: "Geral", badge: "8.0" },
@@ -25,7 +31,7 @@ const ABAS_ADMIN = [
   { id: "usuarios", label: "Usuários e acessos", badge: "3" },
   { id: "cadastros", label: "Cadastros mestres", badge: "4" },
   { id: "parametros", label: "Parâmetros", badge: "3" },
-  { id: "sync", label: "Sincronização", badge: "8.1" },
+  { id: "sync", label: "Integrações", badge: "9.6" },
   { id: "auditoria", label: "Auditoria", badge: "log" },
 ];
 
@@ -59,7 +65,7 @@ function ConfigResumo() {
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>
-            <h2>Governança do SIGIU</h2>
+            <h2>Governança do PRUMO</h2>
             <p>Base administrativa para reduzir configurações fixas no código.</p>
           </div>
         </header>
@@ -329,29 +335,165 @@ function ParametrosAlertas() {
   );
 }
 
-function Sincronizacao() {
+function Sincronizacao({ basesPrecos }) {
+  const [integracoes, setIntegracoes] = useState(carregarIntegracoesBases);
+  const [integracaoId, setIntegracaoId] = useState(integracoes[0]?.id || "sinapi");
+  const [auditoria, setAuditoria] = useState(carregarAuditoriaIntegracoes);
+  const [processando, setProcessando] = useState(false);
+  const [mensagem, setMensagem] = useState("");
+  const integracao = integracoes.find((item) => item.id === integracaoId) || integracoes[0];
+
+  function atualizar(campo, valor) {
+    setIntegracoes((atuais) => atuais.map((item) => (
+      item.id === integracao.id ? { ...item, [campo]: valor } : item
+    )));
+  }
+
+  function salvarConfiguracao() {
+    salvarIntegracoesBases(integracoes);
+    setMensagem("Configuração da integração salva neste navegador.");
+  }
+
+  async function importarPublicacao() {
+    setProcessando(true);
+    setMensagem("");
+    try {
+      const arquivo = await baixarArquivoIntegracao(integracao);
+      const resultado = await basesPrecos.importar(arquivo, {
+        fonte: integracao.fonte,
+        referencia: integracao.referencia,
+        uf: integracao.uf,
+        regime: integracao.regime,
+      });
+      const atualizadaEm = new Date().toISOString();
+      const atualizadas = integracoes.map((item) => (
+        item.id === integracao.id
+          ? { ...item, ultimaExecucao: atualizadaEm, ultimoStatus: "Importação concluída" }
+          : item
+      ));
+      setIntegracoes(atualizadas);
+      salvarIntegracoesBases(atualizadas);
+      setAuditoria(registrarAuditoriaIntegracao({
+        fonte: integracao.fonte,
+        status: "Sucesso",
+        detalhe: `${arquivo.name} · ${resultado.base.total.toLocaleString("pt-BR")} referências`,
+      }));
+      setMensagem(`Publicação importada: ${resultado.base.titulo}.`);
+    } catch (error) {
+      setAuditoria(registrarAuditoriaIntegracao({
+        fonte: integracao.fonte,
+        status: "Falha",
+        detalhe: error.message,
+      }));
+      setMensagem(error.message);
+    } finally {
+      setProcessando(false);
+    }
+  }
+
   return (
     <div className="sigiu-admin-stack">
+      {mensagem && <div className="sigiu-admin-base-notice" role="status">{mensagem}</div>}
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>
-            <h2>Sincronização e cache</h2>
-            <p>Estrutura inicial para reduzir consultas completas e preparar updates incrementais.</p>
+            <h2>Integrações de bases de preços</h2>
+            <p>Conecte uma URL direta de publicação e reutilize o importador versionado do PRUMO.</p>
           </div>
-          <button type="button" className="sigiu-btn sigiu-btn--primary">Forçar atualização</button>
+          <StatusChip status="v9.6 · execução assistida" />
         </header>
-        <div className="sigiu-admin-sync-grid">
-          {SIGIU_ADMIN_SYNC_STATUS.map((item) => (
-            <article key={item.modulo}>
-              <div>
-                <strong>{item.modulo}</strong>
-                <StatusChip status={item.status} />
-              </div>
-              <span>Modo: {item.modo}</span>
-              <small>Última sincronização: {item.ultimaSincronizacao}</small>
-              <small>Incremental: {item.incremental}</small>
-            </article>
-          ))}
+        <div className="sigiu-integration-layout">
+          <nav className="sigiu-integration-source-list" aria-label="Fontes integráveis">
+            {integracoes.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className={item.id === integracao.id ? "is-active" : ""}
+                onClick={() => setIntegracaoId(item.id)}
+              >
+                <span><strong>{item.nome}</strong><small>{item.modo}</small></span>
+                <StatusChip status={item.ativa ? "Configurada" : "Pendente"} />
+              </button>
+            ))}
+          </nav>
+
+          <div className="sigiu-integration-form">
+            <div className="sigiu-admin-form-grid">
+              <label className="sigiu-admin-form-grid__wide">
+                <span>URL direta do arquivo ZIP, XLSX, XLS ou CSV</span>
+                <input
+                  className="sigiu-input"
+                  value={integracao.urlArquivo}
+                  placeholder="https://fonte-oficial.gov.br/publicacao/base.zip"
+                  onChange={(event) => atualizar("urlArquivo", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Referência</span>
+                <input
+                  className="sigiu-input"
+                  type="month"
+                  value={integracao.referencia}
+                  onChange={(event) => atualizar("referencia", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Estado inicial</span>
+                <input
+                  className="sigiu-input"
+                  value={integracao.uf}
+                  maxLength={8}
+                  onChange={(event) => atualizar("uf", event.target.value.toUpperCase())}
+                />
+              </label>
+              <label>
+                <span>Regime</span>
+                <select
+                  className="sigiu-input"
+                  value={integracao.regime}
+                  onChange={(event) => atualizar("regime", event.target.value)}
+                >
+                  <option value="DESONERADO">Desonerado</option>
+                  <option value="NAO_DESONERADO">Não desonerado</option>
+                  <option value="PADRAO">Padrão da fonte</option>
+                </select>
+              </label>
+              <label>
+                <span>Periodicidade de conferência</span>
+                <select
+                  className="sigiu-input"
+                  value={integracao.periodicidade}
+                  onChange={(event) => atualizar("periodicidade", event.target.value)}
+                >
+                  <option>Mensal</option>
+                  <option>Quinzenal</option>
+                  <option>Semanal</option>
+                  <option>Manual</option>
+                </select>
+              </label>
+              <label className="sigiu-integration-switch">
+                <input
+                  type="checkbox"
+                  checked={integracao.ativa}
+                  onChange={(event) => atualizar("ativa", event.target.checked)}
+                />
+                <span>Manter esta fonte habilitada na agenda de integração</span>
+              </label>
+            </div>
+            <footer className="sigiu-admin-card-actions">
+              <button type="button" className="sigiu-btn sigiu-btn--outline" onClick={salvarConfiguracao}>
+                Salvar configuração
+              </button>
+              <button
+                type="button"
+                className="sigiu-btn sigiu-btn--primary"
+                disabled={processando || !integracao.urlArquivo}
+                onClick={importarPublicacao}
+              >
+                {processando ? "Baixando e processando..." : "Baixar e importar agora"}
+              </button>
+            </footer>
+          </div>
         </div>
       </section>
 
@@ -361,11 +503,28 @@ function Sincronizacao() {
           <div>
             <h2>Estratégia recomendada</h2>
             <p>
-              Hidrômetros devem usar sincronização incremental por nova linha do Google Forms. PPCI e Obras devem usar ID fixo,
-              updatedAt e hash da linha para identificar apenas registros modificados.
+              A CAIXA publica relatórios mensais em ZIP/XLSX, mas ainda não oferece uma API pública estável para o SINAPI.
+              Por isso, esta etapa aceita o endereço direto do arquivo oficial, preserva o hash e usa o mesmo fluxo auditável
+              de importação manual. Um agendador de servidor poderá executar estas configurações quando o backend estiver disponível.
             </p>
           </div>
         </header>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div><h2>Auditoria das integrações</h2><p>Últimas tentativas de download e importação realizadas neste navegador.</p></div>
+          <StatusChip status={`${auditoria.length} eventos`} />
+        </header>
+        <div className="sigiu-admin-audit-list">
+          {auditoria.slice(0, 8).map((evento) => (
+            <article key={evento.id}>
+              <span>{new Date(evento.data).toLocaleString("pt-BR")}</span>
+              <div><strong>{evento.fonte} · {evento.status}</strong><small>{evento.detalhe}</small></div>
+            </article>
+          ))}
+          {!auditoria.length && <p className="sigiu-admin-empty">Nenhuma integração executada.</p>}
+        </div>
       </section>
     </div>
   );
@@ -408,7 +567,7 @@ function renderizarAba(abaAtiva, basesPrecos) {
     case "parametros":
       return <ParametrosAlertas />;
     case "sync":
-      return <Sincronizacao />;
+      return <Sincronizacao basesPrecos={basesPrecos} />;
     case "auditoria":
       return <Auditoria />;
     case "geral":
@@ -427,13 +586,13 @@ export default function Administracao({ basesPrecos }) {
           <span className="sigiu-page-eyebrow">Módulo gerencial</span>
           <h1>Administração</h1>
           <p>
-            Governança do SIGIU: usuários, níveis de acesso, fontes de dados, cadastros mestres,
+            Governança do PRUMO: usuários, níveis de acesso, fontes de dados, cadastros mestres,
             parâmetros de alerta, sincronização e auditoria.
           </p>
         </div>
         <div className="sigiu-page-heading__meta sigiu-page-heading__meta--admin">
-          <strong>8.1</strong>
-          <span>base gerencial</span>
+          <strong>9.6</strong>
+          <span>integrações assistidas</span>
         </div>
       </div>
 
@@ -464,7 +623,7 @@ export default function Administracao({ basesPrecos }) {
         </article>
       </div>
 
-      <nav className="sigiu-admin-tabs" aria-label="Abas da Administração SIGIU">
+      <nav className="sigiu-admin-tabs" aria-label="Abas da Administração PRUMO">
         {ABAS_ADMIN.map((aba) => (
           <AdminTabButton
             key={aba.id}

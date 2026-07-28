@@ -10,7 +10,7 @@ export const SIGIU_ADMIN_PERFIS = [
   {
     id: "admin-geral",
     nome: "Administrador Geral",
-    descricao: "Acesso completo ao SIGIU, configurações, fontes de dados, usuários e módulos.",
+    descricao: "Acesso completo ao PRUMO, configurações, fontes de dados, usuários e módulos.",
     nivel: 100,
   },
   {
@@ -36,7 +36,7 @@ export const SIGIU_ADMIN_PERFIS = [
 export const SIGIU_ADMIN_USUARIOS = [
   {
     id: "USR-001",
-    nome: "Administrador SIGIU",
+    nome: "Administrador PRUMO",
     email: "administracao@prumo.local",
     perfil: "Administrador Geral",
     unidade: "Todas",
@@ -213,14 +213,14 @@ export const SIGIU_ADMIN_AUDITORIA = [
   },
   {
     data: "Futuro",
-    usuario: "Backend SIGIU",
+    usuario: "Backend PRUMO",
     acao: "Registrar alterações reais",
     detalhe: "Usuário, data, módulo, antes/depois e IP/sessão quando houver autenticação.",
   },
 ];
 
 export const SIGIU_ADMIN_CONFIG_GERAL = {
-  versaoBase: "SIGIU v8.1.0 RC1",
+  versaoBase: "PRUMO v9.6.0 RC1",
   ambiente: "Desenvolvimento",
   autenticacao: "Estrutural / pendente backend",
   cacheNavegador: "Previsto",

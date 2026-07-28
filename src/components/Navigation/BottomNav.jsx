@@ -61,7 +61,7 @@ export default function BottomNav({ paginaAtiva, setPaginaAtiva }) {
         </div>
       </div>
 
-      <nav className="sigiu-bottom-nav" aria-label="Navegação mobile SIGIU">
+      <nav className="sigiu-bottom-nav" aria-label="Navegação mobile PRUMO">
         {itensPrimarios.map((item) => (
           <button
             key={item.id}

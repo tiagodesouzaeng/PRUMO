@@ -179,7 +179,7 @@ export default function CentralAlertas({ dadosPPCI, onAbrirModulo }) {
     <section className="sigiu-page sigiu-page-central-alertas">
       <div className="sigiu-page-heading">
         <div>
-          <span className="sigiu-page-eyebrow">Central SIGIU</span>
+          <span className="sigiu-page-eyebrow">Central PRUMO</span>
           <h1>Central de Alertas</h1>
           <p>
             Visão única de pendências críticas, atenção operacional e riscos por módulo. Nesta versão, a central está alimentada pelo PPCI e preparada para Hídrico, Obras e Manutenção.
@@ -264,7 +264,7 @@ export default function CentralAlertas({ dadosPPCI, onAbrirModulo }) {
             <header className="sigiu-card-header-row">
               <div>
                 <h2>Fontes de alerta planejadas</h2>
-                <p>Estrutura preparada para expansão do SIGIU.</p>
+                <p>Estrutura preparada para expansão do PRUMO.</p>
               </div>
             </header>
 

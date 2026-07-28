@@ -25,40 +25,42 @@
 .sigiu-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 8px 22px;
+  justify-content: center;
+  padding: 2px 2px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   margin-bottom: 20px;
 }
 
-.sigiu-logo-mark {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid rgba(245, 206, 153, 0.60);
-  color: var(--sigiu-dourado-claro);
-  font-weight: 900;
-  letter-spacing: -1px;
+.prumo-brand-logo {
+  position: relative;
+  width: 176px;
+  height: 52px;
+  display: inline-block;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 7px 18px rgba(2, 25, 38, 0.16);
 }
 
-.sigiu-sidebar-brand strong,
-.sigiu-sidebar-brand span {
-  display: block;
-  line-height: 1.1;
+.prumo-brand-logo img {
+  position: absolute;
+  width: 238px;
+  max-width: none;
+  height: auto;
+  left: -32px;
+  top: -33px;
 }
 
-.sigiu-sidebar-brand strong {
-  color: #fff;
-  font-size: 1.15rem;
+.prumo-brand-logo.is-compact {
+  width: 48px;
+  height: 48px;
 }
 
-.sigiu-sidebar-brand span {
-  color: var(--sigiu-dourado-claro);
-  font-size: 0.8rem;
-  letter-spacing: 0.18em;
+.prumo-brand-logo.is-compact img {
+  width: 224px;
+  left: -30px;
+  top: -31px;
 }
 
 .sigiu-sidebar-nav {
@@ -270,15 +272,10 @@
   }
 
   .sigiu-mobile-brand {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: 1px solid rgba(245, 206, 153, 0.65);
-    color: var(--sigiu-dourado-claro);
-    font-weight: 900;
+    display: inline-block;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 6px 16px rgba(3, 31, 48, 0.18);
   }
 
   .sigiu-topbar-actions {
@@ -494,7 +491,12 @@
   .sigiu-mobile-brand {
     width: 42px;
     height: 42px;
-    font-size: 0.72rem;
+  }
+
+  .sigiu-mobile-brand img {
+    width: 196px;
+    left: -26px;
+    top: -27px;
   }
 
   .sigiu-mobile-controls {

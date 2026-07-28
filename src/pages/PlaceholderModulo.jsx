@@ -10,7 +10,7 @@ export default function PlaceholderModulo({ modulo, descricao, icone = "▣" }) 
       <div className="sigiu-placeholder sigiu-card">
         <span className="sigiu-placeholder__icon">{icone}</span>
         <div>
-          <span className="sigiu-page-eyebrow">Módulo SIGIU</span>
+          <span className="sigiu-page-eyebrow">Módulo PRUMO</span>
           <h1>{modulo}</h1>
           <p>{descricao}</p>
         </div>

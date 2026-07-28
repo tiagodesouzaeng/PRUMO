@@ -144,6 +144,20 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - cronograma e histograma dimensionados conforme os períodos reais de medição;
 - prazo e frequência de medição identificados em todas as abas do pacote.
 
+## Identidade visual e integrações assistidas — v9.6
+
+- logotipo oficial do PRUMO aplicado no menu lateral e no cabeçalho móvel;
+- identidade textual atualizada nas áreas administrativas e de navegação;
+- central de integrações para SINAPI, PLEO, SBC e ORSE;
+- configuração de URL direta para publicações ZIP, XLSX, XLS ou CSV;
+- validação de HTTPS, formato e tamanho antes da importação;
+- download e processamento pelo mesmo importador versionado das bases manuais;
+- referência, estado, regime e periodicidade configuráveis por fonte;
+- preservação do hash e da cópia interna do arquivo pelo repositório existente;
+- auditoria local das tentativas e resultados de integração;
+- estrutura preparada para execução agendada por backend quando houver uma API
+  oficial estável ou serviço corporativo.
+
 ## Execução
 
 Requisitos já utilizados na validação:

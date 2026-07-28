@@ -49,7 +49,7 @@ export default function Relatorios({ dadosPPCI }) {
     <section className="sigiu-page sigiu-page-modulo sigiu-page-relatorios">
       <div className="sigiu-page-heading sigiu-page-heading--modulo">
         <div>
-          <span className="sigiu-page-eyebrow">Central SIGIU</span>
+          <span className="sigiu-page-eyebrow">Central PRUMO</span>
           <h1>Relatórios</h1>
           <p>
             Área preparada para consolidar exportações e indicadores executivos por módulo.
