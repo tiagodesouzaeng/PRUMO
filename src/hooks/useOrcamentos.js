@@ -31,6 +31,42 @@ function resumirBasesDosItens(itens) {
   return nomes.join(", ") || "Preços manuais";
 }
 
+function capturarEstadoRevisao(orcamento) {
+  return structuredClone({
+    itens: orcamento.itens,
+    composicoes: orcamento.composicoes,
+    bdi: orcamento.bdi,
+    bdiComponentes: orcamento.bdiComponentes,
+    encargosSociais: orcamento.encargosSociais,
+    descontoGlobal: orcamento.descontoGlobal,
+    historicoCalculo: orcamento.historicoCalculo,
+  });
+}
+
+function criarRegistroRevisao(orcamento, codigo, sobrescritas = {}) {
+  const totais = calcularTotais(orcamento);
+  return {
+    id: sobrescritas.id || criarId("rev"),
+    codigo,
+    status: sobrescritas.status || orcamento.status,
+    bases: resumirBasesDosItens(orcamento.itens),
+    total: totais.precoTotal,
+    variacao: sobrescritas.variacao || 0,
+    autor: sobrescritas.autor || "Usuário atual",
+    publicada: sobrescritas.publicada ?? false,
+    ativa: sobrescritas.ativa ?? false,
+    inativa: sobrescritas.inativa ?? false,
+    data: new Date().toISOString(),
+    snapshot: structuredClone(orcamento.itens),
+    estado: capturarEstadoRevisao(orcamento),
+    calculo: {
+      descontoGlobal: structuredClone(orcamento.descontoGlobal),
+      versaoRegra: REGRA_CALCULO_ATUAL,
+      totais,
+    },
+  };
+}
+
 export default function useOrcamentos() {
   const [orcamentos, setOrcamentos] = useState(carregarOrcamentos);
   const [orcamentoAtivoId, setOrcamentoAtivoId] = useState(
@@ -301,32 +337,80 @@ export default function useOrcamentos() {
     atualizarAtivo((orcamento) => {
       const numeroAtual = Number(orcamento.revisao.replace(/\D/g, "")) || 0;
       const codigo = `R${String(numeroAtual + 1).padStart(2, "0")}`;
-      const totais = calcularTotais(orcamento);
-      const novaRevisao = {
-        id: criarId("rev"),
-        codigo,
+      const registroAtualExistente = orcamento.revisoes.find(
+        (revisao) => revisao.codigo === orcamento.revisao,
+      );
+      const registroAtual = criarRegistroRevisao(orcamento, orcamento.revisao, {
+        ...registroAtualExistente,
+        id: registroAtualExistente?.id,
+        ativa: false,
+      });
+      const novaRevisao = criarRegistroRevisao(orcamento, codigo, {
         status: "Em elaboração",
-        bases: resumirBasesDosItens(orcamento.itens),
-        total: totais.precoTotal,
-        variacao: 0,
-        autor: "Usuário atual",
-        publicada: false,
-        data: new Date().toISOString(),
-        snapshot: structuredClone(orcamento.itens),
-        calculo: {
-          descontoGlobal: structuredClone(orcamento.descontoGlobal),
-          versaoRegra: REGRA_CALCULO_ATUAL,
-          totais,
-        },
-      };
+        ativa: true,
+      });
+      const historicoSemAtual = orcamento.revisoes.filter(
+        (revisao) => revisao.codigo !== orcamento.revisao,
+      ).map((revisao) => ({ ...revisao, ativa: false }));
 
       return {
         ...orcamento,
         revisao: codigo,
         status: "Em elaboração",
-        revisoes: [novaRevisao, ...orcamento.revisoes],
+        revisoes: [novaRevisao, registroAtual, ...historicoSemAtual],
       };
     });
+  }
+
+  function ativarRevisao(revisaoId) {
+    atualizarAtivo((orcamento) => {
+      const alvo = orcamento.revisoes.find((revisao) => revisao.id === revisaoId);
+      if (!alvo || alvo.inativa) return orcamento;
+      const estado = alvo.estado || { itens: alvo.snapshot || [] };
+      const revisoes = orcamento.revisoes.map((revisao) => {
+        if (revisao.codigo === orcamento.revisao) {
+          return criarRegistroRevisao(orcamento, orcamento.revisao, {
+            ...revisao,
+            id: revisao.id,
+            ativa: false,
+          });
+        }
+        return { ...revisao, ativa: revisao.id === revisaoId };
+      });
+      return {
+        ...orcamento,
+        revisao: alvo.codigo,
+        status: alvo.status,
+        itens: structuredClone(estado.itens || alvo.snapshot || []),
+        composicoes: structuredClone(estado.composicoes || orcamento.composicoes),
+        bdi: estado.bdi ?? orcamento.bdi,
+        bdiComponentes: structuredClone(estado.bdiComponentes || orcamento.bdiComponentes),
+        encargosSociais: structuredClone(estado.encargosSociais || orcamento.encargosSociais),
+        descontoGlobal: structuredClone(estado.descontoGlobal ?? alvo.calculo?.descontoGlobal ?? null),
+        historicoCalculo: structuredClone(estado.historicoCalculo || orcamento.historicoCalculo),
+        revisoes,
+      };
+    });
+  }
+
+  function alternarRevisaoInativa(revisaoId) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      revisoes: orcamento.revisoes.map((revisao) => (
+        revisao.id === revisaoId && revisao.codigo !== orcamento.revisao
+          ? { ...revisao, inativa: !revisao.inativa, ativa: false }
+          : revisao
+      )),
+    }));
+  }
+
+  function excluirRevisao(revisaoId) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      revisoes: orcamento.revisoes.filter((revisao) => (
+        revisao.id !== revisaoId || revisao.codigo === orcamento.revisao
+      )),
+    }));
   }
 
   function restaurarDados() {
@@ -353,6 +437,9 @@ export default function useOrcamentos() {
     removerComposicao,
     adicionarOrcamento,
     criarRevisao,
+    ativarRevisao,
+    alternarRevisaoInativa,
+    excluirRevisao,
     restaurarDados,
   };
 }

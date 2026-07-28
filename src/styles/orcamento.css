@@ -18,12 +18,21 @@
   border-radius: 12px 12px 0 0;
   background: #fff;
 }
-.orc-project-bar > div:first-child { flex: 1; }
+.orc-project-bar > .orc-active-budget-select { flex: 1; }
 .orc-project-bar span, .orc-project-bar small { display: block; margin-bottom: 4px; color: #8b989e; font-size: 9px; font-weight: 800; letter-spacing: .09em; }
 .orc-project-bar select { width: min(520px, 100%); border: 0; outline: 0; background: transparent; color: var(--orc-navy); font-size: 14px; font-weight: 800; }
 .orc-project-bar strong { display: block; font-size: 12px; color: #405660; }
 .orc-project-bar .orc-status { color: #a66d13; }
 .orc-new-budget { min-height: 34px; padding: 0 12px; border: 1px solid #cfe0df; border-radius: 7px; background: #edf7f5; color: var(--orc-teal); font-size: 10px; font-weight: 900; white-space: nowrap; }
+.orc-back-portfolio { min-height: 34px; padding: 0 11px; border: 1px solid #d6e1e3; border-radius: 7px; background: #fff; color: #5d727b; font-size: 9px; font-weight: 900; white-space: nowrap; }
+
+.orc-portfolio-dashboard { padding-top: 22px; }
+.orc-portfolio-heading { margin-bottom: 16px; display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }.orc-portfolio-heading span { color: var(--orc-teal); font-size: 9px; font-weight: 950; letter-spacing: .12em; }.orc-portfolio-heading h2 { margin: 6px 0 4px; color: var(--orc-navy); font-family: Georgia, serif; font-size: 27px; }.orc-portfolio-heading p { margin: 0; color: var(--orc-muted); font-size: 11px; }
+.orc-portfolio-kpis { margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }.orc-portfolio-kpis article { padding: 15px 16px; border: 1px solid #dce6e7; border-radius: 9px; background: #fff; }.orc-portfolio-kpis span, .orc-portfolio-kpis small { display: block; color: #7b8c92; font-size: 8px; font-weight: 900; }.orc-portfolio-kpis strong { display: block; margin: 7px 0 5px; color: var(--orc-navy); font-size: 19px; }
+.orc-portfolio-grid { margin-bottom: 12px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 12px; }
+.orc-portfolio-chart > div, .orc-portfolio-pending > div, .orc-portfolio-list > div { padding: 6px 16px 12px; }.orc-portfolio-chart > div > button { width: 100%; padding: 10px 0; display: grid; grid-template-columns: minmax(150px, .8fr) minmax(180px, 1.4fr) 125px; gap: 12px; align-items: center; border: 0; border-bottom: 1px solid #edf1f2; background: transparent; text-align: left; }.orc-portfolio-chart button span strong, .orc-portfolio-chart button span small { display: block; }.orc-portfolio-chart button span strong { color: var(--orc-navy); font-size: 9px; }.orc-portfolio-chart button span small { margin-top: 3px; color: #7b8d94; font-size: 8px; }.orc-portfolio-chart button i { height: 8px; overflow: hidden; border-radius: 5px; background: #edf2f2; }.orc-portfolio-chart button i b { height: 100%; display: block; border-radius: inherit; background: linear-gradient(90deg, var(--orc-teal), #62b4a4); }.orc-portfolio-chart button em { color: #425a64; font-size: 9px; font-style: normal; font-weight: 900; text-align: right; }
+.orc-portfolio-pending > div > button { width: 100%; padding: 10px 0; display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; border: 0; border-bottom: 1px solid #edf1f2; background: transparent; text-align: left; }.orc-portfolio-pending button span strong, .orc-portfolio-pending button span small { display: block; }.orc-portfolio-pending button span strong { color: var(--orc-navy); font-size: 9px; }.orc-portfolio-pending button span small { margin-top: 3px; color: #819198; font-size: 8px; }.orc-portfolio-pending button b { padding: 5px 7px; border-radius: 10px; background: #fff5df; color: #996a1b; font-size: 7px; }.orc-portfolio-pending button em { color: var(--orc-teal); font-size: 8px; font-style: normal; font-weight: 900; }.orc-portfolio-pending p { color: #71858c; font-size: 9px; }
+.orc-portfolio-list > div > button { width: 100%; padding: 11px 0; display: grid; grid-template-columns: minmax(190px, 1.4fr) 75px 110px 85px 145px 75px; gap: 12px; align-items: center; border: 0; border-bottom: 1px solid #edf1f2; background: transparent; text-align: left; }.orc-portfolio-list button:hover, .orc-portfolio-chart button:hover, .orc-portfolio-pending button:hover { background: #f3f9f8; }.orc-portfolio-list button span strong, .orc-portfolio-list button span small { display: block; }.orc-portfolio-list button span small { margin-bottom: 3px; color: #87979d; font-size: 7px; }.orc-portfolio-list button span strong { color: #435b65; font-size: 9px; }.orc-portfolio-list button > span:first-child strong { color: var(--orc-teal); }.orc-portfolio-list button em { color: var(--orc-teal); font-size: 8px; font-style: normal; font-weight: 900; text-align: right; }
 
 .orc-module-nav {
   padding: 0 14px;
@@ -255,10 +264,12 @@
 .orc-measurements b { padding: 5px 7px; border-radius: 10px; background: #fff3db; color: #996619; font-size: 8px; text-align: center; }.orc-measurements b.approved { background: #e3f2ef; color: var(--orc-teal); }
 .orc-measurements > div > button { border: 0; background: transparent; color: var(--orc-teal); font-size: 9px; font-weight: 900; }
 
-.orc-revisions > div { min-height: 70px; padding: 10px 17px; display: grid; grid-template-columns: 58px 1fr 1.15fr 1fr 60px 1fr 30px; gap: 14px; align-items: center; border-bottom: 1px solid #edf1f2; }
+.orc-revisions > div { min-height: 70px; padding: 10px 17px; display: grid; grid-template-columns: 58px 1fr 1.15fr 1fr 60px 1fr minmax(190px, auto); gap: 14px; align-items: center; border-bottom: 1px solid #edf1f2; }
 .orc-revisions > div.current { background: #f2f8f7; box-shadow: inset 4px 0 var(--orc-teal); }
+.orc-revisions > div.is-inactive { opacity: .62; background: #f6f7f7; }
 .orc-revisions div span strong, .orc-revisions div span small { display: block; }.orc-revisions div span small { margin-bottom: 3px; color: #89979d; font-size: 8px; }.orc-revisions div span strong { font-size: 10px; color: #425862; }
 .orc-rev { color: var(--orc-teal); font-size: 16px; font-weight: 900; }.orc-revisions div > b { color: #a66d13; font-size: 10px; }.orc-revisions div > button { border: 0; background: transparent; color: #89979d; }
+.orc-revision-actions { display: flex; justify-content: flex-end; gap: 5px; flex-wrap: wrap; }.orc-revision-actions button { padding: 6px 8px; border: 1px solid #a9cec6; border-radius: 6px; background: #fff; color: var(--orc-teal); font-size: 7px; font-weight: 900; }.orc-revision-actions button.is-danger { border-color: #d8aaa2; color: #a24d45; }
 
 .orc-revision-compare { margin-bottom: 12px; }
 .orc-compare-selects { padding: 14px 18px; display: flex; align-items: flex-end; gap: 12px; border-bottom: 1px solid #edf1f2; }
@@ -395,8 +406,9 @@
 @media (max-width: 1120px) {
   .orc-kpis, .orc-schedule-kpis { grid-template-columns: repeat(2, 1fr); }
   .orc-dashboard-grid, .orc-bases-grid { grid-template-columns: 1fr; }
+  .orc-portfolio-kpis { grid-template-columns: repeat(2, 1fr); }.orc-portfolio-grid { grid-template-columns: 1fr; }
   .orc-project-bar { flex-wrap: wrap; }
-  .orc-project-bar > div:first-child { flex-basis: 100%; }
+  .orc-project-bar > .orc-active-budget-select { flex-basis: 100%; }
   .orc-bdi-grid { grid-template-columns: 1fr; }
   .social-charges-grid { grid-template-columns: 1fr; }
   .analytic-config-grid { grid-template-columns: 1fr; }
@@ -410,6 +422,8 @@
 
 @media (max-width: 760px) {
   .orc-section-heading { align-items: flex-start; flex-direction: column; }
+  .orc-portfolio-heading { align-items: flex-start; flex-direction: column; }.orc-portfolio-heading button { width: 100%; }
+  .orc-portfolio-kpis { grid-template-columns: 1fr; }.orc-portfolio-chart, .orc-portfolio-list { overflow-x: auto; }.orc-portfolio-chart > div, .orc-portfolio-list > div { min-width: 650px; }
   .orc-heading-actions { width: 100%; }.orc-heading-actions button { flex: 1; }
   .orc-kpis, .orc-schedule-kpis { grid-template-columns: 1fr; }
   .orc-project-bar { gap: 12px; }

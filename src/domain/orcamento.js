@@ -414,7 +414,12 @@ export function normalizarOrcamento(orcamento) {
       const dadosRevisao = { ...revisao };
       const bases = revisao.bases || revisao.base || "Própria";
       delete dadosRevisao.base;
-      return { ...dadosRevisao, bases };
+      return {
+        ...dadosRevisao,
+        bases,
+        ativa: dadosRevisao.ativa ?? dadosRevisao.codigo === orcamento.revisao,
+        inativa: dadosRevisao.inativa ?? false,
+      };
     }),
   };
 }

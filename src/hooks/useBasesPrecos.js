@@ -5,6 +5,7 @@ import {
   arquivarBasePrecos,
   carregarItensComposicaoBase,
   carregarReferenciasBase,
+  excluirBasePrecosDefinitivamente,
   listarBasesPrecos,
   restaurarBasePrecos,
   salvarBasePrecos,
@@ -256,6 +257,16 @@ export default function useBasesPrecos() {
     return atualizadas;
   }
 
+  async function excluirDefinitivamente(baseId) {
+    if ([BASE_PROPRIA_ID, BASES_TODAS_ID].includes(baseId)) return;
+    await excluirBasePrecosDefinitivamente(baseId);
+    const atualizadas = await recarregarBases();
+    if (baseAtivaId === baseId) {
+      setBaseAtivaId(atualizadas[0]?.id || BASE_PROPRIA_ID);
+    }
+    return atualizadas;
+  }
+
   function salvarPropria(dados) {
     const componentes = dados.componentes || [];
     const custoUnitario = componentes.length
@@ -294,6 +305,7 @@ export default function useBasesPrecos() {
     importar,
     remover,
     restaurar,
+    excluirDefinitivamente,
     usuarioAdministrador: true,
     composicoesProprias,
     salvarComposicaoPropria: salvarPropria,

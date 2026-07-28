@@ -644,13 +644,19 @@ function Medicoes() {
   );
 }
 
-function Revisoes({ orcamento }) {
+function Revisoes({
+  orcamento,
+  ativarRevisao,
+  alternarRevisaoInativa,
+  excluirRevisao,
+  avisar,
+}) {
   const totais = calcularTotais(orcamento);
   const estadoAtual = {
     id: "estado-atual",
     codigo: `${orcamento.revisao} atual`,
     status: orcamento.status,
-    base: resumirBasesDosItens(orcamento.itens),
+    bases: resumirBasesDosItens(orcamento.itens),
     total: totais.precoTotal,
     variacao: 0,
     autor: "Usuário atual",
@@ -693,9 +699,56 @@ function Revisoes({ orcamento }) {
       </article>
       <article className="orc-card orc-revisions">
         <header><div><span>HISTÓRICO VERSIONADO</span><h3>Revisões do orçamento {orcamento.id}</h3></div></header>
-        {opcoes.map((revisao, index) => <div key={revisao.id} className={index === 0 ? "current" : ""}><span className="orc-rev">{revisao.codigo}</span><span><strong>{revisao.status}</strong><small>{index === 0 ? "Estado editável atual" : "Snapshot preservado"}</small></span><span><small>BASES DOS ITENS</small><strong>{revisao.bases}</strong></span><span><small>PREÇO TOTAL</small><strong>{formatarMoeda(revisao.total)}</strong>{revisao.calculo?.totais?.valorDesconto > 0 && <small>Desconto: {formatarMoeda(revisao.calculo.totais.valorDesconto)}</small>}</span><b>{revisao.variacao ? `${revisao.variacao > 0 ? "+" : ""}${revisao.variacao.toLocaleString("pt-BR")}%` : "—"}</b><span><small>RESPONSÁVEL</small><strong>{revisao.autor}</strong></span><button type="button">•••</button></div>)}
+        {(orcamento.revisoes.length ? orcamento.revisoes : [estadoAtual]).map((revisao) => {
+          const atual = revisao.codigo === orcamento.revisao;
+          const numeroRevisao = Number(revisao.codigo?.replace(/\D/g, "")) || 0;
+          const numeroAtual = Number(orcamento.revisao?.replace(/\D/g, "")) || 0;
+          const direcao = numeroRevisao < numeroAtual ? "Retroceder" : "Avançar";
+          return <div key={revisao.id} className={`${atual ? "current" : ""} ${revisao.inativa ? "is-inactive" : ""}`}><span className="orc-rev">{revisao.codigo}</span><span><strong>{revisao.inativa ? "Inativa" : revisao.status}</strong><small>{atual ? "Revisão ativa e editável" : revisao.inativa ? "Fora das opções de restauração" : "Snapshot disponível"}</small></span><span><small>BASES DOS ITENS</small><strong>{revisao.bases}</strong></span><span><small>PREÇO TOTAL</small><strong>{formatarMoeda(atual ? totais.precoTotal : revisao.total)}</strong>{revisao.calculo?.totais?.valorDesconto > 0 && <small>Desconto: {formatarMoeda(revisao.calculo.totais.valorDesconto)}</small>}</span><b>{revisao.variacao ? `${revisao.variacao > 0 ? "+" : ""}${revisao.variacao.toLocaleString("pt-BR")}%` : "—"}</b><span><small>RESPONSÁVEL</small><strong>{revisao.autor}</strong></span><div className="orc-revision-actions">{!atual && !revisao.inativa && <button type="button" onClick={() => { ativarRevisao(revisao.id); avisar(`${direcao} para ${revisao.codigo} concluído.`); }}>{direcao}</button>} {!atual && <button type="button" onClick={() => { alternarRevisaoInativa(revisao.id); avisar(revisao.inativa ? "Revisão reativada." : "Revisão marcada como inativa."); }}>{revisao.inativa ? "Reativar" : "Inativar"}</button>} {!atual && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Excluir a revisão ${revisao.codigo}? Esta ação não poderá ser desfeita.`)) { excluirRevisao(revisao.id); avisar("Revisão excluída."); } }}>Excluir</button>}</div></div>;
+        })}
       </article>
     </>
+  );
+}
+
+function DashboardOrcamentos({ orcamentos, selecionar, novo }) {
+  const indicadores = orcamentos.map((orcamento) => ({
+    orcamento,
+    totais: calcularTotais(orcamento),
+  }));
+  const valorCarteira = indicadores.reduce((total, item) => total + item.totais.precoTotal, 0);
+  const pendencias = indicadores.reduce((total, item) => total + item.totais.pendencias, 0);
+  const aprovados = orcamentos.filter((item) => item.status.toLocaleLowerCase("pt-BR").includes("aprov")).length;
+  const maiorValor = Math.max(...indicadores.map((item) => item.totais.precoTotal), 1);
+  const aguardando = indicadores.filter((item) => (
+    item.totais.pendencias > 0
+    || item.orcamento.status.toLocaleLowerCase("pt-BR").includes("elaboração")
+  ));
+
+  return (
+    <div className="orc-portfolio-dashboard">
+      <header className="orc-portfolio-heading"><div><span>CARTEIRA DE ORÇAMENTOS</span><h2>Visão geral dos orçamentos</h2><p>Indicadores, validações e evolução financeira antes da abertura de uma obra.</p></div><button type="button" className="orc-btn orc-btn-primary" onClick={novo}>＋ Novo orçamento</button></header>
+      <div className="orc-portfolio-kpis">
+        <article><span>ORÇAMENTOS</span><strong>{orcamentos.length}</strong><small>{aprovados} {aprovados === 1 ? "aprovado" : "aprovados"}</small></article>
+        <article><span>VALOR DA CARTEIRA</span><strong>{formatarMoeda(valorCarteira)}</strong><small>Soma das versões ativas</small></article>
+        <article><span>PENDÊNCIAS</span><strong>{pendencias}</strong><small>Itens com preço ou quantidade incompleta</small></article>
+        <article><span>AGUARDANDO ANÁLISE</span><strong>{aguardando.length}</strong><small>Validação ou aprovação</small></article>
+      </div>
+      <div className="orc-portfolio-grid">
+        <article className="orc-card orc-portfolio-chart">
+          <header><div><span>VALOR POR ORÇAMENTO</span><h3>Distribuição da carteira</h3></div></header>
+          <div>{indicadores.map(({ orcamento, totais }) => <button type="button" key={orcamento.id} onClick={() => selecionar(orcamento.id)}><span><strong>{orcamento.id}</strong><small>{orcamento.nome}</small></span><i><b style={{ width: `${Math.max(4, (totais.precoTotal / maiorValor) * 100)}%` }} /></i><em>{formatarMoeda(totais.precoTotal)}</em></button>)}</div>
+        </article>
+        <article className="orc-card orc-portfolio-pending">
+          <header><div><span>FLUXO DE APROVAÇÃO</span><h3>Validações pendentes</h3></div></header>
+          <div>{aguardando.map(({ orcamento, totais }) => <button type="button" key={orcamento.id} onClick={() => selecionar(orcamento.id)}><span><strong>{orcamento.nome}</strong><small>{orcamento.id} · {orcamento.revisao}</small></span><b>{totais.pendencias ? `${totais.pendencias} itens` : orcamento.status}</b><em>Abrir →</em></button>)}{!aguardando.length && <p>Não há orçamentos aguardando validação.</p>}</div>
+        </article>
+      </div>
+      <article className="orc-card orc-portfolio-list">
+        <header><div><span>PORTFÓLIO</span><h3>Todos os orçamentos</h3></div></header>
+        <div>{indicadores.map(({ orcamento, totais }) => <button type="button" key={orcamento.id} onClick={() => selecionar(orcamento.id)}><span><strong>{orcamento.id}</strong><small>{orcamento.nome}</small></span><span><small>REVISÃO</small><strong>{orcamento.revisao}</strong></span><span><small>STATUS</small><strong>{orcamento.status}</strong></span><span><small>PENDÊNCIAS</small><strong>{totais.pendencias}</strong></span><span><small>PREÇO TOTAL</small><strong>{formatarMoeda(totais.precoTotal)}</strong></span><em>Selecionar →</em></button>)}</div>
+      </article>
+    </div>
   );
 }
 
@@ -956,6 +1009,7 @@ function ModalNovoOrcamento({ fechar, salvar, proximoCodigo }) {
 }
 
 export default function Orcamento({ basesPrecos }) {
+  const [modoCarteira, setModoCarteira] = useState(true);
   const [etapa, setEtapa] = useState("visao");
   const [aviso, setAviso] = useState("");
   const [modal, setModal] = useState("");
@@ -979,6 +1033,9 @@ export default function Orcamento({ basesPrecos }) {
     removerComposicao,
     adicionarOrcamento,
     criarRevisao,
+    ativarRevisao,
+    alternarRevisaoInativa,
+    excluirRevisao,
   } = useOrcamentos();
   const etapaAtual = useMemo(() => ETAPAS.find((item) => item.id === etapa), [etapa]);
   const proximoCodigo = useMemo(() => {
@@ -1016,6 +1073,7 @@ export default function Orcamento({ basesPrecos }) {
     adicionarOrcamento(dados);
     setModal("");
     setEtapa("planilha");
+    setModoCarteira(false);
     notificar("Novo orçamento criado e salvo.");
   }
 
@@ -1081,6 +1139,16 @@ export default function Orcamento({ basesPrecos }) {
     notificar("Dados do orçamento exportados.");
   }
 
+  if (modoCarteira) {
+    return (
+      <section className="sigiu-page orc-page">
+        {aviso && <div className="orc-toast" role="status">{aviso}</div>}
+        {modal === "orcamento" && <ModalNovoOrcamento fechar={() => setModal("")} salvar={salvarNovoOrcamento} proximoCodigo={proximoCodigo} />}
+        <DashboardOrcamentos orcamentos={orcamentos} novo={() => setModal("orcamento")} selecionar={(orcamentoId) => { setOrcamentoAtivoId(orcamentoId); setEtapa("visao"); setModoCarteira(false); }} />
+      </section>
+    );
+  }
+
   if (!orcamentoAtivo) return null;
   const baseDetalhe = itemDetalhe && (
     basesPrecos.bases.find((base) => base.id === itemDetalhe.basePrecoId)
@@ -1102,7 +1170,8 @@ export default function Orcamento({ basesPrecos }) {
       {(modal === "item" || modal === "grupo") && <ModalItem fechar={() => { setModal(""); setItemEmEdicao(null); }} salvar={salvarDadosItem} item={itemEmEdicao} tipoInicial={modal === "grupo" ? "grupo" : "servico"} itens={orcamentoAtivo.itens} criarGrupo={(dados) => { salvarItem(dados); notificar("Novo grupo criado e selecionado."); }} basesPrecos={basesPrecos} />}
       {modal === "orcamento" && <ModalNovoOrcamento fechar={() => setModal("")} salvar={salvarNovoOrcamento} proximoCodigo={proximoCodigo} />}
       <div className="orc-project-bar">
-        <div><span>ORÇAMENTO ATIVO</span><select value={orcamentoAtivoId} onChange={(event) => setOrcamentoAtivoId(event.target.value)}>{orcamentos.map((orcamento) => <option key={orcamento.id} value={orcamento.id}>{orcamento.id} · {orcamento.nome}</option>)}</select></div>
+        <button type="button" className="orc-back-portfolio" onClick={() => setModoCarteira(true)}>← Dashboard</button>
+        <div className="orc-active-budget-select"><span>ORÇAMENTO ATIVO</span><select value={orcamentoAtivoId} onChange={(event) => setOrcamentoAtivoId(event.target.value)}>{orcamentos.map((orcamento) => <option key={orcamento.id} value={orcamento.id}>{orcamento.id} · {orcamento.nome}</option>)}</select></div>
         <button type="button" className="orc-new-budget" onClick={() => setModal("orcamento")}>＋ Novo orçamento</button>
         <div><small>REVISÃO</small><strong>{orcamentoAtivo.revisao}</strong></div><div><small>STATUS</small><strong className="orc-status">{orcamentoAtivo.status}</strong></div><div><small>BASES NOS ITENS</small><strong>{resumirBasesDosItens(orcamentoAtivo.itens)}</strong></div>
       </div>
@@ -1117,7 +1186,7 @@ export default function Orcamento({ basesPrecos }) {
       {etapa === "histograma" && <Histograma />}
       {etapa === "medicoes" && <Medicoes />}
       {etapa === "comercial" && <CondicoesComerciais orcamento={orcamentoAtivo} salvarDesconto={salvarDesconto} />}
-      {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} />}
+      {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} ativarRevisao={ativarRevisao} alternarRevisaoInativa={alternarRevisaoInativa} excluirRevisao={excluirRevisao} avisar={notificar} />}
     </section>
   );
 }

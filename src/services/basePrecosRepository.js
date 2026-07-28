@@ -287,4 +287,20 @@ export async function restaurarBasePrecos(baseId, usuario = "Administrador atual
   await concluirTransacao(transacao);
 }
 
+export async function excluirBasePrecosDefinitivamente(baseId) {
+  if (!baseId) throw new Error("Base de preços não informada.");
+  const banco = await abrirBanco();
+  const transacao = banco.transaction(
+    [BASE_STORE, PACKAGE_STORE, COMPOSITION_STORE, SOURCE_FILE_STORE],
+    "readwrite",
+  );
+  await Promise.all([
+    removerPorBase(transacao.objectStore(PACKAGE_STORE), baseId),
+    removerPorBase(transacao.objectStore(COMPOSITION_STORE), baseId),
+  ]);
+  transacao.objectStore(BASE_STORE).delete(baseId);
+  transacao.objectStore(SOURCE_FILE_STORE).delete(baseId);
+  await concluirTransacao(transacao);
+}
+
 export const removerBasePrecos = arquivarBasePrecos;

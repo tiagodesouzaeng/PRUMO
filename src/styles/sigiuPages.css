@@ -2542,3 +2542,81 @@ button.sigiu-central-modulo-card:hover {
     grid-template-columns: 1fr;
   }
 }
+.sigiu-admin-price-bases {
+  display: grid;
+  gap: 16px;
+}
+
+.sigiu-admin-base-notice {
+  padding: 12px 14px;
+  border: 1px solid #9bc9bf;
+  border-radius: 10px;
+  background: #edf8f6;
+  color: #086d63;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sigiu-admin-base-list article {
+  min-height: 72px;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(260px, auto);
+  gap: 14px;
+  align-items: center;
+  border-top: 1px solid #e7eeee;
+}
+
+.sigiu-admin-base-list article > span:first-child strong,
+.sigiu-admin-base-list article > span:first-child small {
+  display: block;
+}
+
+.sigiu-admin-base-list article > span:first-child strong {
+  color: #173f43;
+  font-size: 13px;
+}
+
+.sigiu-admin-base-list article > span:first-child small {
+  margin-top: 4px;
+  color: #6f8288;
+  font-size: 10px;
+}
+
+.sigiu-admin-base-list article > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sigiu-admin-danger-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d9aaa3;
+  border-radius: 8px;
+  background: #fff3f1;
+  color: #a1453d;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.sigiu-admin-empty {
+  margin: 0;
+  padding: 18px;
+  color: #75878d;
+  font-size: 11px;
+}
+
+@media (max-width: 800px) {
+  .sigiu-admin-base-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .sigiu-admin-base-list article > div {
+    justify-content: stretch;
+  }
+
+  .sigiu-admin-base-list article > div button {
+    flex: 1;
+  }
+}

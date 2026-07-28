@@ -21,6 +21,7 @@ import {
 const ABAS_ADMIN = [
   { id: "geral", label: "Geral", badge: "8.0" },
   { id: "fontes", label: "Fontes de dados", badge: "4" },
+  { id: "bases-precos", label: "Bases de preços", badge: "ADM" },
   { id: "usuarios", label: "Usuários e acessos", badge: "3" },
   { id: "cadastros", label: "Cadastros mestres", badge: "4" },
   { id: "parametros", label: "Parâmetros", badge: "3" },
@@ -158,6 +159,72 @@ function FontesDados() {
           <button type="button" className="sigiu-btn sigiu-btn--primary">Validar conexão</button>
           <button type="button" className="sigiu-btn sigiu-btn--outline">Salvar configuração local</button>
         </footer>
+      </section>
+    </div>
+  );
+}
+
+function GerenciarBasesPrecos({ basesPrecos }) {
+  const [aviso, setAviso] = useState("");
+  const basesAtivas = (basesPrecos?.bases || []).filter((base) => !base.propria);
+  const basesArquivadas = basesPrecos?.basesExcluidas || [];
+
+  function notificar(texto) {
+    setAviso(texto);
+    globalThis.setTimeout(() => setAviso(""), 3200);
+  }
+
+  async function arquivar(base) {
+    if (!globalThis.confirm(`Arquivar a base ${base.titulo}? Ela ficará indisponível para os usuários, mas poderá ser restaurada.`)) return;
+    await basesPrecos.remover(base.id);
+    notificar("Base arquivada e preservada para auditoria.");
+  }
+
+  async function restaurar(base) {
+    await basesPrecos.restaurar(base.id);
+    notificar("Base restaurada e disponibilizada.");
+  }
+
+  async function excluir(base) {
+    if (!globalThis.confirm(`Excluir definitivamente a base ${base.titulo}? Catálogo, composições analíticas e arquivo importado serão removidos. Esta ação não pode ser desfeita.`)) return;
+    await basesPrecos.excluirDefinitivamente(base.id);
+    notificar("Base excluída definitivamente.");
+  }
+
+  return (
+    <div className="sigiu-admin-price-bases">
+      {aviso && <div className="sigiu-admin-base-notice" role="status">{aviso}</div>}
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Governança das bases de preços</h2>
+            <p>Arquive, restaure ou exclua unitariamente publicações importadas.</p>
+          </div>
+          <StatusChip status={`${basesAtivas.length} ativas`} />
+        </header>
+        <div className="sigiu-admin-base-list">
+          {basesAtivas.map((base) => (
+            <article key={base.id}>
+              <span><strong>{base.titulo}</strong><small>{base.fonte} · {base.referencia} · {base.regime} · {Number(base.total || 0).toLocaleString("pt-BR")} itens</small></span>
+              <StatusChip status="Ativa" />
+              <div><button type="button" className="sigiu-btn sigiu-btn--outline" onClick={() => arquivar(base)}>Arquivar</button><button type="button" className="sigiu-admin-danger-button" onClick={() => excluir(base)}>Excluir definitivamente</button></div>
+            </article>
+          ))}
+          {!basesAtivas.length && <p className="sigiu-admin-empty">Nenhuma base importada ativa.</p>}
+        </div>
+      </section>
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row"><div><h2>Arquivo de auditoria</h2><p>Bases arquivadas permanecem inacessíveis aos demais usuários.</p></div><StatusChip status={`${basesArquivadas.length} arquivadas`} /></header>
+        <div className="sigiu-admin-base-list">
+          {basesArquivadas.map((base) => (
+            <article key={base.id}>
+              <span><strong>{base.titulo}</strong><small>Arquivada em {new Date(base.excluidaEm).toLocaleString("pt-BR")}</small></span>
+              <StatusChip status="Inativa" />
+              <div><button type="button" className="sigiu-btn sigiu-btn--outline" onClick={() => restaurar(base)}>Restaurar</button><button type="button" className="sigiu-admin-danger-button" onClick={() => excluir(base)}>Excluir definitivamente</button></div>
+            </article>
+          ))}
+          {!basesArquivadas.length && <p className="sigiu-admin-empty">Nenhuma base arquivada.</p>}
+        </div>
       </section>
     </div>
   );
@@ -328,8 +395,10 @@ function Auditoria() {
   );
 }
 
-function renderizarAba(abaAtiva) {
+function renderizarAba(abaAtiva, basesPrecos) {
   switch (abaAtiva) {
+    case "bases-precos":
+      return <GerenciarBasesPrecos basesPrecos={basesPrecos} />;
     case "fontes":
       return <FontesDados />;
     case "usuarios":
@@ -348,7 +417,7 @@ function renderizarAba(abaAtiva) {
   }
 }
 
-export default function Administracao() {
+export default function Administracao({ basesPrecos }) {
   const [abaAtiva, setAbaAtiva] = useState("geral");
 
   return (
@@ -407,7 +476,7 @@ export default function Administracao() {
       </nav>
 
       <div className="sigiu-admin-panel">
-        {renderizarAba(abaAtiva)}
+        {renderizarAba(abaAtiva, basesPrecos)}
       </div>
     </section>
   );

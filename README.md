@@ -106,6 +106,21 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - destaques de rastreabilidade incompleta no modal;
 - testes automatizados para preços estaduais e qualidade das composições.
 
+## Governança e carteira de orçamentos — v9.4.8
+
+- dashboard geral antes da abertura de um orçamento, com estatísticas, gráficos,
+  pendências de validação e situação das aprovações;
+- seleção explícita do orçamento antes de acessar planilha, BDI, cronograma,
+  medições, condições comerciais e revisões;
+- navegação bidirecional entre revisões, permitindo retroceder e avançar sem
+  perder o estado editável da revisão atual;
+- inativação, reativação e exclusão de revisões históricas, protegendo sempre a
+  revisão ativa;
+- arquivamento, restauração e exclusão definitiva das bases transferidos para o
+  módulo Administração;
+- exclusão unitária remove catálogo, composições analíticas e arquivo-fonte da
+  publicação selecionada.
+
 ## Licitações e concorrência — etapa planejada v9.5
 
 - submódulo para geração do pacote de planilhas da concorrência;
