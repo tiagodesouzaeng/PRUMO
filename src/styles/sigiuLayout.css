@@ -34,22 +34,21 @@
 .prumo-brand-logo {
   position: relative;
   width: 176px;
-  height: 52px;
+  height: 59px;
   display: inline-block;
   overflow: hidden;
   flex: 0 0 auto;
-  border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 7px 18px rgba(2, 25, 38, 0.16);
+  border-radius: 8px;
+  background: #073431;
 }
 
 .prumo-brand-logo img {
   position: absolute;
-  width: 238px;
+  width: 176px;
   max-width: none;
   height: auto;
-  left: -32px;
-  top: -33px;
+  left: 0;
+  top: 0;
 }
 
 .prumo-brand-logo.is-compact {
@@ -58,9 +57,9 @@
 }
 
 .prumo-brand-logo.is-compact img {
-  width: 224px;
-  left: -30px;
-  top: -31px;
+  width: 212px;
+  left: -21px;
+  top: -15px;
 }
 
 .sigiu-sidebar-nav {
@@ -274,8 +273,8 @@
   .sigiu-mobile-brand {
     display: inline-block;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 6px 16px rgba(3, 31, 48, 0.18);
+    background: #073431;
+    box-shadow: none;
   }
 
   .sigiu-topbar-actions {
@@ -494,9 +493,9 @@
   }
 
   .sigiu-mobile-brand img {
-    width: 196px;
-    left: -26px;
-    top: -27px;
+    width: 186px;
+    left: -18px;
+    top: -13px;
   }
 
   .sigiu-mobile-controls {

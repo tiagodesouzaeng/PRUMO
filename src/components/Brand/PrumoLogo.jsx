@@ -1,4 +1,4 @@
-import prumoLogo from "../../assets/prumo-logo.png";
+import prumoLogo from "../../assets/prumo-logo-ui-v2.png";
 
 export default function PrumoLogo({ compacto = false, className = "" }) {
   return (
