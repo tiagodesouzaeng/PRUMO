@@ -1,3 +1,5 @@
+import { aplicarPrecoPorUf } from "../domain/basesPrecos.js";
+
 const DB_NAME = "prumo-bases-precos";
 const DB_VERSION = 4;
 const BASE_STORE = "bases";
@@ -176,19 +178,6 @@ export async function carregarReferenciasBase(baseId, tipos = ["insumo", "compos
   return (await Promise.all(tipos.map(buscarTipo))).flat();
 }
 
-function referenciaNaUf(referencia, uf) {
-  if (!referencia?.precosPorUf) return referencia;
-  const precoUf = Number(referencia.precosPorUf[uf]) || 0;
-  const precoSp = Number(referencia.precosPorUf.SP) || 0;
-  return {
-    ...referencia,
-    preco: precoUf > 0 ? precoUf : precoSp,
-    semPreco: precoUf <= 0 && precoSp <= 0,
-    ufPrecoEfetivo: precoUf > 0 ? uf : (precoSp > 0 ? "SP" : uf),
-    precoSubstituidoSp: precoUf <= 0 && precoSp > 0 && uf !== "SP",
-  };
-}
-
 export async function carregarItensComposicaoBase(baseId, composicaoCodigo, uf = "RS") {
   if (!baseId || !composicaoCodigo) return [];
   const banco = await abrirBanco();
@@ -209,7 +198,7 @@ export async function carregarItensComposicaoBase(baseId, composicaoCodigo, uf =
     referencias.map((item) => [`${item.tipo}:${item.codigo}`, item]),
   );
   return itens.map((item) => {
-    const referencia = referenciaNaUf(
+    const referencia = aplicarPrecoPorUf(
       catalogo.get(`${item.itemTipo}:${item.itemCodigo}`),
       uf,
     );

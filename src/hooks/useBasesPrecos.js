@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { mesclarReferenciasSinapi } from "../domain/basesPrecos";
 import { importarArquivoBasePrecos } from "../services/sinapiImport";
 import {
   arquivarBasePrecos,
@@ -36,34 +37,6 @@ function publicacoesCanonicas(bases) {
   return agruparPublicacoes(bases).map((grupo) => (
     [...grupo].sort((a, b) => prioridadePublicacao(b) - prioridadePublicacao(a))[0]
   ));
-}
-
-function mesclarReferenciasSinapi(pacotes) {
-  const catalogo = new Map();
-  pacotes.forEach(({ base, referencias }) => {
-    referencias.forEach((referencia) => {
-      const chave = `${referencia.tipo}:${referencia.codigo}`;
-      const atual = catalogo.get(chave);
-      const precosPorUf = {
-        ...(atual?.precosPorUf || {}),
-        ...(referencia.precosPorUf || {}),
-      };
-      if (
-        base.uf
-        && !["NACIONAL", "GERAL"].includes(base.uf)
-        && Number(referencia.preco) > 0
-        && !Number(precosPorUf[base.uf])
-      ) {
-        precosPorUf[base.uf] = referencia.preco;
-      }
-      catalogo.set(chave, {
-        ...(atual || referencia),
-        ...referencia,
-        precosPorUf,
-      });
-    });
-  });
-  return [...catalogo.values()];
 }
 
 export default function useBasesPrecos() {

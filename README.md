@@ -96,6 +96,16 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - aplicação do BDI sobre o custo direto líquido;
 - preservação da regra financeira e dos totais nas novas revisões.
 
+## Homologação de composições e preços — v9.4.7
+
+- regra estadual e fallback para SP centralizados e testados;
+- consolidação de publicações SINAPI antigas separadas por estado;
+- detecção de ciclos durante a navegação recursiva das composições;
+- validação de códigos, tipos, coeficientes e preços dos componentes;
+- sinalização de referências sem composição analítica;
+- destaques de rastreabilidade incompleta no modal;
+- testes automatizados para preços estaduais e qualidade das composições.
+
 ## Licitações e concorrência — etapa planejada v9.5
 
 - submódulo para geração do pacote de planilhas da concorrência;

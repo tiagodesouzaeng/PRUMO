@@ -1,4 +1,5 @@
 import { numeroSeguro } from "../domain/orcamento.js";
+import { resolverPrecoPorUf, UFS_BRASIL } from "../domain/basesPrecos.js";
 
 const REGIMES_SINAPI = {
   "SEM-DESONERACAO": { insumos: "ISD", composicoes: "CSD", maoObra: "SEM Desoneração" },
@@ -7,11 +8,7 @@ const REGIMES_SINAPI = {
   "SEM-ENCARGOS": { insumos: "ISE", composicoes: "CSE", maoObra: "" },
 };
 
-export const UFS_SINAPI = [
-  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
-  "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
-  "SP", "SE", "TO",
-];
+export const UFS_SINAPI = UFS_BRASIL;
 
 function normalizarChave(valor) {
   return String(valor ?? "")
@@ -74,18 +71,6 @@ function criarReferencia({
   };
 }
 
-function valorComFallbackSp(precosPorUf, ufPreferida) {
-  const uf = UFS_SINAPI.includes(ufPreferida) ? ufPreferida : "RS";
-  const proprio = numeroSeguro(precosPorUf[uf]);
-  const sp = numeroSeguro(precosPorUf.SP);
-  return {
-    preco: proprio > 0 ? proprio : sp,
-    semPreco: proprio <= 0 && sp <= 0,
-    ufPrecoEfetivo: proprio > 0 ? uf : (sp > 0 ? "SP" : uf),
-    precoSubstituidoSp: proprio <= 0 && sp > 0 && uf !== "SP",
-  };
-}
-
 function extrairValoresPorUf(colunasUf, linhaValores, validarColuna = () => true) {
   return UFS_SINAPI.reduce((precos, uf) => {
     const indice = colunasUf.findIndex(
@@ -121,7 +106,7 @@ function extrairPrecosInsumosSinapi(XLSX, workbook, metadados) {
     const descricao = linha[descricaoCol];
     if (!codigo || !descricao) return [];
     const precosPorUf = extrairValoresPorUf(colunas, linha);
-    const precoSelecionado = valorComFallbackSp(precosPorUf, metadados.uf);
+    const precoSelecionado = resolverPrecoPorUf(precosPorUf, metadados.uf);
     return [criarReferencia({
       codigo,
       descricao,
@@ -166,7 +151,7 @@ function extrairCustosComposicoesSinapi(XLSX, workbook, metadados) {
       linha,
       (indice) => normalizarChave(colunas[indice]).includes("custo"),
     );
-    const precoSelecionado = valorComFallbackSp(precosPorUf, metadados.uf);
+    const precoSelecionado = resolverPrecoPorUf(precosPorUf, metadados.uf);
     return [criarReferencia({
       codigo,
       descricao,

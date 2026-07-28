@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BASE_PROPRIA_ID, BASES_TODAS_ID } from "../hooks/useBasesPrecos";
 import { UNIDADES_ORCAMENTARIAS } from "../domain/orcamento";
+import { aplicarPrecoPorUf } from "../domain/basesPrecos";
 import ModalComposicaoRastreavel from "../components/Orcamento/ModalComposicaoRastreavel";
 import { UFS_SINAPI } from "../services/sinapiImport";
 import "../styles/orcamento.css";
@@ -160,19 +161,6 @@ function ModalComposicaoPropria({ fechar, basesPrecos, avisar }) {
   );
 }
 
-function referenciaNaUf(item, uf) {
-  if (!item.precosPorUf) return item;
-  const precoUf = Number(item.precosPorUf[uf]) || 0;
-  const precoSp = Number(item.precosPorUf.SP) || 0;
-  return {
-    ...item,
-    preco: precoUf > 0 ? precoUf : precoSp,
-    semPreco: precoUf <= 0 && precoSp <= 0,
-    ufPrecoEfetivo: precoUf > 0 ? uf : (precoSp > 0 ? "SP" : uf),
-    precoSubstituidoSp: precoUf <= 0 && precoSp > 0 && uf !== "SP",
-  };
-}
-
 function ModalValoresEstados({ item, ufSelecionada, fechar, abrirComposicao }) {
   const precos = item.precosPorUf || {};
   return (
@@ -206,7 +194,7 @@ export default function BasesPrecos({ basesPrecos }) {
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(200);
   const [mostrarTodos, setMostrarTodos] = useState(false);
-  const referenciasComUf = useMemo(() => basesPrecos.referencias.map((item) => referenciaNaUf(item, ufSelecionada)), [basesPrecos.referencias, ufSelecionada]);
+  const referenciasComUf = useMemo(() => basesPrecos.referencias.map((item) => aplicarPrecoPorUf(item, ufSelecionada)), [basesPrecos.referencias, ufSelecionada]);
   const referenciasFiltradas = useMemo(() => referenciasComUf
     .filter((item) => tipo === "todos" || item.tipo === tipo)
     .filter((item) => (
