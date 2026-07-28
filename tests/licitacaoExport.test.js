@@ -84,3 +84,24 @@ test("gera o pacote de licitação com seis abas, fórmulas e proteção", async
   assert.notEqual(propostaFinal.getCell("K4").protection?.locked, false);
   assert.equal(propostaFinal.getCell("J4").fill.fgColor.argb, "FFF2CC");
 });
+
+test("gera o XLSX mesmo quando o histograma não possui recurso com EAP", async () => {
+  const orcamento = normalizarOrcamento({
+    ...ORCAMENTOS_INICIAIS[0],
+    itens: [{
+      id: "servico-sem-memoria",
+      tipo: "servico",
+      codigo: "1.1",
+      descricao: "Serviço sem composição analítica",
+      quantidade: 1,
+      unidade: "UN",
+      unitario: 100,
+      referenciaTipo: "composicao",
+      referenciaCodigo: "SEM-MEMORIA",
+    }],
+    composicoes: [],
+  });
+
+  const arquivo = await gerarArquivoPacoteLicitacao(orcamento);
+  assert.ok(arquivo.byteLength > 10_000);
+});

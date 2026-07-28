@@ -6,15 +6,15 @@ Transformar o orçamento e o cronograma em um plano de compras que informe o ins
 
 ## Entregas previstas
 
-1. **Explosão recursiva das composições**
+1. **Explosão recursiva das composições — concluída na v9.7.0 RC1**
    - decompor serviços e composições próprias até chegar aos insumos finais;
    - preservar base, estado, competência, coeficiente e preço usados em cada nível;
    - impedir ciclos entre composições e sinalizar referências incompletas.
 
-2. **Demanda consolidada**
+2. **Demanda consolidada — primeira versão concluída na v9.7.0 RC1**
    - multiplicar coeficientes pelas quantidades do orçamento;
    - agrupar insumos equivalentes por código, unidade e base;
-   - permitir regras de equivalência e perdas técnicas.
+   - permitir regras de equivalência e perdas técnicas (próximo incremento).
 
 3. **Integração com o cronograma**
    - distribuir a demanda conforme a execução mensal dos serviços;

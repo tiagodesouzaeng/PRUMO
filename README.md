@@ -158,6 +158,19 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - estrutura preparada para execução agendada por backend quando houver uma API
   oficial estável ou serviço corporativo.
 
+## Correção do XLSX e suprimentos — v9.7
+
+- correção da exportação do pacote de licitação quando o histograma não possui
+  recurso associado a uma hierarquia EAP;
+- download mais estável por meio de vínculo temporário anexado ao documento;
+- teste de regressão para orçamento sem composição analítica de mão de obra;
+- nova etapa `Suprimentos` dentro do orçamento;
+- explosão recursiva de composições próprias e importadas;
+- consolidação dos insumos por base, código e unidade;
+- memória das quantidades, preços básicos, valores estimados e serviços de origem;
+- detecção de ciclos, referências sem preço e composições sem memória analítica;
+- pendências mantidas visíveis para impedir omissão silenciosa de demanda.
+
 ## Execução
 
 Requisitos já utilizados na validação:

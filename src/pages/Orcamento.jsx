@@ -22,6 +22,7 @@ import {
   baixarPacoteLicitacao,
   resumirPacoteLicitacao,
 } from "../services/licitacaoExport";
+import { consolidarDemandaSuprimentos } from "../services/suprimentos";
 import { EAP_NIVEIS, nivelEapAnterior } from "../domain/eap";
 import ModalComposicaoRastreavel from "../components/Orcamento/ModalComposicaoRastreavel";
 
@@ -34,6 +35,7 @@ const ETAPAS = [
   { id: "medicoes", label: "Medições", icon: "✓" },
   { id: "comercial", label: "Condições comerciais", icon: "$" },
   { id: "licitacoes", label: "Licitações", icon: "▦" },
+  { id: "suprimentos", label: "Suprimentos", icon: "◇" },
   { id: "revisoes", label: "Revisões", icon: "⇄" },
 ];
 
@@ -73,6 +75,7 @@ function CabecalhoSecao({ etapa, exportar, novaRevisao }) {
     medicoes: ["Medições e saldos", "Avanço físico, valor medido, retenções e saldo contratual."],
     comercial: ["Condições comerciais", "Descontos, critérios de negociação e memória das condições aplicadas."],
     licitacoes: ["Licitações e concorrência", "Pacote protegido para orçamento, proposta, BDI, encargos, cronograma e histograma."],
+    suprimentos: ["Planejamento de suprimentos", "Explosão recursiva das composições e demanda consolidada dos insumos."],
     revisoes: ["Revisões e cenários", "Histórico imutável, comparativos e fluxo de aprovação."],
   };
   const [titulo, descricao] = textos[etapa];
@@ -708,6 +711,99 @@ function Licitacoes({ orcamento, gerar, gerando }) {
   );
 }
 
+function Suprimentos({ orcamento, basesPrecos }) {
+  const [resultado, setResultado] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [atualizacao, setAtualizacao] = useState(0);
+  const [busca, setBusca] = useState("");
+
+  useEffect(() => {
+    let ativo = true;
+    setCarregando(true);
+    setErro("");
+    consolidarDemandaSuprimentos(
+      orcamento,
+      basesPrecos?.carregarItensComposicao,
+    ).then((dados) => {
+      if (ativo) setResultado(dados);
+    }).catch((error) => {
+      console.error(error);
+      if (ativo) setErro("Não foi possível consolidar os insumos deste orçamento.");
+    }).finally(() => {
+      if (ativo) setCarregando(false);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [orcamento, basesPrecos?.carregarItensComposicao, atualizacao]);
+
+  const termo = busca.trim().toLocaleLowerCase("pt-BR");
+  const insumos = (resultado?.insumos || []).filter((item) => (
+    !termo
+    || item.codigo.toLocaleLowerCase("pt-BR").includes(termo)
+    || item.descricao.toLocaleLowerCase("pt-BR").includes(termo)
+    || item.base.toLocaleLowerCase("pt-BR").includes(termo)
+  ));
+
+  return (
+    <>
+      <div className="orc-supply-kpis">
+        <article><span>INSUMOS CONSOLIDADOS</span><strong>{resultado?.insumos.length || 0}</strong><small>Agrupados por base, código e unidade</small></article>
+        <article><span>SERVIÇOS PROCESSADOS</span><strong>{resultado?.servicosProcessados || 0}</strong><small>Itens ativos na revisão {orcamento.revisao}</small></article>
+        <article><span>COMPOSIÇÕES EXPANDIDAS</span><strong>{resultado?.composicoesExpandidas || 0}</strong><small>Incluindo níveis internos</small></article>
+        <article className={resultado?.pendencias.length ? "has-warning" : ""}><span>PENDÊNCIAS ANALÍTICAS</span><strong>{resultado?.pendencias.length || 0}</strong><small>{resultado?.pendencias.length ? "Exigem memória ou preço" : "Memórias rastreáveis"}</small></article>
+      </div>
+      <article className="orc-card orc-supply-demand">
+        <header>
+          <div><span>DEMANDA CONSOLIDADA</span><h3>Lista de insumos do orçamento</h3></div>
+          <div className="orc-supply-actions">
+            <label><span>BUSCAR</span><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Código, descrição ou base" /></label>
+            <button type="button" disabled={carregando} onClick={() => setAtualizacao((valor) => valor + 1)}>{carregando ? "Consolidando…" : "↻ Atualizar"}</button>
+          </div>
+        </header>
+        {erro && <div className="orc-supply-empty is-error">{erro}</div>}
+        {!erro && !carregando && !resultado?.insumos.length && <div className="orc-supply-empty"><strong>Nenhum insumo consolidado</strong><span>Confira as pendências abaixo: composições sem memória analítica não são ignoradas.</span></div>}
+        {!erro && resultado?.insumos.length > 0 && (
+          <div className="orc-supply-table">
+            <div className="orc-supply-table-head"><span>CÓDIGO / INSUMO</span><span>BASE / UF</span><span>UN.</span><span>QUANTIDADE</span><span>PREÇO BÁSICO</span><span>VALOR ESTIMADO</span><span>ORIGENS</span></div>
+            {insumos.map((item) => (
+              <div key={item.chave}>
+                <span><strong>{item.codigo}</strong><small>{item.descricao}</small></span>
+                <span><strong>{item.base}</strong><small>{item.uf}{item.referencia ? ` · ${item.referencia}` : ""}</small></span>
+                <b>{item.unidade}</b>
+                <strong>{item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong>
+                <strong>{formatarPrecoUnitario(item.preco)}</strong>
+                <strong>{formatarMoeda(item.valorEstimado)}</strong>
+                <span><strong>{item.origens.length}</strong><small title={item.origens.join("\n")}>{item.origens.slice(0, 2).join(" · ")}</small></span>
+              </div>
+            ))}
+            {!insumos.length && <div className="orc-supply-empty">Nenhum insumo corresponde à pesquisa.</div>}
+          </div>
+        )}
+        <footer><span>VALOR BÁSICO ESTIMADO DOS INSUMOS</span><strong>{formatarMoeda(resultado?.valorEstimado || 0)}</strong></footer>
+      </article>
+      {resultado?.pendencias.length > 0 && (
+        <article className="orc-card orc-supply-pending">
+          <header><div><span>RASTREABILIDADE</span><h3>Pendências da memória analítica</h3></div><strong>{resultado.pendencias.length} encontradas</strong></header>
+          {resultado.pendencias.map((item) => (
+            <div key={item.chave}>
+              <b>!</b>
+              <span><strong>{item.codigo || "Sem código"} · {item.descricao}</strong><small>{item.origem} · {item.base}</small></span>
+              <em>{item.tipo.replaceAll("_", " ")}</em>
+            </div>
+          ))}
+        </article>
+      )}
+      <article className="orc-card procurement-roadmap-note">
+        <span>PRÓXIMO INCREMENTO</span>
+        <strong>Distribuição da demanda pelo cronograma e data recomendada de compra</strong>
+        <p>A consolidação atual recalcula quantidades, bases, preços e origens. O próximo incremento aplicará a execução por período e a antecedência configurável de cada aquisição.</p>
+      </article>
+    </>
+  );
+}
+
 function Revisoes({
   orcamento,
   ativarRevisao,
@@ -1313,6 +1409,7 @@ export default function Orcamento({ basesPrecos }) {
       {etapa === "medicoes" && <Medicoes orcamento={orcamentoAtivo} />}
       {etapa === "comercial" && <CondicoesComerciais orcamento={orcamentoAtivo} salvarDesconto={salvarDesconto} />}
       {etapa === "licitacoes" && <Licitacoes orcamento={orcamentoAtivo} gerar={gerarPacoteLicitacao} gerando={gerandoLicitacao} />}
+      {etapa === "suprimentos" && <Suprimentos orcamento={orcamentoAtivo} basesPrecos={basesPrecos} />}
       {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} ativarRevisao={ativarRevisao} alternarRevisaoInativa={alternarRevisaoInativa} excluirRevisao={excluirRevisao} avisar={notificar} />}
     </section>
   );

@@ -438,6 +438,37 @@
 .orc-deadline-preview { min-height: 74px; padding: 12px 14px; align-self: end; border: 1px solid #cfe1de; border-radius: 8px; background: #eef8f5; }
 .orc-deadline-preview span, .orc-deadline-preview small { display: block; color: #6f8389; font-size: 7px; font-weight: 900; }
 .orc-deadline-preview strong { display: block; margin: 5px 0; color: var(--orc-teal); font-size: 20px; }
+.orc-supply-kpis { margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.orc-supply-kpis article { padding: 14px 16px; border: 1px solid #dbe5e6; border-radius: 9px; background: #fff; }
+.orc-supply-kpis article.has-warning { border-color: #e3c77e; background: #fffaf0; }
+.orc-supply-kpis span, .orc-supply-kpis small { display: block; color: #75888f; font-size: 7px; font-weight: 900; }
+.orc-supply-kpis strong { display: block; margin: 7px 0 4px; color: var(--orc-navy); font-size: 18px; }
+.orc-supply-demand { overflow: hidden; }
+.orc-supply-demand > header { align-items: end; }
+.orc-supply-actions { display: flex; align-items: end; gap: 8px; }
+.orc-supply-actions label span { display: block; margin-bottom: 4px; color: #71858c; font-size: 7px; font-weight: 900; }
+.orc-supply-actions input { width: 230px; padding: 8px 10px; border: 1px solid #d5e1e2; border-radius: 6px; color: #425b66; font: inherit; font-size: 9px; }
+.orc-supply-actions button { padding: 9px 12px; border: 0; border-radius: 6px; background: var(--orc-teal); color: #fff; font-size: 8px; font-weight: 900; }
+.orc-supply-actions button:disabled { opacity: .55; }
+.orc-supply-table { overflow-x: auto; }
+.orc-supply-table > div { min-width: 980px; padding: 11px 16px; display: grid; grid-template-columns: minmax(230px, 1.6fr) minmax(130px, .8fr) 48px 90px 105px 115px minmax(150px, 1fr); gap: 10px; align-items: center; border-top: 1px solid #e6eded; color: #526a73; font-size: 8px; }
+.orc-supply-table > .orc-supply-table-head { background: #f4f8f8; color: #71858c; font-size: 7px; font-weight: 900; }
+.orc-supply-table span strong, .orc-supply-table span small { display: block; }
+.orc-supply-table span strong { color: var(--orc-navy); font-size: 9px; }
+.orc-supply-table span small { margin-top: 3px; overflow: hidden; color: #74868d; text-overflow: ellipsis; white-space: nowrap; }
+.orc-supply-table > div > strong { color: var(--orc-navy); text-align: right; }
+.orc-supply-table > div > b { color: var(--orc-teal); text-align: center; }
+.orc-supply-demand > footer { padding: 13px 16px; display: flex; justify-content: flex-end; gap: 18px; border-top: 1px solid #dfe8e8; background: #f4f8f7; color: #71858c; font-size: 8px; font-weight: 900; }
+.orc-supply-demand > footer strong { color: var(--orc-navy); font-size: 12px; }
+.orc-supply-empty { min-width: auto !important; padding: 24px 16px !important; display: block !important; color: #71858c !important; text-align: center; }
+.orc-supply-empty strong, .orc-supply-empty span { display: block; }.orc-supply-empty span { margin-top: 5px; }
+.orc-supply-empty.is-error { color: #a44848 !important; }
+.orc-supply-pending { margin-top: 12px; overflow: hidden; }
+.orc-supply-pending > header > strong { color: #9b6b18; font-size: 9px; }
+.orc-supply-pending > div { padding: 11px 16px; display: grid; grid-template-columns: 24px minmax(0, 1fr) 150px; gap: 10px; align-items: center; border-top: 1px solid #ebe8de; }
+.orc-supply-pending > div > b { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: #fff1cc; color: #9b6b18; }
+.orc-supply-pending span strong, .orc-supply-pending span small { display: block; }.orc-supply-pending span strong { color: var(--orc-navy); font-size: 9px; }.orc-supply-pending span small { margin-top: 3px; color: #77888e; font-size: 8px; }
+.orc-supply-pending em { color: #9b6b18; font-size: 7px; font-style: normal; font-weight: 900; text-align: right; text-transform: uppercase; }
 
 @media (max-width: 1120px) {
   .orc-kpis, .orc-schedule-kpis { grid-template-columns: repeat(2, 1fr); }
@@ -455,6 +486,7 @@
   .orc-discount-actions { justify-content: flex-end; }
   .orc-composition-main { grid-template-columns: repeat(2, 1fr); }
   .orc-bid-kpis { grid-template-columns: repeat(2, 1fr); }
+  .orc-supply-kpis { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 760px) {
@@ -499,6 +531,10 @@
   .base-filter-options, .base-filter-options.compact { grid-template-columns: 1fr; }.base-filter-actions { justify-content: stretch; }.base-filter-actions button { flex: 1; }.state-prices-grid { grid-template-columns: repeat(3, 1fr); }
   .analytic-rate-editor > section > div { grid-template-columns: 42px 1fr; }.analytic-rate-editor > section > div label, .analytic-rate-editor > section > div > button { grid-column: 2; }
   .orc-bid-kpis, .orc-bid-summary { grid-template-columns: 1fr; }
+  .orc-supply-kpis { grid-template-columns: 1fr; }
+  .orc-supply-demand > header { align-items: stretch; flex-direction: column; }
+  .orc-supply-actions { align-items: stretch; flex-direction: column; }
+  .orc-supply-actions input { width: 100%; }
   .orc-bid-summary > div { padding: 0 0 10px; border-right: 0; border-bottom: 1px solid #dce6e5; }
   .orc-bid-summary > div:last-child { padding-bottom: 0; border-bottom: 0; }
   .orc-bid-sheet-list > div { grid-template-columns: 34px minmax(0, 1fr); }

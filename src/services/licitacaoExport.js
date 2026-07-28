@@ -117,7 +117,8 @@ function nomeSeguroArquivo(valor) {
 }
 
 function valoresHierarquia(hierarquia = {}) {
-  return CHAVES_EAP.map((chave) => hierarquia[chave] || "");
+  const dados = hierarquia || {};
+  return CHAVES_EAP.map((chave) => dados[chave] || "");
 }
 
 function subtituloPacote(orcamento) {
@@ -797,8 +798,10 @@ export async function baixarPacoteLicitacao(orcamento) {
   const link = document.createElement("a");
   link.href = endereco;
   link.download = `${nomeSeguroArquivo(orcamento.id)}-${nomeSeguroArquivo(orcamento.revisao)}-licitacao.xlsx`;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(endereco);
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(endereco), 1_000);
 }
 
 export function resumirPacoteLicitacao(orcamento) {
