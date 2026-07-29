@@ -3,17 +3,24 @@ import {
   BDI_COMPONENTES_PADRAO,
   ENCARGOS_SOCIAIS_PADRAO,
   calcularBdiDetalhado,
+  calcularDataFimPorPrazo,
   calcularDistribuicaoDesconto,
+  calcularPrazoDias,
+  calcularSaldosMedicao,
   calcularTotalPercentuais,
   calcularTotais,
   compararSnapshots,
   criarPeriodosMedicao,
   criarId,
+  criarMedicoesPropostas,
+  obterCronogramaProposto,
+  obterHistogramaInteligente,
   proximoCodigoGrupo,
   proximoCodigoServico,
   totalGrupo,
   totalItem,
   UNIDADES_ORCAMENTARIAS,
+  validarMedicaoAcumulada,
   validarOrcamento,
 } from "../domain/orcamento";
 import useOrcamentos from "../hooks/useOrcamentos";
@@ -23,6 +30,7 @@ import {
   resumirPacoteLicitacao,
 } from "../services/licitacaoExport";
 import { consolidarDemandaSuprimentos } from "../services/suprimentos";
+import { baixarRelatorioSuprimentos } from "../services/suprimentosExport";
 import { EAP_NIVEIS, nivelEapAnterior } from "../domain/eap";
 import ModalComposicaoRastreavel from "../components/Orcamento/ModalComposicaoRastreavel";
 
@@ -76,6 +84,7 @@ function CabecalhoSecao({ etapa, exportar, novaRevisao }) {
     comercial: ["Condições comerciais", "Descontos, critérios de negociação e memória das condições aplicadas."],
     licitacoes: ["Licitações e concorrência", "Pacote protegido para orçamento, proposta, BDI, encargos, cronograma e histograma."],
     suprimentos: ["Planejamento de suprimentos", "Explosão recursiva das composições e demanda consolidada dos insumos."],
+    testes: ["Homologação funcional", "Lista orientada de testes, resultados e observações para cada função desenvolvida."],
     revisoes: ["Revisões e cenários", "Histórico imutável, comparativos e fluxo de aprovação."],
   };
   const [titulo, descricao] = textos[etapa];
@@ -87,8 +96,12 @@ function CabecalhoSecao({ etapa, exportar, novaRevisao }) {
         <p>{descricao}</p>
       </div>
       <div className="orc-heading-actions">
-        <button type="button" className="orc-btn orc-btn-ghost" onClick={exportar}>⇩ Exportar</button>
-        <button type="button" className="orc-btn orc-btn-primary" onClick={novaRevisao}>＋ Nova revisão</button>
+        {["planilha", "cronograma", "histograma"].includes(etapa) && (
+          <button type="button" className="orc-btn orc-btn-ghost" onClick={exportar}>⇩ Exportar XLSX</button>
+        )}
+        {etapa === "revisoes" && (
+          <button type="button" className="orc-btn orc-btn-primary" onClick={novaRevisao}>＋ Nova revisão</button>
+        )}
       </div>
     </div>
   );
@@ -117,6 +130,7 @@ function TabelaItens({
   moverItem,
   abrirDetalhe,
   itensComErro = new Set(),
+  limite = 0,
 }) {
   const distribuicao = calcularDistribuicaoDesconto({ itens, descontoGlobal });
   const descontos = distribuicao.porItem;
@@ -124,7 +138,9 @@ function TabelaItens({
   const filtrados = termo
     ? itens.filter((item) => [item.codigo, item.descricao, item.fonte].some((valor) => valor?.toLocaleLowerCase("pt-BR").includes(termo)))
     : itens;
-  const linhas = completa ? filtrados : filtrados.slice(0, 6);
+  const linhas = completa
+    ? (limite > 0 ? filtrados.slice(0, limite) : filtrados)
+    : filtrados.slice(0, 6);
   return (
     <div className="orc-table-wrap">
       <table className="orc-table">
@@ -149,7 +165,7 @@ function TabelaItens({
               onClick={() => item.tipo !== "grupo" && item.referenciaTipo === "composicao" && abrirDetalhe?.(item)}
             >
               <td>{item.tipo === "grupo" && <i>⌄</i>}{item.codigo}</td>
-              <td style={{ paddingLeft: `${10 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}><strong>{item.descricao}</strong>{item.tipo === "grupo" && <small>{(() => { const nivel = EAP_NIVEIS.find((opcao) => opcao.id === item.nivelEap); return nivel ? `Nível ${nivel.nivel} · ${nivel.label}` : "Grupo EAP"; })()}</small>}{item.fonte && <small>{item.fonte}</small>}</td>
+              <td style={{ paddingLeft: `${10 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}><strong>{item.descricao}</strong>{item.fonte && <small>{item.fonte}</small>}</td>
               <td>{item.quantidade?.toLocaleString("pt-BR") || "—"}</td>
               <td>{item.unidade || ""}</td>
               <td>{item.unitario ? formatarPrecoUnitario(item.unitario) : ""}</td>
@@ -285,6 +301,7 @@ function Planilha({
   importarArquivo,
 }) {
   const [filtro, setFiltro] = useState("");
+  const [limiteLinhas, setLimiteLinhas] = useState(50);
   const totais = calcularTotais(orcamento);
   const validacoes = validarOrcamento(orcamento);
   const itensComErro = new Set(validacoes.map((item) => item.itemId));
@@ -297,6 +314,7 @@ function Planilha({
           <button type="button">≡ Filtros <span>{filtro ? 1 : 0}</span></button>
           <button type="button" onClick={abrirNovoGrupo}>＋ Grupo</button>
           <button type="button" onClick={abrirNovoItem}>＋ Serviço</button>
+          <label className="orc-row-limit"><span>LINHAS</span><select value={limiteLinhas} onChange={(event) => setLimiteLinhas(Number(event.target.value))}><option value="25">25</option><option value="50">50</option><option value="100">100</option><option value="0">Todas</option></select></label>
           <label className="orc-import-button">⇧ Importar CSV/XLSX<input type="file" accept=".csv,.xlsx,.xls" onChange={(event) => { const [arquivo] = event.target.files; if (arquivo) importarArquivo(arquivo); event.target.value = ""; }} /></label>
         </div>
         {validacoes.length > 0 && <div className="orc-validation-panel" role="status"><strong>{validacoes.length} inconsistências encontradas</strong><div>{validacoes.slice(0, 4).map((item, index) => <span key={`${item.itemId}-${index}`} className={item.tipo}>{item.mensagem}</span>)}</div>{validacoes.length > 4 && <small>Mais {validacoes.length - 4} ocorrências destacadas na planilha.</small>}</div>}
@@ -312,6 +330,7 @@ function Planilha({
           moverItem={moverItem}
           abrirDetalhe={abrirDetalhe}
           itensComErro={itensComErro}
+          limite={limiteLinhas}
         />
         <footer className="orc-table-footer">
           <span>{orcamento.itens.filter((item) => item.tipo !== "grupo").length} itens · {orcamento.itens.filter((item) => item.tipo === "grupo").length} grupos · {totais.pendencias} pendências</span>
@@ -609,70 +628,253 @@ function Bases({ orcamento, adicionarComposicao, removerComposicao, setAviso, ba
   );
 }
 
-function Cronograma({ orcamento }) {
-  const periodos = criarPeriodosMedicao(orcamento);
-  const exibidos = periodos.slice(0, 8);
+function CabecalhoPeriodo({ periodo, totalEquipe = null }) {
+  return <span className="orc-period-heading"><strong>{periodo.label}</strong><small>{periodo.subLabel}</small>{totalEquipe != null && <b>Total: {Math.max(0, Math.trunc(Number(totalEquipe) || 0)).toLocaleString("pt-BR")} pessoas</b>}</span>;
+}
+
+function CampoPercentual({ valor, onChange, ariaLabel }) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(valor === "" ? "" : Number(valor || 0).toFixed(2));
+  useEffect(() => {
+    if (!editando) setTexto(valor === "" ? "" : Number(valor || 0).toFixed(2));
+  }, [valor, editando]);
+  return <input type="number" min="0" max="100" step="any" aria-label={ariaLabel} value={texto} onFocus={() => {
+    setEditando(true);
+    setTexto(valor === "" ? "" : String(Number(valor || 0)));
+  }} onChange={(event) => {
+    setTexto(event.target.value);
+    onChange(event.target.value);
+  }} onBlur={() => {
+    setEditando(false);
+    setTexto(texto === "" ? "" : Number(texto || 0).toFixed(2));
+  }} />;
+}
+
+function Cronograma({
+  orcamento,
+  atualizarQuantidade,
+  atualizarGrupo,
+  limparValores,
+  distribuirSaldos,
+}) {
+  const cronograma = obterCronogramaProposto(orcamento);
+  const { periodos, servicos } = cronograma;
+  const [modo, setModo] = useState("percentual");
+  const [gruposRecolhidos, setGruposRecolhidos] = useState(() => new Set());
+  const servicosPorId = new Map(servicos.map((item) => [item.item.id, item]));
+  const itensPorId = new Map(orcamento.itens.map((item) => [item.id, item]));
   const totais = calcularTotais(orcamento);
-  const valores = exibidos.map((_, indice) => (
-    totais.precoTotal * ((indice + 1) / exibidos.reduce((soma, __, itemIndex) => soma + itemIndex + 1, 0))
-  ));
+  const valores = periodos.map((periodo) => servicos.reduce((total, { item, quantidades }) => {
+    const quantidadeTotal = Number(item.quantidade) || 0;
+    return total + (quantidadeTotal
+      ? totalItem(item) * (Number(quantidades[periodo.inicio]) || 0) / quantidadeTotal
+      : 0);
+  }, 0));
+  function percentualServico(servico, periodoInicio) {
+    const total = Number(servico.item.quantidade) || 0;
+    return total ? (Number(servico.quantidades[periodoInicio]) || 0) / total * 100 : 0;
+  }
+  function servicosDoGrupo(grupo) {
+    return servicos.filter(({ item }) => item.codigo.startsWith(`${grupo.codigo}.`));
+  }
+  function percentualGrupo(grupo, periodoInicio) {
+    const descendentes = servicosDoGrupo(grupo);
+    const valorTotal = descendentes.reduce((total, servico) => total + totalItem(servico.item), 0);
+    const valorPeriodo = descendentes.reduce((total, servico) => (
+      total + totalItem(servico.item) * percentualServico(servico, periodoInicio) / 100
+    ), 0);
+    return valorTotal ? valorPeriodo / valorTotal * 100 : 0;
+  }
+  function periodoGrupoVazio(grupo, periodoInicio) {
+    const descendentes = servicosDoGrupo(grupo);
+    return descendentes.length > 0 && descendentes.every(
+      (servico) => servico.quantidades[periodoInicio] === ""
+        || servico.quantidades[periodoInicio] == null,
+    );
+  }
+  function alternarGrupo(grupoId) {
+    setGruposRecolhidos((atuais) => {
+      const proximos = new Set(atuais);
+      if (proximos.has(grupoId)) proximos.delete(grupoId);
+      else proximos.add(grupoId);
+      return proximos;
+    });
+  }
+  function itemOculto(item) {
+    let parentId = item.parentId;
+    while (parentId) {
+      if (gruposRecolhidos.has(parentId)) return true;
+      parentId = itensPorId.get(parentId)?.parentId;
+    }
+    return false;
+  }
   return (
     <>
-      <div className="orc-schedule-kpis"><div><span>VALOR PLANEJADO</span><strong>{formatarMoeda(totais.precoTotal)}</strong></div><div><span>INÍCIO DA OBRA</span><strong>{formatarDataObra(orcamento.inicioObra)}</strong></div><div><span>FIM DA OBRA</span><strong>{formatarDataObra(orcamento.fimObra)}</strong></div><div><span>MEDIÇÕES</span><strong>A cada {orcamento.intervaloMedicaoDias} dias</strong></div></div>
+      <div className="orc-schedule-kpis"><div><span>VALOR PLANEJADO</span><strong>{formatarMoeda(totais.precoTotal)}</strong></div><div><span>PRAZO CORRIDO</span><strong>{orcamento.prazoDias} dias</strong></div><div><span>FIM DA OBRA</span><strong>{formatarDataObra(orcamento.fimObra)}</strong></div><div><span>MEDIÇÕES</span><strong>{periodos.length} períodos</strong></div></div>
       <article className="orc-card orc-schedule">
-        <header><div><span>PERÍODOS DE MEDIÇÃO</span><h3>Planejamento por intervalo contratual</h3></div><strong>{periodos.length} períodos previstos</strong></header>
-        <div className="orc-bars">{valores.map((valor, index) => <div key={exibidos[index].inicio}><span style={{ height: `${Math.max(18, (valor / Math.max(...valores)) * 90)}px` }}><i style={{ height: `${Math.max(8, (valor / Math.max(...valores)) * 62)}px` }} /></span><small>{exibidos[index].label}</small><b>{formatarMoeda(valor).replace(",00","")}</b></div>)}</div>
+        <header><div><span>CRONOGRAMA PROPOSTO</span><h3>EAP e execução por período</h3></div><div className="orc-planning-tools"><button type="button" onClick={() => limparValores()}>Limpar tudo</button><button type="button" onClick={() => distribuirSaldos()}>Distribuir todos</button><div className="orc-schedule-mode"><button type="button" className={modo === "percentual" ? "is-active" : ""} onClick={() => setModo("percentual")}>%</button><button type="button" className={modo === "quantidade" ? "is-active" : ""} onClick={() => setModo("quantidade")}>Quantidade</button></div></div></header>
+        <div className="orc-schedule-editor">
+          <table>
+            <thead><tr><th>ITEM / EAP / SERVIÇO</th><th>TOTAL</th>{periodos.map((periodo) => <th key={periodo.inicio}><CabecalhoPeriodo periodo={periodo} /></th>)}<th>PROGRAMADO</th><th>STATUS</th><th>AÇÕES DA LINHA</th></tr></thead>
+            <tbody>
+              {orcamento.itens.filter((item) => !itemOculto(item)).map((item) => {
+                const grupo = item.tipo === "grupo";
+                const servico = servicosPorId.get(item.id);
+                const percentuais = periodos.map((periodo) => (
+                  grupo ? percentualGrupo(item, periodo.inicio) : percentualServico(servico, periodo.inicio)
+                ));
+                const programadoPercentual = percentuais.reduce((soma, valor) => soma + valor, 0);
+                const programadoQuantidade = grupo ? 0 : Object.values(servico.quantidades).reduce((soma, valor) => soma + Number(valor || 0), 0);
+                const consistente = Math.abs(programadoPercentual - 100) < 0.001;
+                return <tr key={item.id} className={grupo ? "is-eap" : ""}><td style={{ paddingLeft: `${8 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}>{grupo && <button type="button" className="orc-eap-toggle" aria-label={`${gruposRecolhidos.has(item.id) ? "Expandir" : "Recolher"} ${item.codigo} ${item.descricao}`} onClick={() => alternarGrupo(item.id)}>{gruposRecolhidos.has(item.id) ? "▸" : "▾"}</button>}<div><strong>{item.codigo}</strong><span>{item.descricao}</span></div></td><td>{grupo ? formatarMoeda(totalGrupo(orcamento.itens, item.codigo)) : `${Number(item.quantidade || 0).toLocaleString("pt-BR")} ${item.unidade}`}</td>{periodos.map((periodo, indice) => {
+                  const quantidadeInformada = grupo ? null : servico.quantidades[periodo.inicio];
+                  const valor = grupo
+                    ? (periodoGrupoVazio(item, periodo.inicio) ? "" : percentuais[indice])
+                    : modo === "percentual"
+                      ? (quantidadeInformada === "" || quantidadeInformada == null ? "" : percentuais[indice])
+                      : quantidadeInformada;
+                  return <td key={periodo.inicio}>{grupo || modo === "percentual" ? <CampoPercentual valor={valor} ariaLabel={`${item.codigo} ${periodo.label} percentual`} onChange={(novoValor) => {
+                    if (grupo) atualizarGrupo(item.id, periodo.inicio, novoValor);
+                    else atualizarQuantidade(item.id, periodo.inicio, novoValor === "" ? "" : Number(item.quantidade || 0) * Number(novoValor || 0) / 100);
+                  }} /> : <input type="number" min="0" step="any" aria-label={`${item.codigo} ${periodo.label} quantidade`} value={valor} onChange={(event) => atualizarQuantidade(item.id, periodo.inicio, event.target.value)} />}<small>{grupo || modo === "percentual" ? "%" : item.unidade}</small></td>;
+                })}<td>{grupo || modo === "percentual" ? `${programadoPercentual.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%` : programadoQuantidade.toLocaleString("pt-BR", { maximumFractionDigits: 6 })}</td><td><em className={consistente ? "is-ok" : "is-warning"}>{consistente ? "OK" : "REVISAR"}</em></td><td><span className="orc-row-planning-actions"><button type="button" onClick={() => limparValores(item.id)}>Limpar</button><button type="button" onClick={() => distribuirSaldos(item.id)}>Distribuir</button></span></td></tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+        <footer className="orc-schedule-summary">{periodos.map((periodo, indice) => <div key={periodo.inicio}><CabecalhoPeriodo periodo={periodo} /><strong>{formatarMoeda(valores[indice])}</strong></div>)}</footer>
       </article>
     </>
   );
 }
 
-function Histograma({ orcamento }) {
-  const periodos = criarPeriodosMedicao(orcamento).slice(0, 6);
-  const equipes = [
-    ["Pedreiro", 18, 24, 28, 25, 14, 8],
-    ["Servente", 24, 32, 38, 34, 20, 12],
-    ["Eletricista", 2, 4, 8, 14, 18, 10],
-    ["Encanador", 1, 3, 7, 12, 16, 9],
-  ];
+function Histograma({
+  orcamento,
+  atualizarEquipe,
+  limparValores,
+  distribuirSaldos,
+  basesPrecos,
+}) {
+  const histogramaLocal = obterHistogramaInteligente(orcamento);
+  const [memoriaAnalitica, setMemoriaAnalitica] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  useEffect(() => {
+    let ativo = true;
+    setCarregando(true);
+    consolidarDemandaSuprimentos(
+      orcamento,
+      basesPrecos?.carregarItensComposicao,
+      basesPrecos?.bases,
+    ).then((resultado) => {
+      if (ativo) setMemoriaAnalitica(resultado);
+    }).finally(() => {
+      if (ativo) setCarregando(false);
+    });
+    return () => { ativo = false; };
+  }, [orcamento.itens, orcamento.composicoes, basesPrecos?.carregarItensComposicao, basesPrecos?.bases]);
+  const { periodos } = histogramaLocal;
+  const cronograma = obterCronogramaProposto(orcamento);
+  const servicosPorId = new Map(cronograma.servicos.map((item) => [item.item.id, item]));
+  const funcoesAnaliticas = (memoriaAnalitica?.maoObra || []).map((recurso) => {
+    const sugerido = Object.fromEntries(periodos.map((periodo) => {
+      const dias = Math.max(1, calcularPrazoDias(periodo.inicio, periodo.fim) + 1);
+      const horas = recurso.origensDetalhadas.reduce((total, origem) => {
+        const servico = servicosPorId.get(origem.servicoId);
+        const quantidadeTotal = Number(servico?.item.quantidade) || 0;
+        const proporcao = quantidadeTotal
+          ? Number(servico.quantidades[periodo.inicio] || 0) / quantidadeTotal
+          : 0;
+        return total + Number(origem.quantidade || 0) * proporcao;
+      }, 0);
+      return [periodo.inicio, Math.ceil(horas / (dias * 8))];
+    }));
+    return {
+      funcao: recurso.descricao,
+      totalHoras: Number(recurso.quantidade || 0),
+      sugerido,
+      quantidades: Object.fromEntries(periodos.map((periodo) => [
+        periodo.inicio,
+        orcamento.histogramaEquipes?.[recurso.descricao]?.[periodo.inicio]
+          ?? sugerido[periodo.inicio],
+      ])),
+    };
+  });
+  const funcoes = funcoesAnaliticas.length ? funcoesAnaliticas : histogramaLocal.funcoes;
+  const picos = periodos.map((periodo) => funcoes.reduce(
+    (total, item) => total + Number(item.quantidades[periodo.inicio] || 0),
+    0,
+  ));
+  const maiorPico = Math.max(...picos, 0);
+  const indicePico = picos.indexOf(maiorPico);
   return (
     <article className="orc-card orc-histogram">
-      <header><div><span>MÃO DE OBRA</span><h3>Dimensionamento das equipes</h3></div><strong>Pico: 84 profissionais · Outubro/2026</strong></header>
-      <div className="orc-hist-grid">
-        <div className="orc-hist-head"><span>FUNÇÃO</span>{periodos.map((periodo) => <span key={periodo.inicio}>{periodo.label.split(" ")[0]}</span>)}</div>
-        {equipes.map(([nome, ...valores]) => <div className="orc-hist-row" key={nome}><strong>{nome}</strong>{valores.map((valor, i) => <span key={i}><i style={{ width: `${Number(valor) * 2.2}%` }} />{valor}</span>)}</div>)}
+      <header><div><span>EQUIPE PROPOSTA · {periodos.length} PERÍODOS</span><h3>Dimensionamento inteligente da mão de obra</h3></div><div className="orc-histogram-actions"><strong>{carregando ? "Lendo composições analíticas…" : maiorPico ? `Pico: ${maiorPico.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} profissionais · ${periodos[indicePico]?.label}` : "Sem mão de obra analítica vinculada"}</strong><span><button type="button" disabled={!funcoes.length} onClick={() => limparValores(funcoes, periodos)}>Limpar tudo</button><button type="button" disabled={!funcoes.length} onClick={() => distribuirSaldos(funcoes, periodos)}>Distribuir todos</button></span></div></header>
+      <div className="orc-hist-grid is-editable">
+        <div className="orc-hist-head" style={{ gridTemplateColumns: `280px repeat(${periodos.length}, 100px)` }}><span>FUNÇÃO / HORAS</span>{periodos.map((periodo, indice) => <CabecalhoPeriodo key={periodo.inicio} periodo={periodo} totalEquipe={picos[indice]} />)}</div>
+        {funcoes.map(({ funcao, totalHoras, sugerido, quantidades }) => <div className="orc-hist-row" style={{ gridTemplateColumns: `280px repeat(${periodos.length}, 100px)` }} key={funcao}><div className="orc-hist-resource"><strong>{funcao}</strong><small>Total recomendado: {Number(totalHoras || 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} h</small><small>Sugestão automática · edição livre em pessoas inteiras</small><span className="orc-row-planning-actions"><button type="button" onClick={() => limparValores(funcoes, periodos, funcao)}>Limpar</button><button type="button" onClick={() => distribuirSaldos(funcoes, periodos, funcao)}>Distribuir</button></span></div>{periodos.map((periodo) => <label key={periodo.inicio}><input type="number" min="0" step="1" inputMode="numeric" aria-label={`${funcao} ${periodo.label}`} value={quantidades[periodo.inicio]} onChange={(event) => atualizarEquipe(funcao, periodo.inicio, event.target.value)} /><small>Sugerido: {Math.max(0, Math.trunc(Number(sugerido[periodo.inicio]) || 0)).toLocaleString("pt-BR")}</small></label>)}</div>)}
+        {!funcoes.length && <div className="orc-hist-empty"><strong>Não há funções rastreáveis nas composições.</strong><span>Vincule componentes de mão de obra com unidade H/HH ou serviços mensais identificados por função para gerar a equipe automaticamente.</span></div>}
       </div>
     </article>
   );
 }
 
-function Medicoes({ orcamento }) {
-  const medicoes = [
-    ["MED-003","Junho/2026","Em conferência","R$ 612.438,16","11,5%"],
-    ["MED-002","Maio/2026","Aprovada","R$ 548.207,30","10,3%"],
-    ["MED-001","Abril/2026","Aprovada","R$ 544.038,59","10,2%"],
-  ];
+function Medicoes({ orcamento, abrirMedicao }) {
+  const propostas = criarMedicoesPropostas(orcamento);
+  const salvas = orcamento.medicoes || [];
+  const porInicio = new Map(salvas.map((medicao) => [medicao.inicio, medicao]));
+  const medicoes = propostas.map((proposta) => porInicio.get(proposta.inicio) || proposta);
+  salvas.filter((medicao) => !medicao.inicio || !propostas.some((item) => item.inicio === medicao.inicio))
+    .forEach((medicao) => medicoes.unshift(medicao));
+  const totalMedido = medicoes.reduce((total, medicao) => total + Number(medicao.valorMedido || 0), 0);
+  const retencoes = medicoes.reduce((total, medicao) => total + (medicao.retencoes || []).reduce((soma, item) => soma + Number(item.valor || 0), 0), 0);
+  const multas = medicoes.reduce((total, medicao) => total + (medicao.multas || []).reduce((soma, item) => soma + Number(item.valor || 0), 0), 0);
+  const totais = calcularTotais(orcamento);
   return (
     <>
-      <div className="orc-schedule-kpis"><div><span>TOTAL MEDIDO</span><strong>R$ 1.704.684</strong></div><div><span>RETENÇÕES</span><strong>R$ 85.234</strong></div><div><span>SALDO CONTRATUAL</span><strong>R$ 3.642.227</strong></div><div><span>AVANÇO ACUMULADO</span><strong>31,8%</strong></div></div>
+      <div className="orc-schedule-kpis"><div><span>TOTAL MEDIDO</span><strong>{formatarMoeda(totalMedido)}</strong></div><div><span>RETENÇÕES E MULTAS</span><strong>{formatarMoeda(retencoes + multas)}</strong></div><div><span>SALDO CONTRATUAL</span><strong>{formatarMoeda(Math.max(0, totais.precoTotal - totalMedido))}</strong></div><div><span>AVANÇO ACUMULADO</span><strong>{totais.precoTotal ? (totalMedido / totais.precoTotal).toLocaleString("pt-BR", { style: "percent", maximumFractionDigits: 1 }) : "0%"}</strong></div></div>
       <article className="orc-card orc-measurements">
-        <header><div><span>BOLETINS · INTERVALO DE {orcamento.intervaloMedicaoDias} DIAS</span><h3>Histórico de medições</h3></div><button type="button">＋ Nova medição</button></header>
-        {medicoes.map(([id, periodo,status,valor,avanco]) => <div key={id}><span className="orc-measure-id">{id}</span><span><strong>{periodo}</strong><small>Centro Administrativo Canoas</small></span><b className={status === "Aprovada" ? "approved" : ""}>{status}</b><strong>{valor}</strong><span><strong>{avanco}</strong><small>do contrato</small></span><button type="button">Abrir →</button></div>)}
+        <header><div><span>BOLETINS · PRÉ-PREENCHIDOS PELO CRONOGRAMA</span><h3>Medições propostas e realizadas</h3></div><button type="button" onClick={() => abrirMedicao(null)}>＋ Nova medição</button></header>
+        {medicoes.map((medicao) => {
+          const descontos = (medicao.retencoes || []).reduce((soma, item) => soma + Number(item.valor || 0), 0)
+            + (medicao.multas || []).reduce((soma, item) => soma + Number(item.valor || 0), 0);
+          return <div key={medicao.id}><span className="orc-measure-id">{medicao.id}</span><span><strong>{medicao.periodo}</strong><small>{formatarDataObra(medicao.inicio)} → {formatarDataObra(medicao.fim)}</small></span><b className={medicao.status === "Aprovada" ? "approved" : ""}>{medicao.status}</b><span><strong>{formatarMoeda(medicao.valorMedido || medicao.valorPrevisto)}</strong><small>{medicao.proposta ? "Valor previsto" : "Valor informado"}</small></span><span><strong>{descontos ? `− ${formatarMoeda(descontos)}` : "Sem descontos"}</strong><small>{(medicao.documentos || []).length} documento(s) indicado(s)</small></span><button type="button" onClick={() => abrirMedicao(medicao)}>Abrir →</button></div>;
+        })}
       </article>
     </>
   );
 }
 
 function Licitacoes({ orcamento, gerar, gerando }) {
-  const resumo = resumirPacoteLicitacao(orcamento);
+  const [selecionadas, setSelecionadas] = useState([
+    "Instruções", "Orçamento Completo", "Proposta de Preços",
+    "BDI e Encargos", "Cronograma", "Histograma",
+  ]);
+  const resumo = resumirPacoteLicitacao(orcamento, selecionadas);
   const abas = [
-    ["01", "Instruções", "Regras de preenchimento e identificação da revisão.", "Bloqueada"],
-    ["02", "Orçamento completo", "Memória com custos, bases, desconto, BDI e preço total.", "Bloqueada"],
-    ["03", "Proposta de preços", "Preços unitários e observações para o concorrente.", "Preenchível"],
-    ["04", "BDI e encargos", "Percentuais analíticos e resultados calculados.", "Preenchível"],
-    ["05", "Cronograma", "Distribuição percentual de cada serviço nos períodos de medição configurados.", "Preenchível"],
-    ["06", "Histograma", "Horas de mão de obra derivadas do cronograma.", "Calculada"],
+    ["01", "Instruções", "Instruções", "Regras de preenchimento e identificação da revisão.", "Bloqueada"],
+    ["02", "Orçamento Completo", "Orçamento completo", "Memória com custos, bases, desconto, BDI e preço total.", "Bloqueada"],
+    ["03", "Proposta de Preços", "Proposta de preços", "Somente valores unitários de mão de obra e material.", "Preenchível"],
+    ["04", "BDI e Encargos", "BDI e encargos", "Percentuais analíticos e resultados calculados.", "Preenchível"],
+    ["05", "Cronograma", "Cronograma", "Distribuição percentual ou quantitativa da EAP nos períodos configurados.", "Preenchível"],
+    ["06", "Histograma", "Histograma", "Horas e equipes de mão de obra derivadas do cronograma.", "Calculada"],
   ];
+  const dependencias = {
+    "Orçamento Completo": ["BDI e Encargos"],
+    "Proposta de Preços": ["Orçamento Completo", "BDI e Encargos"],
+    Cronograma: ["Orçamento Completo", "BDI e Encargos"],
+    Histograma: ["Cronograma", "Orçamento Completo", "BDI e Encargos"],
+  };
+  function alternarAba(nome) {
+    setSelecionadas((atuais) => {
+      if (atuais.includes(nome)) {
+        return atuais.filter((item) => (
+          item !== nome
+          && !(dependencias[item] || []).includes(nome)
+        ));
+      }
+      return [...new Set([...atuais, nome, ...(dependencias[nome] || [])])];
+    });
+  }
   return (
     <>
       <div className="orc-bid-kpis">
@@ -684,7 +886,7 @@ function Licitacoes({ orcamento, gerar, gerando }) {
       <article className="orc-card orc-bid-package">
         <header>
           <div><span>PACOTE DA CONCORRÊNCIA</span><h3>Planilhas integradas e protegidas</h3></div>
-          <button type="button" disabled={gerando} onClick={gerar}>{gerando ? "Gerando arquivo…" : "⇩ Gerar pacote XLSX"}</button>
+          <button type="button" disabled={gerando || !selecionadas.length} onClick={() => gerar(selecionadas)}>{gerando ? "Gerando arquivo…" : `⇩ Exportar ${selecionadas.length} planilha(s)`}</button>
         </header>
         <div className="orc-bid-summary">
           <div><span>ORÇAMENTO</span><strong>{orcamento.nome}</strong><small>{orcamento.id}</small></div>
@@ -692,8 +894,9 @@ function Licitacoes({ orcamento, gerar, gerando }) {
           <div><span>PRAZO CONTRATUAL</span><strong>{formatarDataObra(orcamento.inicioObra)} → {formatarDataObra(orcamento.fimObra)}</strong><small>Fórmulas bloqueadas e entradas em amarelo</small></div>
         </div>
         <section className="orc-bid-sheet-list">
-          {abas.map(([numero, nome, descricao, modo]) => (
+          {abas.map(([numero, chave, nome, descricao, modo]) => (
             <div key={numero}>
+              <label className="orc-bid-check"><input type="checkbox" checked={selecionadas.includes(chave)} onChange={() => alternarAba(chave)} /><span /></label>
               <b>{numero}</b>
               <span><strong>{nome}</strong><small>{descricao}</small></span>
               <em className={modo === "Preenchível" ? "is-editable" : ""}>{modo}</em>
@@ -711,12 +914,23 @@ function Licitacoes({ orcamento, gerar, gerando }) {
   );
 }
 
-function Suprimentos({ orcamento, basesPrecos }) {
+function Suprimentos({ orcamento, basesPrecos, salvarConfiguracao }) {
   const [resultado, setResultado] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [atualizacao, setAtualizacao] = useState(0);
   const [busca, setBusca] = useState("");
+  const [origemDetalhe, setOrigemDetalhe] = useState(null);
+  const [periodoCompra, setPeriodoCompra] = useState("todos");
+  const [limiteCompras, setLimiteCompras] = useState("50");
+  const [pedidoItem, setPedidoItem] = useState(null);
+  const [regraItem, setRegraItem] = useState(null);
+  const [exportando, setExportando] = useState(false);
+  const [pedidoDados, setPedidoDados] = useState({
+    quantidade: "",
+    entregaEm: "",
+    fornecedor: "",
+  });
 
   useEffect(() => {
     let ativo = true;
@@ -725,6 +939,7 @@ function Suprimentos({ orcamento, basesPrecos }) {
     consolidarDemandaSuprimentos(
       orcamento,
       basesPrecos?.carregarItensComposicao,
+      basesPrecos?.bases,
     ).then((dados) => {
       if (ativo) setResultado(dados);
     }).catch((error) => {
@@ -736,7 +951,7 @@ function Suprimentos({ orcamento, basesPrecos }) {
     return () => {
       ativo = false;
     };
-  }, [orcamento, basesPrecos?.carregarItensComposicao, atualizacao]);
+  }, [orcamento, basesPrecos?.carregarItensComposicao, basesPrecos?.bases, atualizacao]);
 
   const termo = busca.trim().toLocaleLowerCase("pt-BR");
   const insumos = (resultado?.insumos || []).filter((item) => (
@@ -745,14 +960,124 @@ function Suprimentos({ orcamento, basesPrecos }) {
     || item.descricao.toLocaleLowerCase("pt-BR").includes(termo)
     || item.base.toLocaleLowerCase("pt-BR").includes(termo)
   ));
+  const planoComprasFiltrado = (resultado?.planoCompras || []).filter((item) => (
+    periodoCompra === "todos" || item.periodoInicio === periodoCompra
+  ));
+  const planoCompras = limiteCompras === "todos"
+    ? planoComprasFiltrado
+    : planoComprasFiltrado.slice(0, Number(limiteCompras));
+  const proximaCompra = resultado?.planoCompras?.[0];
+
+  function atualizarAntecedenciaPadrao(valor) {
+    salvarConfiguracao({
+      antecedenciaPadraoDias: valor,
+    });
+  }
+
+  function atualizarAntecedenciaItem(insumoChave, valor) {
+    salvarConfiguracao({
+      antecedenciasPorItem: {
+        [insumoChave]: Math.max(0, Math.round(Number(valor) || 0)),
+      },
+    });
+  }
+
+  function atualizarEstoque(insumoChave, valor) {
+    salvarConfiguracao({
+      estoquesPorItem: {
+        [insumoChave]: Math.max(0, Number(valor) || 0),
+      },
+    });
+  }
+
+  function adicionarPedido(event) {
+    event.preventDefault();
+    if (!pedidoItem || Number(pedidoDados.quantidade) <= 0 || !pedidoDados.entregaEm) return;
+    salvarConfiguracao({
+      pedidos: [
+        ...(orcamento.suprimentosConfig?.pedidos || []),
+        {
+          id: criarId("pedido"),
+          insumoChave: pedidoItem.insumo.chave,
+          quantidade: Number(pedidoDados.quantidade),
+          entregaEm: pedidoDados.entregaEm,
+          fornecedor: pedidoDados.fornecedor.trim(),
+          status: "Emitido",
+        },
+      ],
+    });
+    setPedidoItem(null);
+    setPedidoDados({ quantidade: "", entregaEm: "", fornecedor: "" });
+  }
+
+  function abrirRegra(item) {
+    const chave = item.chaveOriginal || item.chavesOrigem?.[0] || item.chave;
+    const regra = orcamento.suprimentosConfig?.regrasPorItem?.[chave] || {};
+    setRegraItem({
+      chave,
+      item,
+      perdaPercentual: String(regra.perdaPercentual ?? 0),
+      fatorConversao: String(regra.fatorConversao ?? 1),
+      unidadeDestino: regra.unidadeDestino || item.unidade,
+      codigoSubstituto: regra.codigoSubstituto || "",
+      descricaoSubstituto: regra.descricaoSubstituto || "",
+      baseSubstituta: regra.baseSubstituta || "",
+      precoSubstituto: regra.precoSubstituto ?? "",
+      justificativa: regra.justificativa || "",
+    });
+  }
+
+  function salvarRegra(event) {
+    event.preventDefault();
+    salvarConfiguracao({
+      regrasPorItem: {
+        [regraItem.chave]: {
+          perdaPercentual: Math.max(0, Number(regraItem.perdaPercentual) || 0),
+          fatorConversao: Math.max(0.00000001, Number(regraItem.fatorConversao) || 1),
+          unidadeDestino: regraItem.unidadeDestino.trim(),
+          codigoSubstituto: regraItem.codigoSubstituto.trim(),
+          descricaoSubstituto: regraItem.descricaoSubstituto.trim(),
+          baseSubstituta: regraItem.baseSubstituta.trim(),
+          precoSubstituto: regraItem.precoSubstituto === ""
+            ? ""
+            : Math.max(0, Number(regraItem.precoSubstituto) || 0),
+          justificativa: regraItem.justificativa.trim(),
+        },
+      },
+    });
+    setRegraItem(null);
+  }
+
+  function removerRegra() {
+    salvarConfiguracao({ regrasPorItem: { [regraItem.chave]: null } });
+    setRegraItem(null);
+  }
+
+  async function exportarSuprimentos() {
+    if (!resultado || exportando) return;
+    setExportando(true);
+    setErro("");
+    try {
+      await baixarRelatorioSuprimentos(orcamento, resultado);
+    } catch (error) {
+      console.error(error);
+      setErro("Não foi possível gerar o relatório XLSX de suprimentos.");
+    } finally {
+      setExportando(false);
+    }
+  }
 
   return (
     <>
+      {origemDetalhe && <div className="orc-modal-backdrop" role="presentation" onMouseDown={() => setOrigemDetalhe(null)}><article className="orc-modal orc-origin-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header><div><span>RASTREABILIDADE</span><h3>Origens de {origemDetalhe.codigo}</h3></div><button type="button" onClick={() => setOrigemDetalhe(null)}>×</button></header><div>{origemDetalhe.origensDetalhadas?.length ? origemDetalhe.origensDetalhadas.map((origem, indice) => <section key={`${origem.servicoId}-${indice}`}><strong>{origem.servicoCodigo} · {origem.servicoDescricao}</strong><span>Quantidade gerada: {Number(origem.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 8 })} {origemDetalhe.unidade}</span><small>{origemDetalhe.base} · {origemDetalhe.uf}</small></section>) : origemDetalhe.origens.map((origem) => <section key={origem}><strong>{origem}</strong><span>{origemDetalhe.descricao}</span><small>{origemDetalhe.base} · {origemDetalhe.uf}</small></section>)}</div><footer><button type="button" className="orc-btn orc-btn-primary" onClick={() => setOrigemDetalhe(null)}>Fechar</button></footer></article></div>}
+      {regraItem && <div className="orc-modal-backdrop" role="presentation" onMouseDown={() => setRegraItem(null)}><form className="orc-modal orc-supply-rule-modal" role="dialog" aria-modal="true" onSubmit={salvarRegra} onMouseDown={(event) => event.stopPropagation()}><header><div><span>PLANEJAMENTO DO INSUMO</span><h3>Conversão, perda e equivalência</h3><small>{regraItem.item.codigo} · {regraItem.item.descricao}</small></div><button type="button" onClick={() => setRegraItem(null)}>×</button></header><div className="orc-supply-rule-fields"><label><span>Perda técnica (%)</span><input type="number" min="0" max="1000" step="any" value={regraItem.perdaPercentual} onChange={(event) => setRegraItem((atual) => ({ ...atual, perdaPercentual: event.target.value }))} /></label><label><span>Fator de conversão</span><input required type="number" min="0.00000001" step="any" value={regraItem.fatorConversao} onChange={(event) => setRegraItem((atual) => ({ ...atual, fatorConversao: event.target.value }))} /><small>Quantidade de destino para cada unidade original.</small></label><label><span>Unidade de destino</span><input required value={regraItem.unidadeDestino} onChange={(event) => setRegraItem((atual) => ({ ...atual, unidadeDestino: event.target.value }))} /></label><label><span>Código equivalente</span><input value={regraItem.codigoSubstituto} onChange={(event) => setRegraItem((atual) => ({ ...atual, codigoSubstituto: event.target.value }))} placeholder="Manter o código atual" /></label><label className="orc-field-wide"><span>Descrição equivalente</span><input value={regraItem.descricaoSubstituto} onChange={(event) => setRegraItem((atual) => ({ ...atual, descricaoSubstituto: event.target.value }))} placeholder="Manter a descrição atual" /></label><label><span>Base equivalente</span><input value={regraItem.baseSubstituta} onChange={(event) => setRegraItem((atual) => ({ ...atual, baseSubstituta: event.target.value }))} placeholder="Manter a base atual" /></label><label><span>Preço do substituto</span><input type="number" min="0" step="any" value={regraItem.precoSubstituto} onChange={(event) => setRegraItem((atual) => ({ ...atual, precoSubstituto: event.target.value }))} placeholder="Manter preço atual" /></label><label className="orc-field-wide"><span>Justificativa técnica</span><textarea required={Boolean(regraItem.codigoSubstituto || regraItem.baseSubstituta)} value={regraItem.justificativa} onChange={(event) => setRegraItem((atual) => ({ ...atual, justificativa: event.target.value }))} placeholder="Informe o critério de conversão, perda ou equivalência adotado." /></label></div><footer><button type="button" className="orc-btn orc-btn-danger" onClick={removerRegra}>Limpar regra</button><span /><button type="button" className="orc-btn orc-btn-ghost" onClick={() => setRegraItem(null)}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">Aplicar regra</button></footer></form></div>}
       <div className="orc-supply-kpis">
         <article><span>INSUMOS CONSOLIDADOS</span><strong>{resultado?.insumos.length || 0}</strong><small>Agrupados por base, código e unidade</small></article>
+        <article><span>FUNÇÕES DE MÃO DE OBRA</span><strong>{resultado?.maoObra?.length || 0}</strong><small>Separadas da relação de insumos</small></article>
         <article><span>SERVIÇOS PROCESSADOS</span><strong>{resultado?.servicosProcessados || 0}</strong><small>Itens ativos na revisão {orcamento.revisao}</small></article>
         <article><span>COMPOSIÇÕES EXPANDIDAS</span><strong>{resultado?.composicoesExpandidas || 0}</strong><small>Incluindo níveis internos</small></article>
         <article className={resultado?.pendencias.length ? "has-warning" : ""}><span>PENDÊNCIAS ANALÍTICAS</span><strong>{resultado?.pendencias.length || 0}</strong><small>{resultado?.pendencias.length ? "Exigem memória ou preço" : "Memórias rastreáveis"}</small></article>
+        <article><span>PRÓXIMA COMPRA</span><strong>{proximaCompra ? formatarDataObra(proximaCompra.comprarAte) : "—"}</strong><small>{proximaCompra?.descricao || "Sem demanda programada"}</small></article>
       </div>
       <article className="orc-card orc-supply-demand">
         <header>
@@ -760,22 +1085,24 @@ function Suprimentos({ orcamento, basesPrecos }) {
           <div className="orc-supply-actions">
             <label><span>BUSCAR</span><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Código, descrição ou base" /></label>
             <button type="button" disabled={carregando} onClick={() => setAtualizacao((valor) => valor + 1)}>{carregando ? "Consolidando…" : "↻ Atualizar"}</button>
+            <button type="button" disabled={carregando || exportando || !resultado} onClick={exportarSuprimentos}>{exportando ? "Gerando XLSX…" : "⇩ Exportar XLSX"}</button>
           </div>
         </header>
         {erro && <div className="orc-supply-empty is-error">{erro}</div>}
         {!erro && !carregando && !resultado?.insumos.length && <div className="orc-supply-empty"><strong>Nenhum insumo consolidado</strong><span>Confira as pendências abaixo: composições sem memória analítica não são ignoradas.</span></div>}
         {!erro && resultado?.insumos.length > 0 && (
           <div className="orc-supply-table">
-            <div className="orc-supply-table-head"><span>CÓDIGO / INSUMO</span><span>BASE / UF</span><span>UN.</span><span>QUANTIDADE</span><span>PREÇO BÁSICO</span><span>VALOR ESTIMADO</span><span>ORIGENS</span></div>
+            <div className="orc-supply-table-head"><span>CÓDIGO / INSUMO</span><span>BASE / UF</span><span>UN.</span><span>QUANTIDADE</span><span>PREÇO BÁSICO</span><span>VALOR ESTIMADO</span><span>AJUSTES</span><span>ORIGENS</span></div>
             {insumos.map((item) => (
               <div key={item.chave}>
                 <span><strong>{item.codigo}</strong><small>{item.descricao}</small></span>
                 <span><strong>{item.base}</strong><small>{item.uf}{item.referencia ? ` · ${item.referencia}` : ""}</small></span>
                 <b>{item.unidade}</b>
-                <strong>{item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong>
+                <span><strong>{item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong><small>{item.quantidade !== item.quantidadeOriginal ? `Original: ${item.quantidadeOriginal.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}` : "Sem ajuste quantitativo"}</small></span>
                 <strong>{formatarPrecoUnitario(item.preco)}</strong>
                 <strong>{formatarMoeda(item.valorEstimado)}</strong>
-                <span><strong>{item.origens.length}</strong><small title={item.origens.join("\n")}>{item.origens.slice(0, 2).join(" · ")}</small></span>
+                <button type="button" className="orc-supply-adjust-button" onClick={() => abrirRegra(item)}><strong>{item.regrasAplicadas?.length ? `${item.regrasAplicadas.length} regra(s)` : "Configurar"}</strong><small>{item.perdaPercentual ? `${item.perdaPercentual.toLocaleString("pt-BR")} % de perda` : "Conversão, perda ou equivalente"}</small></button>
+                <button type="button" className="orc-origin-button" onClick={() => setOrigemDetalhe(item)}><strong>{item.origens.length}</strong><small>{item.origens.slice(0, 2).join(" · ")}</small><em>Ver origens</em></button>
               </div>
             ))}
             {!insumos.length && <div className="orc-supply-empty">Nenhum insumo corresponde à pesquisa.</div>}
@@ -783,6 +1110,58 @@ function Suprimentos({ orcamento, basesPrecos }) {
         )}
         <footer><span>VALOR BÁSICO ESTIMADO DOS INSUMOS</span><strong>{formatarMoeda(resultado?.valorEstimado || 0)}</strong></footer>
       </article>
+      <article className="orc-card orc-purchase-calendar">
+        <header>
+          <div><span>CRONOGRAMA DE AQUISIÇÕES</span><h3>Calendário recomendado de compras</h3></div>
+          <div className="orc-purchase-controls">
+            <label><span>ANTECEDÊNCIA PADRÃO</span><span><input type="number" min="0" max="365" value={orcamento.suprimentosConfig?.antecedenciaPadraoDias ?? 15} onChange={(event) => atualizarAntecedenciaPadrao(event.target.value)} /><b>dias</b></span></label>
+            <label><span>PERÍODO DE CONSUMO</span><select value={periodoCompra} onChange={(event) => setPeriodoCompra(event.target.value)}><option value="todos">Todos os períodos</option>{(resultado?.periodos || []).map((periodo) => <option key={periodo.inicio} value={periodo.inicio}>{periodo.label}</option>)}</select></label>
+            <label><span>LINHAS</span><select value={limiteCompras} onChange={(event) => setLimiteCompras(event.target.value)}><option>25</option><option>50</option><option>100</option><option value="todos">Todas</option></select></label>
+          </div>
+        </header>
+        {!carregando && !resultado?.planoCompras.length && <div className="orc-supply-empty"><strong>Sem compras programadas</strong><span>O calendário será gerado quando as composições possuírem memória analítica e os serviços estiverem distribuídos no cronograma.</span></div>}
+        {resultado?.planoCompras.length > 0 && <div className="orc-purchase-table">
+          <div className="orc-purchase-head"><span>COMPRAR ATÉ</span><span>CONSUMO PREVISTO</span><span>CÓDIGO / INSUMO</span><span>QUANTIDADE</span><span>VALOR ESTIMADO</span><span>ANTECEDÊNCIA</span><span>ORIGEM</span></div>
+          {planoCompras.map((item) => <div key={item.chave}>
+            <strong>{formatarDataObra(item.comprarAte)}</strong>
+            <span><strong>{item.periodo}</strong><small>{formatarDataObra(item.consumoEm)}</small></span>
+            <span><strong>{item.codigo}</strong><small>{item.descricao}</small></span>
+            <span><strong>{item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong><small>{item.unidade}</small></span>
+            <strong>{formatarMoeda(item.valorEstimado)}</strong>
+            <label><input type="number" min="0" max="365" value={orcamento.suprimentosConfig?.antecedenciasPorItem?.[item.insumoChave] ?? item.antecedenciaDias} onChange={(event) => atualizarAntecedenciaItem(item.insumoChave, event.target.value)} /><small>dias</small></label>
+            <button type="button" className="orc-origin-button" onClick={() => setOrigemDetalhe({ ...item, origensDetalhadas: resultado.insumos.find((insumo) => insumo.chave === item.insumoChave)?.origensDetalhadas || [] })}><strong>{item.origens.length}</strong><small>{item.base} · {item.uf}</small><em>Ver origens</em></button>
+          </div>)}
+          {planoComprasFiltrado.length > planoCompras.length && <footer>Exibindo {planoCompras.length} de {planoComprasFiltrado.length} compras programadas.</footer>}
+        </div>}
+      </article>
+      <article className="orc-card orc-supply-coverage">
+        <header>
+          <div><span>COBERTURA DA DEMANDA</span><h3>Estoque, pedidos e risco de ruptura</h3></div>
+          <strong className={resultado?.rupturas.length ? "has-risk" : ""}>{resultado?.rupturas.length || 0} período(s) com risco</strong>
+        </header>
+        {pedidoItem && <form className="orc-order-form" onSubmit={adicionarPedido}>
+          <div><span>NOVO PEDIDO</span><strong>{pedidoItem.insumo.codigo} · {pedidoItem.insumo.descricao}</strong></div>
+          <label><span>Quantidade</span><input required type="number" min="0.00000001" step="any" value={pedidoDados.quantidade} onChange={(event) => setPedidoDados((atual) => ({ ...atual, quantidade: event.target.value }))} /></label>
+          <label><span>Entrega prevista</span><input required type="date" value={pedidoDados.entregaEm} onChange={(event) => setPedidoDados((atual) => ({ ...atual, entregaEm: event.target.value }))} /></label>
+          <label><span>Fornecedor</span><input value={pedidoDados.fornecedor} onChange={(event) => setPedidoDados((atual) => ({ ...atual, fornecedor: event.target.value }))} placeholder="Opcional" /></label>
+          <button type="button" onClick={() => setPedidoItem(null)}>Cancelar</button>
+          <button type="submit">Salvar pedido</button>
+        </form>}
+        {!resultado?.coberturaPorItem.length && <div className="orc-supply-empty"><strong>Sem insumos para controle</strong><span>As posições de estoque e pedidos serão liberadas após a leitura das memórias analíticas.</span></div>}
+        {resultado?.coberturaPorItem.length > 0 && <div className="orc-coverage-table">
+          <div className="orc-coverage-head"><span>CÓDIGO / INSUMO</span><span>DEMANDA TOTAL</span><span>ESTOQUE ATUAL</span><span>PEDIDOS</span><span>SALDO FINAL</span><span>FALTA PROJETADA</span><span>STATUS / AÇÃO</span></div>
+          {resultado.coberturaPorItem.map((item) => <div key={item.insumo.chave}>
+            <span><strong>{item.insumo.codigo}</strong><small>{item.insumo.descricao}</small></span>
+            <span><strong>{item.demandaTotal.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong><small>{item.insumo.unidade}</small></span>
+            <label><input type="number" min="0" step="any" value={orcamento.suprimentosConfig?.estoquesPorItem?.[item.insumo.chave] ?? 0} onChange={(event) => atualizarEstoque(item.insumo.chave, event.target.value)} /><small>{item.insumo.unidade}</small></label>
+            <span><strong>{item.quantidadePedidos.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong><small>{item.pedidos.length} pedido(s)</small></span>
+            <span><strong>{item.saldoProjetado.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong><small>{item.insumo.unidade}</small></span>
+            <span><strong>{item.faltaProjetada.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong><small>{item.insumo.unidade}</small></span>
+            <span><em className={item.statusCobertura === "Ruptura" ? "has-risk" : "is-covered"}>{item.statusCobertura}</em><button type="button" onClick={() => setPedidoItem(item)}>＋ Pedido</button></span>
+          </div>)}
+        </div>}
+      </article>
+      {resultado?.maoObra?.length > 0 && <article className="orc-card orc-workforce-report"><header><div><span>RECURSOS HUMANOS</span><h3>Mão de obra necessária para execução</h3></div><strong>{resultado.maoObra.length} funções/referências</strong></header><div className="orc-workforce-head"><span>CÓDIGO / FUNÇÃO</span><span>BASE / UF</span><span>UN.</span><span>QUANTIDADE</span><span>ORIGENS</span></div>{resultado.maoObra.map((item) => <div key={item.chave}><span><strong>{item.codigo || "—"}</strong><small>{item.descricao}</small></span><span><strong>{item.base}</strong><small>{item.uf}</small></span><b>{item.unidade}</b><strong>{item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 8 })}</strong><button type="button" className="orc-origin-button" onClick={() => setOrigemDetalhe(item)}><strong>{item.origens.length}</strong><small>{item.origens.slice(0, 2).join(" · ")}</small><em>Ver origens</em></button></div>)}</article>}
       {resultado?.pendencias.length > 0 && (
         <article className="orc-card orc-supply-pending">
           <header><div><span>RASTREABILIDADE</span><h3>Pendências da memória analítica</h3></div><strong>{resultado.pendencias.length} encontradas</strong></header>
@@ -795,10 +1174,10 @@ function Suprimentos({ orcamento, basesPrecos }) {
           ))}
         </article>
       )}
-      <article className="orc-card procurement-roadmap-note">
-        <span>PRÓXIMO INCREMENTO</span>
-        <strong>Distribuição da demanda pelo cronograma e data recomendada de compra</strong>
-        <p>A consolidação atual recalcula quantidades, bases, preços e origens. O próximo incremento aplicará a execução por período e a antecedência configurável de cada aquisição.</p>
+      <article className="orc-card procurement-roadmap-note is-complete">
+        <span>ETAPA 9.11 CONCLUÍDA PARA HOMOLOGAÇÃO</span>
+        <strong>Planejamento, equivalências e relatórios de suprimentos</strong>
+        <p>O arquivo XLSX reúne resumo, demanda, calendário, cobertura, cotação, pedidos e pendências. As regras de conversão, perdas e substituições permanecem rastreáveis por insumo.</p>
       </article>
     </>
   );
@@ -821,6 +1200,9 @@ function Revisoes({
     variacao: 0,
     autor: "Usuário atual",
     publicada: false,
+    natureza: orcamento.revisaoContratual?.natureza || "Revisão ordinária",
+    motivo: orcamento.revisaoContratual?.motivo || "",
+    variacaoPrazoDias: orcamento.revisaoContratual?.variacaoPrazoDias || 0,
     snapshot: orcamento.itens,
     calculo: {
       descontoGlobal: orcamento.descontoGlobal,
@@ -842,6 +1224,7 @@ function Revisoes({
 
   return (
     <>
+      {orcamento.revisaoContratual?.origemAprovada && <article className="orc-contract-impact"><span>REVISÃO PÓS-APROVAÇÃO</span><strong>{orcamento.revisaoContratual.natureza}</strong><p>{orcamento.revisaoContratual.motivo}</p><b className={Number(orcamento.revisaoContratual.variacaoPrazoDias) < 0 ? "is-negative" : ""}>{Number(orcamento.revisaoContratual.variacaoPrazoDias) > 0 ? "+" : ""}{orcamento.revisaoContratual.variacaoPrazoDias} dias no prazo</b></article>}
       <article className="orc-card orc-revision-compare">
         <header><div><span>COMPARAÇÃO</span><h3>Alterações entre revisões</h3></div></header>
         <div className="orc-compare-selects">
@@ -864,7 +1247,7 @@ function Revisoes({
           const numeroRevisao = Number(revisao.codigo?.replace(/\D/g, "")) || 0;
           const numeroAtual = Number(orcamento.revisao?.replace(/\D/g, "")) || 0;
           const direcao = numeroRevisao < numeroAtual ? "Retroceder" : "Avançar";
-          return <div key={revisao.id} className={`${atual ? "current" : ""} ${revisao.inativa ? "is-inactive" : ""}`}><span className="orc-rev">{revisao.codigo}</span><span><strong>{revisao.inativa ? "Inativa" : revisao.status}</strong><small>{atual ? "Revisão ativa e editável" : revisao.inativa ? "Fora das opções de restauração" : "Snapshot disponível"}</small></span><span><small>BASES DOS ITENS</small><strong>{revisao.bases}</strong></span><span><small>PREÇO TOTAL</small><strong>{formatarMoeda(atual ? totais.precoTotal : revisao.total)}</strong>{revisao.calculo?.totais?.valorDesconto > 0 && <small>Desconto: {formatarMoeda(revisao.calculo.totais.valorDesconto)}</small>}</span><b>{revisao.variacao ? `${revisao.variacao > 0 ? "+" : ""}${revisao.variacao.toLocaleString("pt-BR")}%` : "—"}</b><span><small>RESPONSÁVEL</small><strong>{revisao.autor}</strong></span><div className="orc-revision-actions">{!atual && !revisao.inativa && <button type="button" onClick={() => { ativarRevisao(revisao.id); avisar(`${direcao} para ${revisao.codigo} concluído.`); }}>{direcao}</button>} {!atual && <button type="button" onClick={() => { alternarRevisaoInativa(revisao.id); avisar(revisao.inativa ? "Revisão reativada." : "Revisão marcada como inativa."); }}>{revisao.inativa ? "Reativar" : "Inativar"}</button>} {!atual && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Excluir a revisão ${revisao.codigo}? Esta ação não poderá ser desfeita.`)) { excluirRevisao(revisao.id); avisar("Revisão excluída."); } }}>Excluir</button>}</div></div>;
+          return <div key={revisao.id} className={`${atual ? "current" : ""} ${revisao.inativa ? "is-inactive" : ""}`}><span className="orc-rev">{revisao.codigo}</span><span><strong>{revisao.inativa ? "Inativa" : revisao.status}</strong><small>{revisao.natureza || "Revisão ordinária"} · {atual ? "ativa" : "snapshot"}</small>{revisao.motivo && <small title={revisao.motivo}>{revisao.motivo}</small>}</span><span><small>BASES DOS ITENS</small><strong>{revisao.bases}</strong></span><span><small>PREÇO TOTAL</small><strong>{formatarMoeda(atual ? totais.precoTotal : revisao.total)}</strong><small className={Number(revisao.variacaoPrazoDias) < 0 ? "is-negative" : ""}>{Number(revisao.variacaoPrazoDias) > 0 ? "+" : ""}{revisao.variacaoPrazoDias || 0} dias de prazo</small></span><b>{revisao.variacao ? `${revisao.variacao > 0 ? "+" : ""}${revisao.variacao.toLocaleString("pt-BR")}%` : "—"}</b><span><small>RESPONSÁVEL</small><strong>{revisao.autor}</strong></span><div className="orc-revision-actions">{!atual && !revisao.inativa && <button type="button" onClick={() => { ativarRevisao(revisao.id); avisar(`${direcao} para ${revisao.codigo} concluído.`); }}>{direcao}</button>} {!atual && <button type="button" onClick={() => { alternarRevisaoInativa(revisao.id); avisar(revisao.inativa ? "Revisão reativada." : "Revisão marcada como inativa."); }}>{revisao.inativa ? "Reativar" : "Inativar"}</button>} {!atual && <button type="button" className="is-danger" onClick={() => { if (window.confirm(`Excluir a revisão ${revisao.codigo}? Esta ação não poderá ser desfeita.`)) { excluirRevisao(revisao.id); avisar("Revisão excluída."); } }}>Excluir</button>}</div></div>;
         })}
       </article>
     </>
@@ -946,6 +1329,9 @@ function ModalItem({
     basePrecoId: baseItemInicial,
     referenciaCodigo: item.referenciaCodigo || "",
     referenciaTipo: item.referenciaTipo || "composicao",
+    percentualMaoObra: item.percentualMaoObra || 0,
+    custoMaoObra: item.custoMaoObra || 0,
+    custoMaterial: item.custoMaterial ?? item.unitario ?? 0,
   } : {
     tipo: tipoInicial,
     parentId: tipoInicial === "grupo" ? "" : grupoInicial,
@@ -961,6 +1347,9 @@ function ModalItem({
     basePrecoId: baseItemInicial,
     referenciaCodigo: "",
     referenciaTipo: "composicao",
+    percentualMaoObra: 0,
+    custoMaoObra: 0,
+    custoMaterial: 0,
   });
   const [novoGrupo, setNovoGrupo] = useState({
     aberto: false,
@@ -1102,6 +1491,9 @@ function ModalItem({
       basePrecoId: base.id,
       referenciaCodigo: referencia.codigo,
       referenciaTipo: referencia.tipo,
+      percentualMaoObra: referencia.percentualMaoObra || 0,
+      custoMaoObra: referencia.custoMaoObra || 0,
+      custoMaterial: referencia.custoMaterial ?? referencia.preco ?? 0,
     }));
     setBuscaReferencia(`${referencia.codigo} · ${referencia.descricao}`);
   }
@@ -1151,11 +1543,22 @@ function ModalNovoOrcamento({ fechar, salvar, proximoCodigo }) {
     area: "",
     inicioObra: hoje.toISOString().slice(0, 10),
     fimObra: fimPadrao.toISOString().slice(0, 10),
+    prazoDias: String(calcularPrazoDias(hoje.toISOString().slice(0, 10), fimPadrao.toISOString().slice(0, 10))),
     intervaloMedicaoDias: "30",
   });
 
   function atualizar(campo, valor) {
-    setDados((atuais) => ({ ...atuais, [campo]: valor }));
+    setDados((atuais) => {
+      const proximos = { ...atuais, [campo]: valor };
+      if (campo === "prazoDias" && Number(valor) > 0) {
+        proximos.fimObra = calcularDataFimPorPrazo(proximos.inicioObra, valor);
+      } else if (campo === "fimObra") {
+        proximos.prazoDias = String(calcularPrazoDias(proximos.inicioObra, valor));
+      } else if (campo === "inicioObra") {
+        proximos.fimObra = calcularDataFimPorPrazo(valor, proximos.prazoDias);
+      }
+      return proximos;
+    });
   }
 
   return (
@@ -1168,6 +1571,7 @@ function ModalNovoOrcamento({ fechar, salvar, proximoCodigo }) {
           <label><span>BDI (%)</span><input required min="0" step="0.01" type="number" value={dados.bdi} onChange={(event) => atualizar("bdi", event.target.value)} /></label>
           <label><span>Área (m²)</span><input min="0" step="0.01" type="number" value={dados.area} onChange={(event) => atualizar("area", event.target.value)} /></label>
           <label><span>Início previsto da obra</span><input required type="date" value={dados.inicioObra} onChange={(event) => atualizar("inicioObra", event.target.value)} /></label>
+          <label><span>Prazo de execução (dias corridos)</span><input required min="1" step="1" type="number" value={dados.prazoDias} onChange={(event) => atualizar("prazoDias", event.target.value)} /></label>
           <label><span>Conclusão prevista</span><input required min={dados.inicioObra} type="date" value={dados.fimObra} onChange={(event) => atualizar("fimObra", event.target.value)} /></label>
           <label><span>Intervalo entre medições (dias)</span><input required min="1" max="365" step="1" type="number" value={dados.intervaloMedicaoDias} onChange={(event) => atualizar("intervaloMedicaoDias", event.target.value)} /><small>Recomendado: 30 dias.</small></label>
         </div>
@@ -1181,17 +1585,32 @@ function ModalPrazoObra({ orcamento, fechar, salvar }) {
   const [dados, setDados] = useState({
     inicioObra: orcamento.inicioObra,
     fimObra: orcamento.fimObra,
+    prazoDias: String(orcamento.prazoDias || calcularPrazoDias(orcamento.inicioObra, orcamento.fimObra)),
     intervaloMedicaoDias: String(orcamento.intervaloMedicaoDias || 30),
   });
+  function atualizar(campo, valor) {
+    setDados((atuais) => {
+      const proximos = { ...atuais, [campo]: valor };
+      if (campo === "prazoDias" && Number(valor) > 0) {
+        proximos.fimObra = calcularDataFimPorPrazo(proximos.inicioObra, valor);
+      } else if (campo === "fimObra") {
+        proximos.prazoDias = String(calcularPrazoDias(proximos.inicioObra, valor));
+      } else if (campo === "inicioObra") {
+        proximos.fimObra = calcularDataFimPorPrazo(valor, proximos.prazoDias);
+      }
+      return proximos;
+    });
+  }
   const periodos = criarPeriodosMedicao(dados);
   return (
     <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
       <form className="orc-modal orc-deadline-modal" role="dialog" aria-modal="true" aria-labelledby="orc-prazo-obra" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); salvar(dados); }}>
         <header><div><span>PLANEJAMENTO CONTRATUAL</span><h3 id="orc-prazo-obra">Prazo da obra e medições</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
         <div className="orc-form-grid">
-          <label><span>Início previsto da obra</span><input required type="date" value={dados.inicioObra} onChange={(event) => setDados((atuais) => ({ ...atuais, inicioObra: event.target.value }))} /></label>
-          <label><span>Conclusão prevista</span><input required min={dados.inicioObra} type="date" value={dados.fimObra} onChange={(event) => setDados((atuais) => ({ ...atuais, fimObra: event.target.value }))} /></label>
-          <label><span>Intervalo entre medições (dias)</span><input required min="1" max="365" step="1" type="number" value={dados.intervaloMedicaoDias} onChange={(event) => setDados((atuais) => ({ ...atuais, intervaloMedicaoDias: event.target.value }))} /><small>O padrão recomendado é uma medição a cada 30 dias.</small></label>
+          <label><span>Início previsto da obra</span><input required type="date" value={dados.inicioObra} onChange={(event) => atualizar("inicioObra", event.target.value)} /></label>
+          <label><span>Prazo de execução (dias corridos)</span><input required min="1" step="1" type="number" value={dados.prazoDias} onChange={(event) => atualizar("prazoDias", event.target.value)} /><small>Alterar o prazo recalcula a conclusão.</small></label>
+          <label><span>Conclusão prevista</span><input required min={dados.inicioObra} type="date" value={dados.fimObra} onChange={(event) => atualizar("fimObra", event.target.value)} /><small>Alterar a conclusão recalcula o prazo.</small></label>
+          <label><span>Intervalo entre medições (dias)</span><input required min="1" max="365" step="1" type="number" value={dados.intervaloMedicaoDias} onChange={(event) => atualizar("intervaloMedicaoDias", event.target.value)} /><small>O padrão recomendado é uma medição a cada 30 dias.</small></label>
           <aside className="orc-deadline-preview">
             <span>PERÍODOS GERADOS</span>
             <strong>{periodos.length}</strong>
@@ -1204,6 +1623,154 @@ function ModalPrazoObra({ orcamento, fechar, salvar }) {
   );
 }
 
+function ModalNovaRevisao({ orcamento, fechar, salvar }) {
+  const posAprovacao = String(orcamento.status || "").toLocaleLowerCase("pt-BR").includes("aprov");
+  const [dados, setDados] = useState({
+    natureza: posAprovacao ? "Aditivo" : "Revisão ordinária",
+    motivo: "",
+    variacaoPrazoDias: "0",
+  });
+  return (
+    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
+      <form className="orc-modal" role="dialog" aria-modal="true" aria-labelledby="orc-nova-revisao" onMouseDown={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); salvar(dados); }}>
+        <header><div><span>CONTROLE CONTRATUAL</span><h3 id="orc-nova-revisao">Criar nova revisão</h3></div><button type="button" onClick={fechar}>×</button></header>
+        <div className="orc-form-grid">
+          {posAprovacao && <aside className="orc-contract-alert orc-field-wide"><strong>Orçamento aprovado</strong><span>A nova revisão deve registrar objetivamente o impacto contratual como aditivo, supressão ou combinação de ambos.</span></aside>}
+          <label><span>Natureza da revisão</span><select value={dados.natureza} onChange={(event) => setDados((atual) => ({ ...atual, natureza: event.target.value }))}>{!posAprovacao && <option>Revisão ordinária</option>}<option>Aditivo</option><option>Supressão</option><option>Aditivo e supressão</option></select></label>
+          <label><span>Variação do prazo (dias)</span><input type="number" step="1" value={dados.variacaoPrazoDias} onChange={(event) => setDados((atual) => ({ ...atual, variacaoPrazoDias: event.target.value }))} /><small>Use valor negativo para redução do prazo.</small></label>
+          <label className="orc-field-wide"><span>Justificativa</span><textarea required value={dados.motivo} onChange={(event) => setDados((atual) => ({ ...atual, motivo: event.target.value }))} placeholder="Descreva o fato gerador, escopo afetado e referência da autorização." /></label>
+        </div>
+        <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">Criar revisão contratual</button></footer>
+      </form>
+    </div>
+  );
+}
+
+const DOCUMENTOS_MEDICAO = [
+  "Comprovantes de pagamento dos funcionários",
+  "Guias de recolhimento de impostos",
+  "FGTS",
+  "INSS",
+  "Comprovantes de destinação dos resíduos",
+  "Relatório fotográfico",
+  "Memória de cálculo e controle da medição",
+];
+
+function ModalStatusOrcamento({ orcamento, fechar, salvar }) {
+  const [status, setStatus] = useState(orcamento.status || "Em elaboração");
+  const problemas = validarOrcamento(orcamento);
+  const aprovacaoBloqueada = status === "Aprovado" && problemas.length > 0;
+  function enviar(event) {
+    event.preventDefault();
+    if (aprovacaoBloqueada) return;
+    salvar(status);
+  }
+  return (
+    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
+      <form className="orc-modal" role="dialog" aria-modal="true" aria-labelledby="orc-status-title" onMouseDown={(event) => event.stopPropagation()} onSubmit={enviar}>
+        <header><div><span>FLUXO DE APROVAÇÃO</span><h3 id="orc-status-title">Alterar status do orçamento</h3></div><button type="button" onClick={fechar}>×</button></header>
+        <div className="orc-form-grid">
+          <label className="orc-field-wide"><span>Novo status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option>Em elaboração</option><option>Em validação</option><option>Aprovado</option><option>Reprovado</option><option>Arquivado</option></select></label>
+          {status === "Aprovado" && !problemas.length && <aside className="orc-contract-alert orc-field-wide"><strong>Orçamento pronto para aprovação</strong><span>Após a aprovação, novas revisões serão identificadas como aditivos ou supressões, incluindo os impactos de valor e prazo.</span></aside>}
+          {aprovacaoBloqueada && <aside className="orc-measure-error orc-field-wide" role="alert"><strong>A aprovação está bloqueada.</strong><span>Corrija {problemas.length} pendência(s) da planilha antes de aprovar. A guia Visão geral apresenta o total e a planilha identifica os itens.</span></aside>}
+        </div>
+        <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary" disabled={aprovacaoBloqueada}>{status === "Aprovado" ? "Aprovar orçamento" : "Salvar status"}</button></footer>
+      </form>
+    </div>
+  );
+}
+
+function ModalMedicao({ medicao, orcamento, fechar, salvar }) {
+  const [dados, setDados] = useState({
+    ...medicao,
+    status: medicao.status || "Proposta",
+    valorPrevisto: String(medicao.valorPrevisto || 0),
+    valorMedido: String(medicao.valorMedido || 0),
+    retencaoValor: String(medicao.retencoes?.[0]?.valor || ""),
+    retencaoMotivo: medicao.retencoes?.[0]?.motivo || "",
+    multaValor: String(medicao.multas?.[0]?.valor || ""),
+    multaMotivo: medicao.multas?.[0]?.motivo || "",
+    documentos: medicao.documentos || [],
+    itens: medicao.itens || [],
+    observacoes: medicao.observacoes || "",
+  });
+  const [erroValidacao, setErroValidacao] = useState("");
+  const saldos = useMemo(
+    () => calcularSaldosMedicao(orcamento, dados.id),
+    [orcamento, dados.id],
+  );
+  const valorMedidoCalculado = dados.itens.length
+    ? dados.itens.reduce((total, item) => total + Number(item.quantidadePeriodo || 0) * Number(item.precoUnitario || 0), 0)
+    : Number(dados.valorMedido || 0);
+  function alternarDocumento(documento) {
+    setDados((atual) => ({
+      ...atual,
+      documentos: atual.documentos.includes(documento)
+        ? atual.documentos.filter((item) => item !== documento)
+        : [...atual.documentos, documento],
+    }));
+  }
+  function enviar(event) {
+    event.preventDefault();
+    const medicaoAtualizada = {
+      ...dados,
+      valorMedido: valorMedidoCalculado,
+      retencoes: Number(dados.retencaoValor) > 0
+        ? [{ valor: Number(dados.retencaoValor), motivo: dados.retencaoMotivo }]
+        : [],
+      multas: Number(dados.multaValor) > 0
+        ? [{ valor: Number(dados.multaValor), motivo: dados.multaMotivo }]
+        : [],
+    };
+    const validacao = validarMedicaoAcumulada(orcamento, medicaoAtualizada);
+    if (!validacao.valida) {
+      setErroValidacao(validacao.erros[0]);
+      return;
+    }
+    const resultado = salvar(medicaoAtualizada);
+    if (resultado?.ok === false) {
+      setErroValidacao(resultado.erros?.[0] || "A medição ultrapassa o saldo contratual.");
+    }
+  }
+  return (
+    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
+      <form className="orc-modal orc-modal-wide" role="dialog" aria-modal="true" aria-labelledby="orc-medicao" onMouseDown={(event) => event.stopPropagation()} onSubmit={enviar}>
+        <header><div><span>MEDIÇÃO DA OBRA</span><h3 id="orc-medicao">{dados.id}</h3></div><button type="button" onClick={fechar}>×</button></header>
+        <div className="orc-form-grid">
+          <label><span>Início do período</span><input required type="date" value={dados.inicio || ""} onChange={(event) => setDados((atual) => ({ ...atual, inicio: event.target.value }))} /></label>
+          <label><span>Fim do período</span><input required type="date" min={dados.inicio} value={dados.fim || ""} onChange={(event) => setDados((atual) => ({ ...atual, fim: event.target.value }))} /></label>
+          <label><span>Status</span><select value={dados.status} onChange={(event) => setDados((atual) => ({ ...atual, status: event.target.value }))}><option>Proposta</option><option>Em elaboração</option><option>Em conferência</option><option>Aprovada</option><option>Rejeitada</option></select></label>
+          <label><span>Valor previsto</span><input type="number" min="0" step="0.01" value={dados.valorPrevisto} onChange={(event) => setDados((atual) => ({ ...atual, valorPrevisto: event.target.value }))} /></label>
+          <label><span>Valor medido bruto</span><input readOnly value={valorMedidoCalculado.toFixed(2)} /><small>Calculado pelas quantidades medidas.</small></label>
+          <section className="orc-measure-items orc-field-wide"><header><strong>Quantidades e saldos da medição</strong><span>{dados.itens.length} itens previstos no cronograma</span></header>{erroValidacao && <aside className="orc-measure-error" role="alert">{erroValidacao}</aside>}<div><table><thead><tr><th>ITEM</th><th>DESCRIÇÃO</th><th>CONTRATADA</th><th>JÁ MEDIDA</th><th>NESTA MEDIÇÃO</th><th>SALDO APÓS</th><th>UN.</th><th>VALOR DESTA</th><th>SALDO EM VALOR</th></tr></thead><tbody>{dados.itens.map((item, indice) => {
+            const saldo = saldos.get(item.itemId) || {
+              quantidadeMedidaAnterior: 0,
+              saldoQuantidade: Number(item.quantidadeContratada || 0),
+              saldoValor: Number(item.quantidadeContratada || 0) * Number(item.precoUnitario || 0),
+            };
+            const quantidadeAtual = Math.max(0, Number(item.quantidadePeriodo || 0));
+            const valorAtual = quantidadeAtual * Number(item.precoUnitario || 0);
+            const excedida = quantidadeAtual > saldo.saldoQuantidade + 0.000001
+              || valorAtual > saldo.saldoValor + 0.000001;
+            return <tr key={item.itemId} className={excedida ? "is-over-limit" : ""}><td>{item.codigo}</td><td>{item.descricao}</td><td>{Number(item.quantidadeContratada).toLocaleString("pt-BR", { maximumFractionDigits: 6 })}</td><td>{Number(saldo.quantidadeMedidaAnterior).toLocaleString("pt-BR", { maximumFractionDigits: 6 })}</td><td><input type="number" min="0" max={saldo.saldoQuantidade} step="any" aria-invalid={excedida} value={item.quantidadePeriodo} onChange={(event) => {
+              setErroValidacao("");
+              setDados((atual) => ({ ...atual, itens: atual.itens.map((linha, linhaIndice) => linhaIndice === indice ? { ...linha, quantidadePeriodo: event.target.value } : linha) }));
+            }} /></td><td><strong>{Math.max(0, saldo.saldoQuantidade - quantidadeAtual).toLocaleString("pt-BR", { maximumFractionDigits: 6 })}</strong></td><td>{item.unidade}</td><td>{formatarMoeda(valorAtual)}</td><td><strong>{formatarMoeda(Math.max(0, saldo.saldoValor - valorAtual))}</strong>{excedida && <small>Limite excedido</small>}</td></tr>;
+          })}</tbody></table></div></section>
+          <label><span>Retenção</span><input type="number" min="0" step="0.01" value={dados.retencaoValor} onChange={(event) => setDados((atual) => ({ ...atual, retencaoValor: event.target.value }))} /></label>
+          <label className="orc-field-wide"><span>Motivo da retenção</span><input required={Number(dados.retencaoValor) > 0} value={dados.retencaoMotivo} onChange={(event) => setDados((atual) => ({ ...atual, retencaoMotivo: event.target.value }))} placeholder="Informe objetivamente o motivo e a referência contratual." /></label>
+          <label><span>Multa</span><input type="number" min="0" step="0.01" value={dados.multaValor} onChange={(event) => setDados((atual) => ({ ...atual, multaValor: event.target.value }))} /></label>
+          <label className="orc-field-wide"><span>Motivo da multa</span><input required={Number(dados.multaValor) > 0} value={dados.multaMotivo} onChange={(event) => setDados((atual) => ({ ...atual, multaMotivo: event.target.value }))} placeholder="Informe o fato gerador e o documento de suporte." /></label>
+          <fieldset className="orc-document-checklist orc-field-wide"><legend>Documentos solicitados pelo fiscal</legend>{DOCUMENTOS_MEDICAO.map((documento) => <label key={documento}><input type="checkbox" checked={dados.documentos.includes(documento)} onChange={() => alternarDocumento(documento)} /><span>{documento}</span></label>)}</fieldset>
+          <aside className="orc-ged-note orc-field-wide"><strong>Anexação eletrônica — GED futuro</strong><span>Nesta etapa fica registrada a relação de documentos exigidos. O envio, versionamento, assinatura e guarda dos arquivos serão integrados ao futuro GED.</span></aside>
+          <label className="orc-field-wide"><span>Observações da fiscalização</span><textarea value={dados.observacoes} onChange={(event) => setDados((atual) => ({ ...atual, observacoes: event.target.value }))} /></label>
+        </div>
+        <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">Salvar medição</button></footer>
+      </form>
+    </div>
+  );
+}
+
 export default function Orcamento({ basesPrecos }) {
   const [modoCarteira, setModoCarteira] = useState(true);
   const [etapa, setEtapa] = useState("visao");
@@ -1211,6 +1778,7 @@ export default function Orcamento({ basesPrecos }) {
   const [modal, setModal] = useState("");
   const [itemEmEdicao, setItemEmEdicao] = useState(null);
   const [itemDetalhe, setItemDetalhe] = useState(null);
+  const [medicaoEmEdicao, setMedicaoEmEdicao] = useState(null);
   const [gerandoLicitacao, setGerandoLicitacao] = useState(false);
   const {
     orcamentos,
@@ -1226,6 +1794,15 @@ export default function Orcamento({ basesPrecos }) {
     atualizarEncargosSociais,
     atualizarDescontoGlobal,
     atualizarPlanejamento,
+    atualizarCronogramaQuantidade,
+    atualizarCronogramaGrupo,
+    atualizarHistogramaEquipe,
+    limparCronograma,
+    distribuirSaldosCronograma,
+    limparHistograma,
+    distribuirSaldosHistograma,
+    atualizarConfiguracaoSuprimentos,
+    salvarMedicao,
     atualizarPrecosBase,
     adicionarComposicao,
     removerComposicao,
@@ -1234,6 +1811,7 @@ export default function Orcamento({ basesPrecos }) {
     ativarRevisao,
     alternarRevisaoInativa,
     excluirRevisao,
+    atualizarStatusOrcamento,
   } = useOrcamentos();
   const etapaAtual = useMemo(() => ETAPAS.find((item) => item.id === etapa), [etapa]);
   const proximoCodigo = useMemo(() => {
@@ -1327,16 +1905,57 @@ export default function Orcamento({ basesPrecos }) {
   }
 
   function adicionarRevisao() {
-    criarRevisao();
-    setEtapa("revisoes");
-    notificar("Nova revisão criada a partir da versão atual.");
+    setModal("revisao");
   }
 
-  async function gerarPacoteLicitacao() {
+  function confirmarNovaRevisao(dados) {
+    criarRevisao(dados);
+    setModal("");
+    setEtapa("revisoes");
+    notificar(`${dados.natureza} criada a partir da versão atual.`);
+  }
+
+  function confirmarStatus(status) {
+    atualizarStatusOrcamento(status);
+    setModal("");
+    notificar(status === "Aprovado"
+      ? "Orçamento aprovado. As próximas revisões serão contratuais."
+      : `Status alterado para ${status}.`);
+  }
+
+  function abrirMedicao(medicao) {
+    if (medicao) {
+      setMedicaoEmEdicao(medicao);
+    } else {
+      const propostas = criarMedicoesPropostas(orcamentoAtivo);
+      const ocupados = new Set((orcamentoAtivo.medicoes || []).map((item) => item.inicio));
+      const proposta = propostas.find((item) => !ocupados.has(item.inicio)) || propostas.at(-1);
+      setMedicaoEmEdicao({
+        ...(proposta || {}),
+        id: `MED-${String((orcamentoAtivo.medicoes || []).length + 1).padStart(3, "0")}`,
+        status: "Em elaboração",
+        proposta: false,
+      });
+    }
+    setModal("medicao");
+  }
+
+  function confirmarMedicao(dados) {
+    const resultado = salvarMedicao(dados);
+    if (resultado?.ok === false) {
+      return resultado;
+    }
+    setModal("");
+    setMedicaoEmEdicao(null);
+    notificar("Medição salva com retenções, multas e exigências documentais.");
+    return { ok: true };
+  }
+
+  async function gerarPacoteLicitacao(abasSelecionadas = null) {
     setGerandoLicitacao(true);
     try {
-      await baixarPacoteLicitacao(orcamentoAtivo);
-      notificar("Pacote XLSX da concorrência gerado com 6 abas.");
+      await baixarPacoteLicitacao(orcamentoAtivo, abasSelecionadas);
+      notificar(`Pacote XLSX gerado com ${abasSelecionadas?.length || 6} planilha(s).`);
     } catch (error) {
       console.error(error);
       notificar("Não foi possível gerar o pacote XLSX.");
@@ -1346,18 +1965,7 @@ export default function Orcamento({ basesPrecos }) {
   }
 
   function exportar() {
-    if (etapa === "licitacoes") {
-      gerarPacoteLicitacao();
-      return;
-    }
-    const arquivo = new Blob([JSON.stringify(orcamentoAtivo, null, 2)], { type: "application/json" });
-    const endereco = URL.createObjectURL(arquivo);
-    const link = document.createElement("a");
-    link.href = endereco;
-    link.download = `${orcamentoAtivo.id}-${orcamentoAtivo.revisao}.json`;
-    link.click();
-    URL.revokeObjectURL(endereco);
-    notificar("Dados do orçamento exportados.");
+    gerarPacoteLicitacao();
   }
 
   if (modoCarteira) {
@@ -1391,11 +1999,14 @@ export default function Orcamento({ basesPrecos }) {
       {(modal === "item" || modal === "grupo") && <ModalItem fechar={() => { setModal(""); setItemEmEdicao(null); }} salvar={salvarDadosItem} item={itemEmEdicao} tipoInicial={modal === "grupo" ? "grupo" : "servico"} itens={orcamentoAtivo.itens} criarGrupo={(dados) => { salvarItem(dados); notificar("Novo grupo criado e selecionado."); }} basesPrecos={basesPrecos} />}
       {modal === "orcamento" && <ModalNovoOrcamento fechar={() => setModal("")} salvar={salvarNovoOrcamento} proximoCodigo={proximoCodigo} />}
       {modal === "prazo" && <ModalPrazoObra orcamento={orcamentoAtivo} fechar={() => setModal("")} salvar={salvarPlanejamento} />}
+      {modal === "revisao" && <ModalNovaRevisao orcamento={orcamentoAtivo} fechar={() => setModal("")} salvar={confirmarNovaRevisao} />}
+      {modal === "status" && <ModalStatusOrcamento orcamento={orcamentoAtivo} fechar={() => setModal("")} salvar={confirmarStatus} />}
+      {modal === "medicao" && medicaoEmEdicao && <ModalMedicao medicao={medicaoEmEdicao} orcamento={orcamentoAtivo} fechar={() => { setModal(""); setMedicaoEmEdicao(null); }} salvar={confirmarMedicao} />}
       <div className="orc-project-bar">
         <button type="button" className="orc-back-portfolio" onClick={() => setModoCarteira(true)}>← Dashboard</button>
         <div className="orc-active-budget-select"><span>ORÇAMENTO ATIVO</span><select value={orcamentoAtivoId} onChange={(event) => setOrcamentoAtivoId(event.target.value)}>{orcamentos.map((orcamento) => <option key={orcamento.id} value={orcamento.id}>{orcamento.id} · {orcamento.nome}</option>)}</select></div>
         <button type="button" className="orc-new-budget" onClick={() => setModal("orcamento")}>＋ Novo orçamento</button>
-        <div><small>REVISÃO</small><strong>{orcamentoAtivo.revisao}</strong></div><div><small>STATUS</small><strong className="orc-status">{orcamentoAtivo.status}</strong></div><button type="button" className="orc-project-deadline" onClick={() => setModal("prazo")}><small>PRAZO E MEDIÇÕES</small><strong>{formatarDataObra(orcamentoAtivo.inicioObra)} → {formatarDataObra(orcamentoAtivo.fimObra)}</strong><span>A cada {orcamentoAtivo.intervaloMedicaoDias} dias · editar</span></button><div><small>BASES NOS ITENS</small><strong>{resumirBasesDosItens(orcamentoAtivo.itens)}</strong></div>
+        <div><small>REVISÃO</small><strong>{orcamentoAtivo.revisao}</strong></div><button type="button" className="orc-project-status" onClick={() => setModal("status")}><small>STATUS · ALTERAR</small><strong className="orc-status">{orcamentoAtivo.status}</strong></button><button type="button" className="orc-project-deadline" onClick={() => setModal("prazo")}><small>PRAZO E MEDIÇÕES</small><strong>{orcamentoAtivo.prazoDias} dias · {formatarDataObra(orcamentoAtivo.inicioObra)} → {formatarDataObra(orcamentoAtivo.fimObra)}</strong><span>A cada {orcamentoAtivo.intervaloMedicaoDias} dias · editar</span></button><div><small>BASES NOS ITENS</small><strong>{resumirBasesDosItens(orcamentoAtivo.itens)}</strong></div>
       </div>
       <nav className="orc-module-nav" aria-label="Etapas do orçamento">
         {ETAPAS.map((item) => <button type="button" key={item.id} className={etapa === item.id ? "is-active" : ""} onClick={() => setEtapa(item.id)}><span>{item.icon}</span>{item.label}</button>)}
@@ -1404,12 +2015,12 @@ export default function Orcamento({ basesPrecos }) {
       {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
       {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} abrirDetalhe={setItemDetalhe} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} />}
       {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} salvarEncargos={salvarEncargos} />}
-      {etapa === "cronograma" && <Cronograma orcamento={orcamentoAtivo} />}
-      {etapa === "histograma" && <Histograma orcamento={orcamentoAtivo} />}
-      {etapa === "medicoes" && <Medicoes orcamento={orcamentoAtivo} />}
+      {etapa === "cronograma" && <Cronograma orcamento={orcamentoAtivo} atualizarQuantidade={atualizarCronogramaQuantidade} atualizarGrupo={atualizarCronogramaGrupo} limparValores={limparCronograma} distribuirSaldos={distribuirSaldosCronograma} />}
+      {etapa === "histograma" && <Histograma orcamento={orcamentoAtivo} atualizarEquipe={atualizarHistogramaEquipe} limparValores={limparHistograma} distribuirSaldos={distribuirSaldosHistograma} basesPrecos={basesPrecos} />}
+      {etapa === "medicoes" && <Medicoes orcamento={orcamentoAtivo} abrirMedicao={abrirMedicao} />}
       {etapa === "comercial" && <CondicoesComerciais orcamento={orcamentoAtivo} salvarDesconto={salvarDesconto} />}
       {etapa === "licitacoes" && <Licitacoes orcamento={orcamentoAtivo} gerar={gerarPacoteLicitacao} gerando={gerandoLicitacao} />}
-      {etapa === "suprimentos" && <Suprimentos orcamento={orcamentoAtivo} basesPrecos={basesPrecos} />}
+      {etapa === "suprimentos" && <Suprimentos orcamento={orcamentoAtivo} basesPrecos={basesPrecos} salvarConfiguracao={atualizarConfiguracaoSuprimentos} />}
       {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} ativarRevisao={ativarRevisao} alternarRevisaoInativa={alternarRevisaoInativa} excluirRevisao={excluirRevisao} avisar={notificar} />}
     </section>
   );

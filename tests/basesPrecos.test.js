@@ -25,6 +25,18 @@ test("usa SP e sinaliza a substituição quando o estado não possui preço", ()
   assert.equal(resultado.precoSubstituidoSp, true);
 });
 
+test("decompõe o custo SINAPI da composição entre mão de obra e material por estado", () => {
+  const resultado = aplicarPrecoPorUf({
+    codigo: "94964",
+    tipo: "composicao",
+    precosPorUf: { RS: 100, SP: 120 },
+    percentuaisMaoObraPorUf: { RS: 0.3, SP: 0.25 },
+  }, "RS");
+  assert.equal(resultado.percentualMaoObra, 0.3);
+  assert.equal(resultado.custoMaoObra, 30);
+  assert.equal(resultado.custoMaterial, 70);
+});
+
 test("consolida publicações estaduais antigas em uma referência nacional", () => {
   const [referencia] = mesclarReferenciasSinapi([
     {

@@ -270,12 +270,18 @@ function extrairMaoObraSinapi(XLSX, workbook, metadados) {
   return linhas.slice(cabecalho + 1).flatMap((linha) => {
     const codigo = String(linha[codigoCol] || "").trim();
     if (!codigo) return [];
+    const percentuaisMaoObraPorUf = extrairValoresPorUf(colunas, linha);
+    const percentualSelecionado = resolverPrecoPorUf(
+      percentuaisMaoObraPorUf,
+      metadados.uf,
+    );
     return [criarReferencia({
       codigo,
       descricao: linha[descricaoCol],
       tipo: "mao_obra",
       unidade: linha[unidadeCol],
-      percentualMaoObra: ufCol >= 0 ? numeroSeguro(linha[ufCol]) : 0,
+      percentualMaoObra: percentualSelecionado.preco,
+      percentuaisMaoObraPorUf,
       grupo: linha[0] || "",
     })];
   });
@@ -380,9 +386,31 @@ export async function importarArquivoBasePrecos(arquivo, metadados) {
     workbooks.forEach(({ workbook }) => referencias.push(...extrairGenerico(XLSX, workbook)));
   }
 
-  const unicas = [...new Map(
+  const unicasOriginais = [...new Map(
     referencias.map((item) => [`${item.tipo}:${item.codigo}`, item]),
   ).values()];
+  const maoObraPorCodigo = new Map(
+    unicasOriginais
+      .filter((item) => item.tipo === "mao_obra")
+      .map((item) => [item.codigo, item]),
+  );
+  const unicas = unicasOriginais.map((item) => {
+    if (item.tipo !== "composicao") return item;
+    const memoriaMaoObra = maoObraPorCodigo.get(item.codigo);
+    const percentuaisMaoObraPorUf = memoriaMaoObra?.percentuaisMaoObraPorUf || {};
+    const percentualMaoObra = Number(
+      percentuaisMaoObraPorUf[item.ufPrecoEfetivo || metadados.uf]
+        ?? memoriaMaoObra?.percentualMaoObra,
+    ) || 0;
+    const custoMaoObra = item.preco * percentualMaoObra;
+    return {
+      ...item,
+      percentualMaoObra,
+      percentuaisMaoObraPorUf,
+      custoMaoObra,
+      custoMaterial: item.preco - custoMaoObra,
+    };
+  });
   const catalogo = unicas.filter((item) => ["insumo", "composicao"].includes(item.tipo));
   if (!catalogo.length) {
     throw new Error(

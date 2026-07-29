@@ -18,6 +18,7 @@ const COR = {
 };
 
 const formatoMoeda = '"R$" #,##0.00';
+const formatoPrecoUnitario = '"R$" #,##0.00000000';
 const formatoPercentual = "0.00%";
 const CABECALHOS_EAP = ["SITE", "PRÉDIO", "ANDAR", "SALA", "DISCIPLINA"];
 const CHAVES_EAP = ["site", "predio", "andar", "sala", "disciplina"];
@@ -64,6 +65,7 @@ function estilizarCelula(celula, opcoes = {}) {
       vertical: "center",
       horizontal: opcoes.alinhamento || "left",
       wrapText: Boolean(opcoes.quebrar),
+      indent: Number(opcoes.indentacao) || 0,
     },
     protection: { locked: opcoes.bloqueada !== false },
   };
@@ -126,13 +128,111 @@ function subtituloPacote(orcamento) {
     + `${orcamento.inicioObra} a ${orcamento.fimObra} · medições a cada ${orcamento.intervaloMedicaoDias} dias`;
 }
 
+function referenciaBase(item = {}) {
+  return item.fonte
+    || [item.baseTitulo, item.referenciaCodigo].filter(Boolean).join(" · ")
+    || "Preço manual";
+}
+
+function nivelIndentacao(item = {}) {
+  return Math.max(0, String(item.codigo || "").split(".").length - 1);
+}
+
+function mapearFilhos(itens = []) {
+  const filhos = new Map();
+  itens.forEach((item) => {
+    const lista = filhos.get(item.parentId || "") || [];
+    lista.push(item);
+    filhos.set(item.parentId || "", lista);
+  });
+  return filhos;
+}
+
+function formulaSomaLinhas(coluna, itens = [], linhasPorId = new Map()) {
+  const enderecos = itens
+    .map((item) => linhasPorId.get(item.id))
+    .filter(Boolean)
+    .map((linha) => `${coluna}${linha}`);
+  return enderecos.length ? `SUM(${enderecos.join(",")})` : "0";
+}
+
+function decomporComposicao(composicao, composicoes, trilha = []) {
+  if (!composicao || trilha.includes(composicao.codigo)) {
+    return { maoObra: 0, material: 0 };
+  }
+  return (composicao.componentes || []).reduce((total, componente) => {
+    const coeficiente = Number(componente.coeficiente) || 0;
+    const codigo = componente.referenciaCodigo || componente.codigo;
+    const composicaoInterna = composicoes.get(codigo);
+    if (
+      String(componente.referenciaTipo || "").includes("composicao")
+      && composicaoInterna
+    ) {
+      const custos = decomporComposicao(
+        composicaoInterna,
+        composicoes,
+        [...trilha, composicao.codigo],
+      );
+      total.maoObra += coeficiente * custos.maoObra;
+      total.material += coeficiente * custos.material;
+      return total;
+    }
+    const preco = Number(componente.preco) || 0;
+    const maoObraInformada = Number(componente.custoMaoObra) || 0;
+    const materialInformado = Number(componente.custoMaterial);
+    if (maoObraInformada > 0 || Number.isFinite(materialInformado)) {
+      total.maoObra += coeficiente * maoObraInformada;
+      total.material += coeficiente * (
+        Number.isFinite(materialInformado)
+          ? materialInformado
+          : Math.max(0, preco - maoObraInformada)
+      );
+      return total;
+    }
+    const tipo = String(componente.referenciaTipo || "").toLocaleLowerCase("pt-BR");
+    const unidade = String(componente.unidade || "").toUpperCase();
+    if (tipo.includes("mao") || ["H", "HORA", "HH"].includes(unidade)) {
+      total.maoObra += coeficiente * preco;
+    } else {
+      total.material += coeficiente * preco;
+    }
+    return total;
+  }, { maoObra: 0, material: 0 });
+}
+
+function decomporCustoUnitario(item, composicoes) {
+  const custoTotal = Number(item.unitario) || 0;
+  const codigo = item.referenciaCodigo || item.fonte?.split("·").at(-1)?.trim();
+  const composicao = composicoes.get(codigo);
+  if (composicao?.componentes?.length) {
+    const custos = decomporComposicao(composicao, composicoes);
+    const totalComposicao = custos.maoObra + custos.material;
+    if (totalComposicao > 0) {
+      const fator = custoTotal > 0 ? custoTotal / totalComposicao : 1;
+      return {
+        maoObra: custos.maoObra * fator,
+        material: custos.material * fator,
+      };
+    }
+  }
+  const percentual = Number(item.percentualMaoObra) || 0;
+  const maoObra = Number(item.custoMaoObra) || custoTotal * percentual;
+  const materialInformado = Number(item.custoMaterial);
+  return {
+    maoObra,
+    material: Number.isFinite(materialInformado)
+      ? materialInformado
+      : Math.max(0, custoTotal - maoObra),
+  };
+}
+
 function criarInstrucoes(XLSX, orcamento) {
   const dados = [
     ["PACOTE DE LICITAÇÃO E CONCORRÊNCIA", "", ""],
     [subtituloPacote(orcamento), "", ""],
     ["GUIA", "FINALIDADE", "EDIÇÃO"],
-    ["Orçamento Completo", "Memória da planilha com bases, custos, desconto e BDI.", "Somente leitura"],
-    ["Proposta de Preços", "Preenchimento dos preços unitários pelos concorrentes.", "Células amarelas"],
+    ["Orçamento Completo", "Memória com referência, custos de mão de obra e material, desconto e BDI.", "BDI por item em amarelo"],
+    ["Proposta de Preços", "Preenchimento dos custos unitários de mão de obra e material pelos concorrentes.", "Células amarelas"],
     ["BDI e Encargos", "Preenchimento analítico dos percentuais de BDI e encargos.", "Células amarelas"],
     ["Cronograma", "Distribuição percentual conforme os períodos de medição da obra.", "Células amarelas"],
     ["Histograma", "Horas de mão de obra derivadas do cronograma.", "Somente leitura"],
@@ -143,6 +243,7 @@ function criarInstrucoes(XLSX, orcamento) {
     ["3", "Os percentuais dos períodos de medição devem totalizar 100% por serviço.", ""],
     ["4", "Valores monetários são calculados com truncamento após a segunda casa decimal.", ""],
     ["5", "Senha de proteção administrativa: PRUMO.", ""],
+    ["6", "O BDI padrão vem da guia BDI e Encargos; no orçamento, a coluna BDI admite ajuste por item.", ""],
   ];
   const aba = XLSX.utils.aoa_to_sheet(dados);
   aba["!merges"] = [
@@ -158,22 +259,27 @@ function criarInstrucoes(XLSX, orcamento) {
   return aba;
 }
 
-function criarOrcamentoCompleto(XLSX, orcamento) {
+function criarOrcamentoCompleto(XLSX, orcamento, linhaBdi) {
   const distribuicao = calcularDistribuicaoDesconto(orcamento);
-  const bdi = obterBdi(orcamento) / 100;
-  const hierarquias = mapearHierarquiaEap(orcamento.itens);
+  const itens = orcamento.itens || [];
+  const filhos = mapearFilhos(itens);
+  const composicoes = new Map(
+    (orcamento.composicoes || []).map((item) => [item.codigo, item]),
+  );
   const cabecalho = [
     "ITEM",
-    ...CABECALHOS_EAP,
+    "REFERÊNCIA DA BASE",
     "DESCRIÇÃO",
-    "BASE / REFERÊNCIA",
     "UN.",
     "QUANTIDADE",
+    "CUSTO UNIT. MÃO DE OBRA",
+    "CUSTO UNIT. MATERIAL",
     "CUSTO UNITÁRIO",
     "VALOR BRUTO",
     "DESCONTO",
     "VALOR LÍQUIDO",
     "BDI",
+    "PREÇO UNIT. C/ BDI",
     "PREÇO TOTAL",
   ];
   const linhas = [
@@ -181,137 +287,204 @@ function criarOrcamentoCompleto(XLSX, orcamento) {
     [subtituloPacote(orcamento), ...Array(cabecalho.length - 1).fill("")],
     cabecalho,
   ];
+  const linhasItens = new Map();
   const linhasServico = new Map();
-  orcamento.itens.forEach((item) => {
+  itens.forEach((item) => {
     const linha = linhas.length + 1;
-    const hierarquia = valoresHierarquia(hierarquias.get(item.id));
+    linhasItens.set(item.id, linha);
     if (item.tipo === "grupo") {
       linhas.push([
-        item.codigo,
-        ...hierarquia,
-        item.descricao,
-        `EAP · ${item.nivelEap || ""}`,
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
+        item.codigo, "", item.descricao, "", "", "", "", "", "", "", "", "", "", "",
       ]);
       return;
     }
     linhasServico.set(item.id, linha);
+    const custos = decomporCustoUnitario(item, composicoes);
     linhas.push([
       item.codigo,
-      ...hierarquia,
+      referenciaBase(item),
       item.descricao,
-      item.fonte || "Preço manual",
       item.unidade,
       Number(item.quantidade) || 0,
-      Number(item.unitario) || 0,
+      custos.maoObra,
+      custos.material,
+      null,
+      null,
+      distribuicao.porItem.get(item.id) || 0,
       null,
       null,
       null,
-      bdi,
       null,
     ]);
-    const desconto = distribuicao.porItem.get(item.id) || 0;
-    linhas[linha - 1][12] = desconto;
   });
   const totalLinha = linhas.length + 1;
-  linhas.push(["", ...Array(5).fill(""), "TOTAL GERAL", "", "", "", "", null, null, null, "", null]);
+  linhas.push(["", "", "TOTAL GERAL", "", "", "", "", "", null, null, null, "", "", null]);
   const aba = XLSX.utils.aoa_to_sheet(linhas);
-  adicionarTitulo(XLSX, aba, "ORÇAMENTO COMPLETO", subtituloPacote(orcamento), "P");
-  aplicarEstiloCabecalho(aba, "A3:P3");
+  adicionarTitulo(XLSX, aba, "ORÇAMENTO COMPLETO", subtituloPacote(orcamento), "N");
+  aplicarEstiloCabecalho(aba, "A3:N3");
   for (let linha = 4; linha < totalLinha; linha += 1) {
-    const item = orcamento.itens[linha - 4];
+    const item = itens[linha - 4];
+    estilizarCelula(aba[`C${linha}`], {
+      negrito: item.tipo === "grupo",
+      indentacao: nivelIndentacao(item),
+    });
     if (item.tipo === "grupo") {
-      enderecosIntervalo(XLSX, `A${linha}:P${linha}`).forEach((endereco) => {
+      const itensFilhos = filhos.get(item.id) || [];
+      ["I", "J", "K", "N"].forEach((coluna) => {
+        aba[`${coluna}${linha}`] = {
+          t: "n",
+          f: formulaSomaLinhas(coluna, itensFilhos, linhasItens),
+        };
+        estilizarCelula(aba[`${coluna}${linha}`], { formato: formatoMoeda, alinhamento: "right" });
+      });
+      enderecosIntervalo(XLSX, `A${linha}:N${linha}`).forEach((endereco) => {
         estilizarCelula(aba[endereco], { preenchimento: COR.cinza, negrito: true });
       });
       continue;
     }
-    aba[`L${linha}`] = { t: "n", f: `IF(I${linha}="","",TRUNC(J${linha}*K${linha},2))` };
-    aba[`N${linha}`] = { t: "n", f: `IF(L${linha}="","",TRUNC(L${linha}-M${linha},2))` };
-    aba[`P${linha}`] = { t: "n", f: `IF(N${linha}="","",TRUNC(N${linha}*(1+O${linha}),2))` };
-    ["K", "L", "M", "N", "P"].forEach((coluna) => estilizarCelula(aba[`${coluna}${linha}`], {
+    aba[`H${linha}`] = { t: "n", f: `SUM(F${linha}:G${linha})` };
+    aba[`I${linha}`] = { t: "n", f: `IF(E${linha}="","",TRUNC(E${linha}*H${linha},2))` };
+    aba[`K${linha}`] = { t: "n", f: `IF(I${linha}="","",TRUNC(I${linha}-J${linha},2))` };
+    aba[`L${linha}`] = { t: "n", f: `'BDI e Encargos'!$C$${linhaBdi}` };
+    aba[`M${linha}`] = { t: "n", f: `IF(E${linha}>0,TRUNC((K${linha}/E${linha})*(1+L${linha}),2),0)` };
+    aba[`N${linha}`] = { t: "n", f: `IF(E${linha}>0,TRUNC(E${linha}*M${linha},2),0)` };
+    ["F", "G", "H", "M"].forEach((coluna) => estilizarCelula(aba[`${coluna}${linha}`], {
+      formato: formatoPrecoUnitario,
+      alinhamento: "right",
+    }));
+    ["I", "J", "K", "N"].forEach((coluna) => estilizarCelula(aba[`${coluna}${linha}`], {
       formato: formatoMoeda,
       alinhamento: "right",
     }));
-    estilizarCelula(aba[`O${linha}`], { formato: formatoPercentual, alinhamento: "right" });
+    estilizarCelula(aba[`L${linha}`], { formato: formatoPercentual, alinhamento: "right" });
   }
-  aba[`L${totalLinha}`] = { t: "n", f: `SUM(L4:L${totalLinha - 1})` };
-  aba[`M${totalLinha}`] = { t: "n", f: `SUM(M4:M${totalLinha - 1})` };
-  aba[`N${totalLinha}`] = { t: "n", f: `SUM(N4:N${totalLinha - 1})` };
-  aba[`P${totalLinha}`] = { t: "n", f: `SUM(P4:P${totalLinha - 1})` };
-  enderecosIntervalo(XLSX, `A${totalLinha}:P${totalLinha}`).forEach((endereco) => {
+  const itensRaiz = filhos.get("") || [];
+  ["I", "J", "K", "N"].forEach((coluna) => {
+    aba[`${coluna}${totalLinha}`] = {
+      t: "n",
+      f: formulaSomaLinhas(coluna, itensRaiz, linhasItens),
+    };
+  });
+  enderecosIntervalo(XLSX, `A${totalLinha}:N${totalLinha}`).forEach((endereco) => {
     estilizarCelula(aba[endereco], {
       preenchimento: COR.claro,
       negrito: true,
-      formato: ["L", "M", "N", "P"].includes(endereco.match(/^[A-Z]+/)?.[0]) ? formatoMoeda : undefined,
+      formato: ["I", "J", "K", "N"].includes(endereco.match(/^[A-Z]+/)?.[0]) ? formatoMoeda : undefined,
     });
   });
-  prepararAba(aba, [11, 20, 20, 20, 20, 22, 44, 26, 9, 13, 16, 16, 15, 16, 10, 17], `A3:P${totalLinha}`);
-  return { aba, linhasServico };
+  prepararAba(aba, [11, 24, 48, 9, 13, 18, 18, 18, 16, 15, 16, 10, 18, 17], `A3:N${totalLinha}`);
+  return { aba, linhasServico, linhasItens };
 }
 
-function criarProposta(XLSX, orcamento) {
-  const servicos = orcamento.itens.filter((item) => item.tipo !== "grupo");
-  const hierarquias = mapearHierarquiaEap(orcamento.itens);
+function criarProposta(XLSX, orcamento, linhaBdi) {
+  const itens = orcamento.itens || [];
+  const filhos = mapearFilhos(itens);
   const cabecalho = [
     "ITEM",
-    ...CABECALHOS_EAP,
+    "REFERÊNCIA DA BASE",
     "DESCRIÇÃO",
     "UN.",
     "QUANTIDADE",
-    "PREÇO UNITÁRIO PROPOSTO",
+    "CUSTO UNIT. MÃO DE OBRA",
+    "CUSTO UNIT. MATERIAL",
+    "CUSTO UNITÁRIO",
+    "VALOR BRUTO",
+    "DESCONTO",
+    "VALOR LÍQUIDO",
+    "BDI",
+    "PREÇO UNIT. C/ BDI",
     "PREÇO TOTAL",
-    "OBSERVAÇÃO",
   ];
   const linhas = [
     ["PROPOSTA DE PREÇOS", ...Array(cabecalho.length - 1).fill("")],
     [subtituloPacote(orcamento), ...Array(cabecalho.length - 1).fill("")],
     cabecalho,
-    ...servicos.map((item) => [
+  ];
+  const linhasItens = new Map();
+  itens.forEach((item) => {
+    const linha = linhas.length + 1;
+    linhasItens.set(item.id, linha);
+    linhas.push(item.tipo === "grupo" ? [
+      item.codigo, "", item.descricao, "", "", "", "", "", "", "", "", "", "", "",
+    ] : [
       item.codigo,
-      ...valoresHierarquia(hierarquias.get(item.id)),
+      referenciaBase(item),
       item.descricao,
       item.unidade,
       Number(item.quantidade) || 0,
       null,
       null,
-      "",
-    ]),
-  ];
+      null,
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
   const totalLinha = linhas.length + 1;
-  linhas.push(["", ...Array(5).fill(""), "TOTAL DA PROPOSTA", "", "", "", null, ""]);
+  linhas.push(["", "", "TOTAL DA PROPOSTA", "", "", "", "", "", null, null, null, "", "", null]);
   const aba = XLSX.utils.aoa_to_sheet(linhas);
-  adicionarTitulo(XLSX, aba, "PROPOSTA DE PREÇOS", subtituloPacote(orcamento), "L");
-  aplicarEstiloCabecalho(aba, "A3:L3");
+  adicionarTitulo(XLSX, aba, "PROPOSTA DE PREÇOS", subtituloPacote(orcamento), "N");
+  aplicarEstiloCabecalho(aba, "A3:N3");
   for (let linha = 4; linha < totalLinha; linha += 1) {
-    aba[`K${linha}`] = { t: "n", f: `IF(ISNUMBER(J${linha}),TRUNC(I${linha}*J${linha},2),0)` };
-    estilizarCelula(aba[`J${linha}`] || (aba[`J${linha}`] = { t: "s", v: "" }), {
-      preenchimento: COR.entrada,
-      bloqueada: false,
+    const item = itens[linha - 4];
+    estilizarCelula(aba[`C${linha}`], {
+      negrito: item.tipo === "grupo",
+      indentacao: nivelIndentacao(item),
+    });
+    if (item.tipo === "grupo") {
+      const itensFilhos = filhos.get(item.id) || [];
+      ["I", "J", "K", "N"].forEach((coluna) => {
+        aba[`${coluna}${linha}`] = {
+          t: "n",
+          f: formulaSomaLinhas(coluna, itensFilhos, linhasItens),
+        };
+        estilizarCelula(aba[`${coluna}${linha}`], { formato: formatoMoeda });
+      });
+      enderecosIntervalo(XLSX, `A${linha}:N${linha}`).forEach((endereco) => {
+        estilizarCelula(aba[endereco], { preenchimento: COR.cinza, negrito: true });
+      });
+      continue;
+    }
+    aba[`H${linha}`] = { t: "n", f: `SUM(F${linha}:G${linha})` };
+    aba[`I${linha}`] = { t: "n", f: `IF(E${linha}="","",TRUNC(E${linha}*H${linha},2))` };
+    aba[`K${linha}`] = { t: "n", f: `IF(I${linha}="","",TRUNC(I${linha}-J${linha},2))` };
+    aba[`L${linha}`] = { t: "n", f: `'BDI e Encargos'!$C$${linhaBdi}` };
+    aba[`M${linha}`] = { t: "n", f: `IF(E${linha}>0,TRUNC((K${linha}/E${linha})*(1+L${linha}),2),0)` };
+    aba[`N${linha}`] = { t: "n", f: `IF(E${linha}>0,TRUNC(E${linha}*M${linha},2),0)` };
+    ["F", "G"].forEach((coluna) => estilizarCelula(
+      aba[`${coluna}${linha}`] || (aba[`${coluna}${linha}`] = { t: "s", v: "" }),
+      {
+        preenchimento: COR.entrada,
+        bloqueada: false,
+        formato: formatoPrecoUnitario,
+      },
+    ));
+    ["H", "M"].forEach((coluna) => estilizarCelula(aba[`${coluna}${linha}`], {
+      formato: formatoPrecoUnitario,
+    }));
+    ["I", "J", "K", "N"].forEach((coluna) => estilizarCelula(aba[`${coluna}${linha}`], {
       formato: formatoMoeda,
-    });
-    estilizarCelula(aba[`K${linha}`], { formato: formatoMoeda });
-    estilizarCelula(aba[`L${linha}`] || (aba[`L${linha}`] = { t: "s", v: "" }), {
-      preenchimento: COR.entrada,
-      bloqueada: false,
-    });
+    }));
+    estilizarCelula(aba[`L${linha}`], { formato: formatoPercentual });
   }
-  aba[`K${totalLinha}`] = { t: "n", f: `SUM(K4:K${totalLinha - 1})` };
-  enderecosIntervalo(XLSX, `A${totalLinha}:L${totalLinha}`).forEach((endereco) => {
+  const itensRaiz = filhos.get("") || [];
+  ["I", "J", "K", "N"].forEach((coluna) => {
+    aba[`${coluna}${totalLinha}`] = {
+      t: "n",
+      f: formulaSomaLinhas(coluna, itensRaiz, linhasItens),
+    };
+  });
+  enderecosIntervalo(XLSX, `A${totalLinha}:N${totalLinha}`).forEach((endereco) => {
     estilizarCelula(aba[endereco], {
       preenchimento: COR.claro,
       negrito: true,
-      formato: endereco === `K${totalLinha}` ? formatoMoeda : undefined,
+      formato: ["I", "J", "K", "N"].includes(endereco.match(/^[A-Z]+/)?.[0]) ? formatoMoeda : undefined,
     });
   });
-  prepararAba(aba, [11, 20, 20, 20, 20, 22, 48, 9, 13, 22, 18, 30], `A3:L${totalLinha}`);
+  prepararAba(aba, [11, 24, 48, 9, 13, 18, 18, 18, 16, 15, 16, 10, 18, 17], `A3:N${totalLinha}`);
   return aba;
 }
 
@@ -409,19 +582,19 @@ function criarBdiEncargos(XLSX, orcamento) {
     }
   }
   prepararAba(aba, [11, 62, 15, 14, 30], `A3:E${linhaEncargos}`);
-  return aba;
+  return { aba, linhaBdi };
 }
 
 function criarCronograma(XLSX, orcamento, linhasOrcamento) {
   const periodos = criarPeriodosMedicao(orcamento);
-  const servicos = orcamento.itens.filter((item) => item.tipo !== "grupo");
-  const hierarquias = mapearHierarquiaEap(orcamento.itens);
+  const itens = orcamento.itens || [];
+  const filhos = mapearFilhos(itens);
   const cabecalho = [
     "ITEM",
-    ...CABECALHOS_EAP,
+    "REFERÊNCIA DA BASE",
     "DESCRIÇÃO",
-    "VALOR LÍQUIDO",
-    ...periodos.map((periodo) => periodo.label),
+    "VALOR BRUTO",
+    ...periodos.map((periodo) => `${periodo.label}\n${periodo.subLabel}`),
     "TOTAL DISTRIBUÍDO",
     "STATUS",
   ];
@@ -429,64 +602,99 @@ function criarCronograma(XLSX, orcamento, linhasOrcamento) {
     ["CRONOGRAMA FÍSICO-FINANCEIRO", ...Array(cabecalho.length - 1).fill("")],
     [subtituloPacote(orcamento), ...Array(cabecalho.length - 1).fill("")],
     cabecalho,
-    ...servicos.map((item) => [
+  ];
+  const linhasItens = new Map();
+  const linhasServico = new Map();
+  itens.forEach((item) => {
+    const linha = linhas.length + 1;
+    linhasItens.set(item.id, linha);
+    if (item.tipo !== "grupo") linhasServico.set(item.id, linha);
+    linhas.push([
       item.codigo,
-      ...valoresHierarquia(hierarquias.get(item.id)),
+      item.tipo === "grupo" ? "" : referenciaBase(item),
       item.descricao,
       null,
-      ...Array(periodos.length).fill(0),
+      ...Array(periodos.length).fill(item.tipo === "grupo" ? null : 0),
       null,
       null,
-    ]),
-  ];
+    ]);
+  });
   const resumoLinha = linhas.length + 2;
   linhas.push(Array(cabecalho.length).fill(""));
   linhas.push([
-    "",
-    ...Array(5).fill(""),
-    "VALOR PLANEJADO POR PERÍODO",
-    "",
+    "", "", "VALOR PLANEJADO POR PERÍODO", "",
     ...Array(periodos.length).fill(null),
-    "",
-    "",
+    "", "",
   ]);
   const aba = XLSX.utils.aoa_to_sheet(linhas);
   const ultimaColuna = XLSX.utils.encode_col(cabecalho.length - 1);
-  const colunaValor = 7;
-  const colunaInicioPeriodos = 8;
+  const colunaValor = 3;
+  const colunaInicioPeriodos = 4;
   const colunaFimPeriodos = colunaInicioPeriodos + periodos.length - 1;
   const colunaTotal = colunaFimPeriodos + 1;
   const colunaStatus = colunaTotal + 1;
+  const letraValor = XLSX.utils.encode_col(colunaValor);
+  const letraInicio = XLSX.utils.encode_col(colunaInicioPeriodos);
+  const letraFim = XLSX.utils.encode_col(colunaFimPeriodos);
+  const letraTotal = XLSX.utils.encode_col(colunaTotal);
+  const letraStatus = XLSX.utils.encode_col(colunaStatus);
   adicionarTitulo(XLSX, aba, "CRONOGRAMA FÍSICO-FINANCEIRO", subtituloPacote(orcamento), ultimaColuna);
   aplicarEstiloCabecalho(aba, `A3:${ultimaColuna}3`);
-  servicos.forEach((item, indice) => {
+  itens.forEach((item, indice) => {
     const linha = indice + 4;
     const linhaOrcamento = linhasOrcamento.get(item.id);
-    const letraValor = XLSX.utils.encode_col(colunaValor);
-    aba[`${letraValor}${linha}`] = { t: "n", f: `='Orçamento Completo'!N${linhaOrcamento}` };
-    for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
-      const endereco = `${XLSX.utils.encode_col(coluna)}${linha}`;
-      estilizarCelula(aba[endereco], {
-        preenchimento: COR.entrada,
-        bloqueada: false,
-        formato: formatoPercentual,
+    aba[`${letraValor}${linha}`] = {
+      t: "n",
+      f: `'Orçamento Completo'!N${linhaOrcamento}`,
+    };
+    estilizarCelula(aba[`C${linha}`], {
+      negrito: item.tipo === "grupo",
+      indentacao: nivelIndentacao(item),
+    });
+    if (item.tipo === "grupo") {
+      const itensFilhos = filhos.get(item.id) || [];
+      for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
+        const letra = XLSX.utils.encode_col(coluna);
+        const parcelas = itensFilhos
+          .map((filho) => linhasItens.get(filho.id))
+          .filter(Boolean)
+          .map((linhaFilho) => `${letraValor}${linhaFilho}*${letra}${linhaFilho}`);
+        aba[`${letra}${linha}`] = {
+          t: "n",
+          f: parcelas.length
+            ? `IF(${letraValor}${linha}=0,0,(${parcelas.join("+")})/${letraValor}${linha})`
+            : "0",
+        };
+        estilizarCelula(aba[`${letra}${linha}`], { formato: formatoPercentual });
+      }
+      enderecosIntervalo(XLSX, `A${linha}:${ultimaColuna}${linha}`).forEach((endereco) => {
+        estilizarCelula(aba[endereco], { preenchimento: COR.cinza, negrito: true });
       });
+    } else {
+      for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
+        const endereco = `${XLSX.utils.encode_col(coluna)}${linha}`;
+        estilizarCelula(aba[endereco], {
+          preenchimento: COR.entrada,
+          bloqueada: false,
+          formato: formatoPercentual,
+        });
+      }
     }
-    const letraInicio = XLSX.utils.encode_col(colunaInicioPeriodos);
-    const letraFim = XLSX.utils.encode_col(colunaFimPeriodos);
-    const letraTotal = XLSX.utils.encode_col(colunaTotal);
-    const letraStatus = XLSX.utils.encode_col(colunaStatus);
     aba[`${letraTotal}${linha}`] = { t: "n", f: `SUM(${letraInicio}${linha}:${letraFim}${linha})` };
     aba[`${letraStatus}${linha}`] = { t: "s", f: `IF(ABS(${letraTotal}${linha}-1)<0.0001,"OK","REVISAR")` };
     estilizarCelula(aba[`${letraValor}${linha}`], { formato: formatoMoeda });
     estilizarCelula(aba[`${letraTotal}${linha}`], { formato: formatoPercentual });
   });
+  const itensRaiz = filhos.get("") || [];
   for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
     const letra = XLSX.utils.encode_col(coluna);
-    const letraValor = XLSX.utils.encode_col(colunaValor);
+    const parcelas = itensRaiz
+      .map((item) => linhasItens.get(item.id))
+      .filter(Boolean)
+      .map((linha) => `${letraValor}${linha}*${letra}${linha}`);
     aba[`${letra}${resumoLinha}`] = {
       t: "n",
-      f: `SUMPRODUCT($${letraValor}$4:$${letraValor}$${servicos.length + 3},${letra}$4:${letra}$${servicos.length + 3})`,
+      f: parcelas.length ? parcelas.join("+") : "0",
     };
     estilizarCelula(aba[`${letra}${resumoLinha}`], { formato: formatoMoeda, negrito: true });
   }
@@ -500,13 +708,14 @@ function criarCronograma(XLSX, orcamento, linhasOrcamento) {
   });
   prepararAba(
     aba,
-    [11, 20, 20, 20, 20, 22, 44, 17, ...Array(periodos.length).fill(17), 16, 13],
+    [11, 24, 48, 17, ...Array(periodos.length).fill(17), 16, 13],
     `A3:${ultimaColuna}${resumoLinha}`,
   );
   return {
     aba,
     periodos,
-    linhasServico: new Map(servicos.map((item, indice) => [item.id, indice + 4])),
+    linhasServico,
+    colunaInicioPeriodos,
   };
 }
 
@@ -543,7 +752,7 @@ function criarHistograma(XLSX, orcamento, cronograma) {
     "RECURSO DE MÃO DE OBRA",
     "COEFICIENTE (H)",
     "HORAS TOTAIS",
-    ...periodos.map((periodo) => periodo.label),
+    ...periodos.map((periodo) => `${periodo.label}\n${periodo.subLabel}`),
   ];
   const linhas = [
     ["HISTOGRAMA DE MÃO DE OBRA", ...Array(cabecalho.length - 1).fill("")],
@@ -572,10 +781,12 @@ function criarHistograma(XLSX, orcamento, cronograma) {
     for (let coluna = colunaInicioPeriodos; coluna <= colunaFimPeriodos; coluna += 1) {
       const letra = XLSX.utils.encode_col(coluna);
       const linhaCronograma = recurso.item ? linhasCronograma.get(recurso.item.id) : null;
+      const colunaPeriodoCronograma = cronograma.colunaInicioPeriodos
+        + (coluna - colunaInicioPeriodos);
       aba[`${letra}${linha}`] = {
         t: "n",
         f: linhaCronograma
-          ? `TRUNC($${XLSX.utils.encode_col(colunaHoras)}${linha}*'Cronograma'!${XLSX.utils.encode_col(coluna - 1)}${linhaCronograma},2)`
+          ? `TRUNC($${XLSX.utils.encode_col(colunaHoras)}${linha}*'Cronograma'!${XLSX.utils.encode_col(colunaPeriodoCronograma)}${linhaCronograma},2)`
           : "0",
       };
       estilizarCelula(aba[`${letra}${linha}`], { formato: "#,##0.00" });
@@ -598,17 +809,19 @@ function criarHistograma(XLSX, orcamento, cronograma) {
   return aba;
 }
 
-export async function criarPacoteLicitacao(orcamento) {
+export async function criarPacoteLicitacao(orcamento, abasSelecionadas = null) {
   const XLSX = await import("xlsx");
   globalThis.__PRUMO_XLSX__ = XLSX;
   const workbook = XLSX.utils.book_new();
-  const orcamentoCompleto = criarOrcamentoCompleto(XLSX, orcamento);
-  const cronograma = criarCronograma(XLSX, orcamento, orcamentoCompleto.linhasServico);
+  const bdiEncargos = criarBdiEncargos(XLSX, orcamento);
+  const orcamentoCompleto = criarOrcamentoCompleto(XLSX, orcamento, bdiEncargos.linhaBdi);
+  const proposta = criarProposta(XLSX, orcamento, bdiEncargos.linhaBdi);
+  const cronograma = criarCronograma(XLSX, orcamento, orcamentoCompleto.linhasItens);
   const abas = [
     ["Instruções", criarInstrucoes(XLSX, orcamento)],
     ["Orçamento Completo", orcamentoCompleto.aba],
-    ["Proposta de Preços", criarProposta(XLSX, orcamento)],
-    ["BDI e Encargos", criarBdiEncargos(XLSX, orcamento)],
+    ["Proposta de Preços", proposta],
+    ["BDI e Encargos", bdiEncargos.aba],
     ["Cronograma", cronograma.aba],
     ["Histograma", criarHistograma(XLSX, orcamento, cronograma)],
   ];
@@ -621,7 +834,7 @@ export async function criarPacoteLicitacao(orcamento) {
   return workbook;
 }
 
-export async function gerarArquivoPacoteLicitacao(orcamento) {
+export async function gerarArquivoPacoteLicitacao(orcamento, abasSelecionadas = null) {
   const XLSX = await import("xlsx");
   const workbook = await criarPacoteLicitacao(orcamento);
   const conteudoBase = XLSX.write(workbook, {
@@ -674,12 +887,16 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
     aba.eachRow((linha, numeroLinha) => {
       if (numeroLinha <= 3) return;
       linha.eachCell({ includeEmpty: true }, (celula) => {
+        const alinhamentoAtual = celula.alignment || {};
         celula.style = {
           ...(celula.style || {}),
           font: { name: "Aptos", size: 9, color: { argb: COR.texto } },
           alignment: {
+            ...alinhamentoAtual,
             vertical: "middle",
-            horizontal: typeof celula.value === "number" ? "right" : "left",
+            horizontal: typeof celula.value === "number"
+              ? "right"
+              : (alinhamentoAtual.horizontal || "left"),
             wrapText: false,
           },
           border: { bottom: bordaInferior },
@@ -693,11 +910,15 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
   instrucoes.getRow(10).eachCell({ includeEmpty: true }, (celula) => Object.assign(celula, estiloCabecalho));
 
   const completa = workbookFinal.getWorksheet("Orçamento Completo");
-  const colunaBaseCompleta = colunaPorCabecalho(completa, "BASE / REFERÊNCIA");
+  const colunaBaseCompleta = colunaPorCabecalho(completa, "REFERÊNCIA DA BASE");
   const colunaDescricaoCompleta = colunaPorCabecalho(completa, "DESCRIÇÃO");
+  const colunaUnidadeCompleta = colunaPorCabecalho(completa, "UN.");
+  const colunaBdiCompleta = colunaPorCabecalho(completa, "BDI");
   completa.eachRow((linha, numeroLinha) => {
     if (numeroLinha < 4) return;
-    const grupo = String(linha.getCell(colunaBaseCompleta).value || "").startsWith("EAP");
+    const grupo = Boolean(linha.getCell(1).value)
+      && !linha.getCell(colunaBaseCompleta).value
+      && !linha.getCell(colunaUnidadeCompleta).value;
     const total = String(linha.getCell(colunaDescricaoCompleta).value || "").startsWith("TOTAL");
     if (grupo || total) {
       linha.eachCell({ includeEmpty: true }, (celula) => {
@@ -708,24 +929,43 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
         };
         celula.font = { name: "Aptos", size: 9, bold: true, color: { argb: COR.texto } };
       });
+    } else if (linha.getCell(1).value) {
+      const bdi = linha.getCell(colunaBdiCompleta);
+      bdi.style = {
+        ...(bdi.style || {}),
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: COR.entrada } },
+        protection: { locked: false },
+      };
+      bdi.numFmt = formatoPercentual;
     }
   });
 
   const proposta = workbookFinal.getWorksheet("Proposta de Preços");
-  const colunaPrecoProposto = colunaPorCabecalho(proposta, "PREÇO UNITÁRIO PROPOSTO");
+  const colunaBaseProposta = colunaPorCabecalho(proposta, "REFERÊNCIA DA BASE");
+  const colunaUnidadeProposta = colunaPorCabecalho(proposta, "UN.");
+  const colunaMaoObraProposta = colunaPorCabecalho(proposta, "CUSTO UNIT. MÃO DE OBRA");
+  const colunaMaterialProposta = colunaPorCabecalho(proposta, "CUSTO UNIT. MATERIAL");
   const colunaTotalProposta = colunaPorCabecalho(proposta, "PREÇO TOTAL");
-  const colunaObservacao = colunaPorCabecalho(proposta, "OBSERVAÇÃO");
   proposta.eachRow((linha, numeroLinha) => {
     if (numeroLinha < 4 || !linha.getCell(1).value) return;
-    [colunaPrecoProposto, colunaObservacao].forEach((coluna) => {
+    const grupo = !linha.getCell(colunaBaseProposta).value
+      && !linha.getCell(colunaUnidadeProposta).value;
+    if (grupo) {
+      linha.eachCell({ includeEmpty: true }, (celula) => {
+        celula.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.cinza } };
+        celula.font = { name: "Aptos", size: 9, bold: true, color: { argb: COR.texto } };
+      });
+      return;
+    }
+    [colunaMaoObraProposta, colunaMaterialProposta].forEach((coluna) => {
       const celula = linha.getCell(coluna);
       celula.style = {
         ...(celula.style || {}),
         fill: { type: "pattern", pattern: "solid", fgColor: { argb: COR.entrada } },
         protection: { locked: false },
       };
+      celula.numFmt = formatoPrecoUnitario;
     });
-    linha.getCell(colunaPrecoProposto).numFmt = formatoMoeda;
     linha.getCell(colunaTotalProposta).numFmt = formatoMoeda;
   });
 
@@ -757,10 +997,19 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
   });
 
   const cronograma = workbookFinal.getWorksheet("Cronograma");
-  const colunaValorCronograma = colunaPorCabecalho(cronograma, "VALOR LÍQUIDO");
+  const colunaBaseCronograma = colunaPorCabecalho(cronograma, "REFERÊNCIA DA BASE");
+  const colunaValorCronograma = colunaPorCabecalho(cronograma, "VALOR BRUTO");
   const colunaTotalCronograma = colunaPorCabecalho(cronograma, "TOTAL DISTRIBUÍDO");
   cronograma.eachRow((linha, numeroLinha) => {
     if (numeroLinha < 4 || !linha.getCell(1).value) return;
+    const grupo = !linha.getCell(colunaBaseCronograma).value;
+    if (grupo) {
+      linha.eachCell({ includeEmpty: true }, (celula) => {
+        celula.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.cinza } };
+        celula.font = { name: "Aptos", size: 9, bold: true, color: { argb: COR.texto } };
+      });
+      return;
+    }
     for (let coluna = colunaValorCronograma + 1; coluna < colunaTotalCronograma; coluna += 1) {
       const celula = linha.getCell(coluna);
       celula.style = {
@@ -773,6 +1022,7 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
   });
 
   for (const aba of workbookFinal.worksheets) {
+    aba.properties.defaultRowHeight = aba.properties.defaultRowHeight || 15;
     await aba.protect("PRUMO", {
       selectLockedCells: false,
       selectUnlockedCells: true,
@@ -786,11 +1036,18 @@ export async function gerarArquivoPacoteLicitacao(orcamento) {
     });
   }
 
+  if (abasSelecionadas?.length) {
+    const selecao = new Set(abasSelecionadas);
+    [...workbookFinal.worksheets].forEach((aba) => {
+      if (!selecao.has(aba.name)) workbookFinal.removeWorksheet(aba.id);
+    });
+  }
+
   return workbookFinal.xlsx.writeBuffer();
 }
 
-export async function baixarPacoteLicitacao(orcamento) {
-  const conteudo = await gerarArquivoPacoteLicitacao(orcamento);
+export async function baixarPacoteLicitacao(orcamento, abasSelecionadas = null) {
+  const conteudo = await gerarArquivoPacoteLicitacao(orcamento, abasSelecionadas);
   const arquivo = new Blob([conteudo], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
@@ -804,10 +1061,10 @@ export async function baixarPacoteLicitacao(orcamento) {
   window.setTimeout(() => URL.revokeObjectURL(endereco), 1_000);
 }
 
-export function resumirPacoteLicitacao(orcamento) {
+export function resumirPacoteLicitacao(orcamento, abasSelecionadas = null) {
   const totais = calcularTotais(orcamento);
   return {
-    abas: 6,
+    abas: abasSelecionadas?.length || 6,
     servicos: orcamento.itens.filter((item) => item.tipo !== "grupo").length,
     composicoes: orcamento.composicoes?.length || 0,
     periodos: criarPeriodosMedicao(orcamento).length,

@@ -18,9 +18,18 @@ export function resolverPrecoPorUf(precosPorUf = {}, ufPreferida = "RS") {
 
 export function aplicarPrecoPorUf(referencia, ufPreferida = "RS") {
   if (!referencia?.precosPorUf) return referencia;
+  const precoResolvido = resolverPrecoPorUf(referencia.precosPorUf, ufPreferida);
+  const percentualMaoObra = Number(
+    referencia.percentuaisMaoObraPorUf?.[precoResolvido.ufPrecoEfetivo]
+      ?? referencia.percentualMaoObra,
+  ) || 0;
+  const custoMaoObra = precoResolvido.preco * percentualMaoObra;
   return {
     ...referencia,
-    ...resolverPrecoPorUf(referencia.precosPorUf, ufPreferida),
+    ...precoResolvido,
+    percentualMaoObra,
+    custoMaoObra,
+    custoMaterial: precoResolvido.preco - custoMaoObra,
   };
 }
 
@@ -34,6 +43,10 @@ export function mesclarReferenciasSinapi(pacotes = []) {
         ...(atual?.precosPorUf || {}),
         ...(referencia.precosPorUf || {}),
       };
+      const percentuaisMaoObraPorUf = {
+        ...(atual?.percentuaisMaoObraPorUf || {}),
+        ...(referencia.percentuaisMaoObraPorUf || {}),
+      };
       if (
         base.uf
         && !["NACIONAL", "GERAL"].includes(base.uf)
@@ -46,6 +59,7 @@ export function mesclarReferenciasSinapi(pacotes = []) {
         ...(atual || referencia),
         ...referencia,
         precosPorUf,
+        percentuaisMaoObraPorUf,
       });
     });
   });

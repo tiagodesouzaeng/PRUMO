@@ -171,6 +171,58 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - detecção de ciclos, referências sem preço e composições sem memória analítica;
 - pendências mantidas visíveis para impedir omissão silenciosa de demanda.
 
+## Planejamento e medições — v9.8
+
+- reorganização das planilhas de licitação conforme a hierarquia da EAP;
+- referência da base, mão de obra, material e custo unitário no orçamento;
+- totalização recursiva das linhas da EAP;
+- cronograma alinhado às linhas e aos valores do orçamento;
+- prazo da obra em dias corridos com cálculo bidirecional das datas;
+- medições propostas conforme o cronograma, editadas por quantidades;
+- retenções, multas, motivos e relação de documentos exigidos.
+
+## Cronograma de aquisições — v9.9
+
+- distribuição dos insumos conforme a execução mensal dos serviços;
+- antecedência padrão e configuração individual por insumo;
+- cálculo da data recomendada de compra;
+- separação da mão de obra da relação de materiais;
+- rastreabilidade entre serviço, composição e demanda do insumo.
+
+## Cobertura operacional — v9.10
+
+- estoque disponível, pedidos emitidos e entregas programadas;
+- projeção de saldo, falta e risco de ruptura por período;
+- validação técnica realizada por testes automatizados e relatórios apresentados
+  externamente, sem formulário dentro do aplicativo.
+
+## Encerramento técnico da Etapa 9 — v9.11
+
+- recolhimento independente de grupos da EAP em todos os níveis do cronograma;
+- ações gerais e por linha para limpar o cronograma e distribuir o saldo
+  exclusivamente nos períodos vazios, preservando zeros informados;
+- percentuais exibidos com duas casas, preservando a precisão digitada;
+- períodos identificados por mês, dias acumulados e intervalo exato de datas;
+- histograma com descrições quebradas, colunas alinhadas e total de horas;
+- limpeza e distribuição de saldo geral e por função também disponíveis no
+  histograma;
+- histograma limitado a quantidades inteiras de pessoas, preservando zeros e
+  permitindo valores manuais acima da sugestão automática;
+- medições com quantidade e valor acumulados, saldo após a medição e bloqueio
+  defensivo quando um item ultrapassa 100% do contratado;
+- alteração explícita do status no cabeçalho do orçamento, com validação das
+  pendências antes da aprovação;
+- perdas técnicas e fatores de conversão configuráveis por insumo;
+- equivalência e substituição por código, descrição, unidade, base e preço;
+- justificativa técnica e preservação das referências originais;
+- relatório XLSX de suprimentos com abas Resumo, Demanda, Calendário,
+  Cobertura, Cotação, Pedidos e Pendências;
+- células protegidas e campos de cotação e acompanhamento desbloqueados;
+- atualização segura do roteiro padrão nos orçamentos já existentes;
+- atualização das bibliotecas de planilha e correção das vulnerabilidades
+  conhecidas pela auditoria de dependências;
+- etapa liberada como RC1 para homologação do usuário.
+
 ## Execução
 
 Requisitos já utilizados na validação:
