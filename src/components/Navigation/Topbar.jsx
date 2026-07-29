@@ -1,4 +1,5 @@
 import { SIGIU_NAV_ITEMS } from "./navItems";
+import PrumoLogo from "../Brand/PrumoLogo";
 
 function obterTituloPagina(paginaAtiva) {
   return SIGIU_NAV_ITEMS.find((item) => item.id === paginaAtiva)?.label ?? "Visão Geral";
@@ -10,7 +11,7 @@ export default function Topbar({ paginaAtiva, setPaginaAtiva, ultimaAtualizacao 
   return (
     <header className="sigiu-topbar sigiu-topbar-main">
       <div className="sigiu-topbar-title">
-        <span className="sigiu-mobile-brand">PRUMO</span>
+        <PrumoLogo compacto className="sigiu-mobile-brand" />
         <div>
           <h1>{paginaAtiva === "visao-geral" ? "PRUMO" : tituloPagina}</h1>
           <p>Plataforma de Inteligência e Gestão</p>

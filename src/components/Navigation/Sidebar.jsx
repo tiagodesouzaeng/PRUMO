@@ -1,14 +1,11 @@
 import { SIGIU_NAV_ITEMS } from "./navItems";
+import PrumoLogo from "../Brand/PrumoLogo";
 
 export default function Sidebar({ paginaAtiva, setPaginaAtiva }) {
   return (
     <aside className="sigiu-sidebar sigiu-sidebar-main">
       <div className="sigiu-sidebar-brand">
-        <div className="sigiu-logo-mark">PR</div>
-        <div>
-          <strong>PRUMO</strong>
-          <span>Gestão integrada</span>
-        </div>
+        <PrumoLogo />
       </div>
 
       <nav className="sigiu-sidebar-nav" aria-label="Módulos do PRUMO">

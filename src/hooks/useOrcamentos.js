@@ -2,11 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import {
   calcularDistribuicaoDesconto,
   calcularTotais,
+  calcularDataFimPorPrazo,
+  criarPeriodosMedicao,
   criarId,
   criarOrcamento,
+  distribuirSaldoInteiroNosVazios,
+  distribuirSaldoNosVazios,
+  normalizarPlanejamentoObra,
   numeroSeguro,
   REGRA_CALCULO_ATUAL,
   truncarMoeda,
+  validarMedicaoAcumulada,
 } from "../domain/orcamento";
 import {
   descendentesEap,
@@ -29,6 +35,53 @@ function resumirBasesDosItens(itens) {
       .filter(Boolean),
   )];
   return nomes.join(", ") || "Preços manuais";
+}
+
+function capturarEstadoRevisao(orcamento) {
+  return structuredClone({
+    itens: orcamento.itens,
+    composicoes: orcamento.composicoes,
+    bdi: orcamento.bdi,
+    bdiComponentes: orcamento.bdiComponentes,
+    encargosSociais: orcamento.encargosSociais,
+    descontoGlobal: orcamento.descontoGlobal,
+    historicoCalculo: orcamento.historicoCalculo,
+    inicioObra: orcamento.inicioObra,
+    fimObra: orcamento.fimObra,
+    prazoDias: orcamento.prazoDias,
+    intervaloMedicaoDias: orcamento.intervaloMedicaoDias,
+    cronogramaQuantidades: orcamento.cronogramaQuantidades,
+    histogramaEquipes: orcamento.histogramaEquipes,
+    suprimentosConfig: orcamento.suprimentosConfig,
+    medicoes: orcamento.medicoes,
+  });
+}
+
+function criarRegistroRevisao(orcamento, codigo, sobrescritas = {}) {
+  const totais = calcularTotais(orcamento);
+  return {
+    id: sobrescritas.id || criarId("rev"),
+    codigo,
+    status: sobrescritas.status || orcamento.status,
+    bases: resumirBasesDosItens(orcamento.itens),
+    total: totais.precoTotal,
+    variacao: sobrescritas.variacao || 0,
+    autor: sobrescritas.autor || "Usuário atual",
+    publicada: sobrescritas.publicada ?? false,
+    ativa: sobrescritas.ativa ?? false,
+    inativa: sobrescritas.inativa ?? false,
+    data: new Date().toISOString(),
+    snapshot: structuredClone(orcamento.itens),
+    estado: capturarEstadoRevisao(orcamento),
+    calculo: {
+      descontoGlobal: structuredClone(orcamento.descontoGlobal),
+      versaoRegra: REGRA_CALCULO_ATUAL,
+      totais,
+    },
+    natureza: sobrescritas.natureza || "Revisão ordinária",
+    motivo: sobrescritas.motivo || "",
+    variacaoPrazoDias: numeroSeguro(sobrescritas.variacaoPrazoDias),
+  };
 }
 
 export default function useOrcamentos() {
@@ -75,6 +128,11 @@ export default function useOrcamentos() {
         basePrecoId: dados.tipo === "grupo" ? "" : (dados.basePrecoId || ""),
         referenciaCodigo: dados.tipo === "grupo" ? "" : (dados.referenciaCodigo || ""),
         referenciaTipo: dados.tipo === "grupo" ? "" : (dados.referenciaTipo || "composicao"),
+        percentualMaoObra: dados.tipo === "grupo" ? 0 : numeroSeguro(dados.percentualMaoObra),
+        custoMaoObra: dados.tipo === "grupo" ? 0 : numeroSeguro(dados.custoMaoObra),
+        custoMaterial: dados.tipo === "grupo"
+          ? 0
+          : numeroSeguro(dados.custoMaterial ?? dados.unitario),
       };
       let itensAtualizados;
 
@@ -195,6 +253,206 @@ export default function useOrcamentos() {
     });
   }
 
+  function atualizarPlanejamento(dados) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      ...normalizarPlanejamentoObra({
+        ...orcamento,
+        ...dados,
+      }),
+    }));
+  }
+
+  function atualizarCronogramaQuantidade(itemId, periodoInicio, quantidade) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      cronogramaQuantidades: {
+        ...(orcamento.cronogramaQuantidades || {}),
+        [itemId]: {
+          ...(orcamento.cronogramaQuantidades?.[itemId] || {}),
+          [periodoInicio]: quantidade === "" ? "" : Math.max(0, numeroSeguro(quantidade)),
+        },
+      },
+    }));
+  }
+
+  function atualizarCronogramaGrupo(grupoId, periodoInicio, percentual) {
+    atualizarAtivo((orcamento) => {
+      const grupo = orcamento.itens.find((item) => item.id === grupoId && item.tipo === "grupo");
+      if (!grupo) return orcamento;
+      const vazio = percentual === "";
+      const proporcao = Math.max(0, numeroSeguro(percentual)) / 100;
+      const cronogramaQuantidades = structuredClone(orcamento.cronogramaQuantidades || {});
+      orcamento.itens
+        .filter((item) => item.tipo !== "grupo" && item.codigo.startsWith(`${grupo.codigo}.`))
+        .forEach((item) => {
+          cronogramaQuantidades[item.id] = {
+            ...(cronogramaQuantidades[item.id] || {}),
+            [periodoInicio]: vazio ? "" : numeroSeguro(item.quantidade) * proporcao,
+          };
+        });
+      return { ...orcamento, cronogramaQuantidades };
+    });
+  }
+
+  function atualizarHistogramaEquipe(funcao, periodoInicio, quantidade) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      histogramaEquipes: {
+        ...(orcamento.histogramaEquipes || {}),
+        [funcao]: {
+          ...(orcamento.histogramaEquipes?.[funcao] || {}),
+          [periodoInicio]: quantidade === ""
+            ? ""
+            : Math.max(0, Math.trunc(numeroSeguro(quantidade))),
+        },
+      },
+    }));
+  }
+
+  function servicosAlvoCronograma(orcamento, itemId = "") {
+    const itemAlvo = (orcamento.itens || []).find((item) => item.id === itemId);
+    return (orcamento.itens || []).filter((item) => (
+      item.tipo !== "grupo"
+      && (
+        !itemAlvo
+        || item.id === itemAlvo.id
+        || (itemAlvo.tipo === "grupo" && item.codigo.startsWith(`${itemAlvo.codigo}.`))
+      )
+    ));
+  }
+
+  function limparCronograma(itemId = "") {
+    atualizarAtivo((orcamento) => {
+      const periodos = criarPeriodosMedicao(orcamento);
+      const cronogramaQuantidades = { ...(orcamento.cronogramaQuantidades || {}) };
+      servicosAlvoCronograma(orcamento, itemId).forEach((item) => {
+        cronogramaQuantidades[item.id] = Object.fromEntries(
+          periodos.map((periodo) => [periodo.inicio, ""]),
+        );
+      });
+      return {
+        ...orcamento,
+        cronogramaQuantidades,
+      };
+    });
+  }
+
+  function distribuirSaldosCronograma(itemId = "") {
+    atualizarAtivo((orcamento) => {
+      const periodos = criarPeriodosMedicao(orcamento);
+      const atuais = orcamento.cronogramaQuantidades || {};
+      const cronogramaQuantidades = { ...atuais };
+      servicosAlvoCronograma(orcamento, itemId).forEach((item) => {
+        cronogramaQuantidades[item.id] = distribuirSaldoNosVazios(
+          item.quantidade,
+          periodos,
+          atuais[item.id] || {},
+        );
+      });
+      return {
+        ...orcamento,
+        cronogramaQuantidades,
+      };
+    });
+  }
+
+  function limparHistograma(funcoes = [], periodos = [], funcaoAlvo = "") {
+    atualizarAtivo((orcamento) => {
+      const histogramaEquipes = { ...(orcamento.histogramaEquipes || {}) };
+      funcoes
+        .filter((item) => !funcaoAlvo || item.funcao === funcaoAlvo)
+        .forEach((item) => {
+          histogramaEquipes[item.funcao] = Object.fromEntries(
+            periodos.map((periodo) => [periodo.inicio, ""]),
+          );
+        });
+      return { ...orcamento, histogramaEquipes };
+    });
+  }
+
+  function distribuirSaldosHistograma(funcoes = [], periodos = [], funcaoAlvo = "") {
+    atualizarAtivo((orcamento) => {
+      const atuais = orcamento.histogramaEquipes || {};
+      const histogramaEquipes = { ...atuais };
+      funcoes
+        .filter((item) => !funcaoAlvo || item.funcao === funcaoAlvo)
+        .forEach((item) => {
+          const totalSugerido = periodos.reduce(
+            (total, periodo) => total + numeroSeguro(item.sugerido?.[periodo.inicio]),
+            0,
+          );
+          histogramaEquipes[item.funcao] = distribuirSaldoInteiroNosVazios(
+            totalSugerido,
+            periodos,
+            atuais[item.funcao] || {},
+          );
+        });
+      return {
+        ...orcamento,
+        histogramaEquipes,
+      };
+    });
+  }
+
+  function atualizarConfiguracaoSuprimentos(dados) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      suprimentosConfig: {
+        ...(orcamento.suprimentosConfig || {}),
+        antecedenciaPadraoDias: Math.max(
+          0,
+          Math.round(numeroSeguro(
+            dados.antecedenciaPadraoDias
+              ?? orcamento.suprimentosConfig?.antecedenciaPadraoDias
+              ?? 15,
+          )),
+        ),
+        antecedenciasPorItem: {
+          ...(orcamento.suprimentosConfig?.antecedenciasPorItem || {}),
+          ...(dados.antecedenciasPorItem || {}),
+        },
+        estoquesPorItem: {
+          ...(orcamento.suprimentosConfig?.estoquesPorItem || {}),
+          ...(dados.estoquesPorItem || {}),
+        },
+        pedidos: dados.pedidos ?? orcamento.suprimentosConfig?.pedidos ?? [],
+        regrasPorItem: {
+          ...(orcamento.suprimentosConfig?.regrasPorItem || {}),
+          ...(dados.regrasPorItem || {}),
+        },
+      },
+    }));
+  }
+
+  function salvarMedicao(dados) {
+    const validacao = validarMedicaoAcumulada(orcamentoAtivo, dados);
+    if (!validacao.valida) {
+      return { ok: false, erros: validacao.erros };
+    }
+    atualizarAtivo((orcamento) => {
+      const existente = (orcamento.medicoes || []).find((medicao) => medicao.id === dados.id);
+      const medicao = {
+        ...existente,
+        ...dados,
+        valorPrevisto: numeroSeguro(dados.valorPrevisto),
+        valorMedido: numeroSeguro(dados.valorMedido),
+        retencoes: dados.retencoes || [],
+        multas: dados.multas || [],
+        documentos: dados.documentos || [],
+        proposta: false,
+        atualizadoEm: new Date().toISOString(),
+      };
+      return {
+        ...orcamento,
+        medicoes: existente
+          ? orcamento.medicoes.map((item) => item.id === medicao.id ? medicao : item)
+          : [medicao, ...(orcamento.medicoes || [])],
+      };
+    });
+    return { ok: true, erros: [] };
+  }
+
   function atualizarPrecosBase(referencias, base) {
     const precos = new Map(
       referencias.filter((item) => (
@@ -227,6 +485,9 @@ export default function useOrcamentos() {
           referenciaTipo: referencia.tipo,
           unidade: referencia.unidade || item.unidade,
           unitario: referencia.preco,
+          percentualMaoObra: referencia.percentualMaoObra || 0,
+          custoMaoObra: referencia.custoMaoObra || 0,
+          custoMaterial: referencia.custoMaterial ?? referencia.preco,
         } : item;
       }),
       composicoes: orcamento.composicoes.map((composicao) => {
@@ -297,34 +558,149 @@ export default function useOrcamentos() {
     setOrcamentoAtivoId(novo.id);
   }
 
-  function criarRevisao() {
+  function criarRevisao(dados = {}) {
     atualizarAtivo((orcamento) => {
       const numeroAtual = Number(orcamento.revisao.replace(/\D/g, "")) || 0;
       const codigo = `R${String(numeroAtual + 1).padStart(2, "0")}`;
-      const totais = calcularTotais(orcamento);
-      const novaRevisao = {
-        id: criarId("rev"),
-        codigo,
-        status: "Em elaboração",
-        bases: resumirBasesDosItens(orcamento.itens),
-        total: totais.precoTotal,
-        variacao: 0,
-        autor: "Usuário atual",
-        publicada: false,
-        data: new Date().toISOString(),
-        snapshot: structuredClone(orcamento.itens),
-        calculo: {
-          descontoGlobal: structuredClone(orcamento.descontoGlobal),
-          versaoRegra: REGRA_CALCULO_ATUAL,
-          totais,
-        },
+      const registroAtualExistente = orcamento.revisoes.find(
+        (revisao) => revisao.codigo === orcamento.revisao,
+      );
+      const registroAtual = criarRegistroRevisao(orcamento, orcamento.revisao, {
+        ...registroAtualExistente,
+        id: registroAtualExistente?.id,
+        ativa: false,
+      });
+      const variacaoPrazoDias = Math.round(numeroSeguro(dados.variacaoPrazoDias));
+      const prazoNovo = Math.max(1, numeroSeguro(orcamento.prazoDias) + variacaoPrazoDias);
+      const orcamentoNovaVersao = {
+        ...orcamento,
+        ...normalizarPlanejamentoObra({
+          ...orcamento,
+          prazoDias: prazoNovo,
+          fimObra: calcularDataFimPorPrazo(orcamento.inicioObra, prazoNovo),
+        }),
       };
+      const novaRevisao = criarRegistroRevisao(orcamentoNovaVersao, codigo, {
+        status: dados.natureza && dados.natureza !== "Revisão ordinária"
+          ? `${dados.natureza} em elaboração`
+          : "Em elaboração",
+        ativa: true,
+        natureza: dados.natureza,
+        motivo: dados.motivo,
+        variacaoPrazoDias,
+      });
+      const historicoSemAtual = orcamento.revisoes.filter(
+        (revisao) => revisao.codigo !== orcamento.revisao,
+      ).map((revisao) => ({ ...revisao, ativa: false }));
 
       return {
-        ...orcamento,
+        ...orcamentoNovaVersao,
         revisao: codigo,
-        status: "Em elaboração",
-        revisoes: [novaRevisao, ...orcamento.revisoes],
+        status: novaRevisao.status,
+        revisaoContratual: {
+          natureza: novaRevisao.natureza,
+          motivo: novaRevisao.motivo,
+          variacaoPrazoDias: novaRevisao.variacaoPrazoDias,
+          origemAprovada: String(orcamento.status || "").toLocaleLowerCase("pt-BR").includes("aprov"),
+        },
+        revisoes: [novaRevisao, registroAtual, ...historicoSemAtual],
+      };
+    });
+  }
+
+  function ativarRevisao(revisaoId) {
+    atualizarAtivo((orcamento) => {
+      const alvo = orcamento.revisoes.find((revisao) => revisao.id === revisaoId);
+      if (!alvo || alvo.inativa) return orcamento;
+      const estado = alvo.estado || { itens: alvo.snapshot || [] };
+      const revisoes = orcamento.revisoes.map((revisao) => {
+        if (revisao.codigo === orcamento.revisao) {
+          return criarRegistroRevisao(orcamento, orcamento.revisao, {
+            ...revisao,
+            id: revisao.id,
+            ativa: false,
+          });
+        }
+        return { ...revisao, ativa: revisao.id === revisaoId };
+      });
+      return {
+        ...orcamento,
+        revisao: alvo.codigo,
+        status: alvo.status,
+        itens: structuredClone(estado.itens || alvo.snapshot || []),
+        composicoes: structuredClone(estado.composicoes || orcamento.composicoes),
+        bdi: estado.bdi ?? orcamento.bdi,
+        bdiComponentes: structuredClone(estado.bdiComponentes || orcamento.bdiComponentes),
+        encargosSociais: structuredClone(estado.encargosSociais || orcamento.encargosSociais),
+        descontoGlobal: structuredClone(estado.descontoGlobal ?? alvo.calculo?.descontoGlobal ?? null),
+        historicoCalculo: structuredClone(estado.historicoCalculo || orcamento.historicoCalculo),
+        inicioObra: estado.inicioObra || orcamento.inicioObra,
+        fimObra: estado.fimObra || orcamento.fimObra,
+        prazoDias: estado.prazoDias || orcamento.prazoDias,
+        intervaloMedicaoDias: estado.intervaloMedicaoDias || orcamento.intervaloMedicaoDias,
+        cronogramaQuantidades: structuredClone(estado.cronogramaQuantidades || {}),
+        histogramaEquipes: structuredClone(estado.histogramaEquipes || {}),
+        suprimentosConfig: structuredClone(
+          estado.suprimentosConfig || orcamento.suprimentosConfig,
+        ),
+        medicoes: structuredClone(estado.medicoes || []),
+        revisaoContratual: alvo.natureza ? {
+          natureza: alvo.natureza,
+          motivo: alvo.motivo,
+          variacaoPrazoDias: alvo.variacaoPrazoDias,
+          origemAprovada: alvo.natureza !== "Revisão ordinária",
+        } : null,
+        revisoes,
+      };
+    });
+  }
+
+  function alternarRevisaoInativa(revisaoId) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      revisoes: orcamento.revisoes.map((revisao) => (
+        revisao.id === revisaoId && revisao.codigo !== orcamento.revisao
+          ? { ...revisao, inativa: !revisao.inativa, ativa: false }
+          : revisao
+      )),
+    }));
+  }
+
+  function excluirRevisao(revisaoId) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      revisoes: orcamento.revisoes.filter((revisao) => (
+        revisao.id !== revisaoId || revisao.codigo === orcamento.revisao
+      )),
+    }));
+  }
+
+  function atualizarStatusOrcamento(status) {
+    atualizarAtivo((orcamento) => {
+      const aprovado = status === "Aprovado";
+      const existente = (orcamento.revisoes || []).find(
+        (revisao) => revisao.codigo === orcamento.revisao,
+      );
+      const orcamentoAtualizado = { ...orcamento, status };
+      const registroAtual = criarRegistroRevisao(
+        orcamentoAtualizado,
+        orcamento.revisao,
+        {
+          ...existente,
+          id: existente?.id,
+          status,
+          ativa: true,
+          publicada: aprovado || existente?.publicada,
+        },
+      );
+      return {
+        ...orcamentoAtualizado,
+        aprovadoEm: aprovado ? new Date().toISOString() : orcamento.aprovadoEm,
+        revisoes: existente
+          ? orcamento.revisoes.map((revisao) => (
+            revisao.codigo === orcamento.revisao ? registroAtual : revisao
+          ))
+          : [registroAtual, ...(orcamento.revisoes || [])],
       };
     });
   }
@@ -348,11 +724,25 @@ export default function useOrcamentos() {
     atualizarBdi,
     atualizarEncargosSociais,
     atualizarDescontoGlobal,
+    atualizarPlanejamento,
+    atualizarCronogramaQuantidade,
+    atualizarCronogramaGrupo,
+    atualizarHistogramaEquipe,
+    limparCronograma,
+    distribuirSaldosCronograma,
+    limparHistograma,
+    distribuirSaldosHistograma,
+    atualizarConfiguracaoSuprimentos,
+    salvarMedicao,
     atualizarPrecosBase,
     adicionarComposicao,
     removerComposicao,
     adicionarOrcamento,
     criarRevisao,
+    ativarRevisao,
+    alternarRevisaoInativa,
+    excluirRevisao,
+    atualizarStatusOrcamento,
     restaurarDados,
   };
 }

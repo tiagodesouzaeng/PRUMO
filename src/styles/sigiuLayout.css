@@ -25,40 +25,41 @@
 .sigiu-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 8px 22px;
+  justify-content: center;
+  padding: 2px 2px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   margin-bottom: 20px;
 }
 
-.sigiu-logo-mark {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid rgba(245, 206, 153, 0.60);
-  color: var(--sigiu-dourado-claro);
-  font-weight: 900;
-  letter-spacing: -1px;
+.prumo-brand-logo {
+  position: relative;
+  width: 176px;
+  height: 59px;
+  display: inline-block;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: #073431;
 }
 
-.sigiu-sidebar-brand strong,
-.sigiu-sidebar-brand span {
-  display: block;
-  line-height: 1.1;
+.prumo-brand-logo img {
+  position: absolute;
+  width: 176px;
+  max-width: none;
+  height: auto;
+  left: 0;
+  top: 0;
 }
 
-.sigiu-sidebar-brand strong {
-  color: #fff;
-  font-size: 1.15rem;
+.prumo-brand-logo.is-compact {
+  width: 48px;
+  height: 48px;
 }
 
-.sigiu-sidebar-brand span {
-  color: var(--sigiu-dourado-claro);
-  font-size: 0.8rem;
-  letter-spacing: 0.18em;
+.prumo-brand-logo.is-compact img {
+  width: 212px;
+  left: -21px;
+  top: -15px;
 }
 
 .sigiu-sidebar-nav {
@@ -270,15 +271,10 @@
   }
 
   .sigiu-mobile-brand {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: 1px solid rgba(245, 206, 153, 0.65);
-    color: var(--sigiu-dourado-claro);
-    font-weight: 900;
+    display: inline-block;
+    border-radius: 10px;
+    background: #073431;
+    box-shadow: none;
   }
 
   .sigiu-topbar-actions {
@@ -494,7 +490,12 @@
   .sigiu-mobile-brand {
     width: 42px;
     height: 42px;
-    font-size: 0.72rem;
+  }
+
+  .sigiu-mobile-brand img {
+    width: 186px;
+    left: -18px;
+    top: -13px;
   }
 
   .sigiu-mobile-controls {

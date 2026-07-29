@@ -1,4 +1,5 @@
 import { numeroSeguro } from "../domain/orcamento.js";
+import { resolverPrecoPorUf, UFS_BRASIL } from "../domain/basesPrecos.js";
 
 const REGIMES_SINAPI = {
   "SEM-DESONERACAO": { insumos: "ISD", composicoes: "CSD", maoObra: "SEM Desoneração" },
@@ -7,11 +8,7 @@ const REGIMES_SINAPI = {
   "SEM-ENCARGOS": { insumos: "ISE", composicoes: "CSE", maoObra: "" },
 };
 
-export const UFS_SINAPI = [
-  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
-  "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
-  "SP", "SE", "TO",
-];
+export const UFS_SINAPI = UFS_BRASIL;
 
 function normalizarChave(valor) {
   return String(valor ?? "")
@@ -74,18 +71,6 @@ function criarReferencia({
   };
 }
 
-function valorComFallbackSp(precosPorUf, ufPreferida) {
-  const uf = UFS_SINAPI.includes(ufPreferida) ? ufPreferida : "RS";
-  const proprio = numeroSeguro(precosPorUf[uf]);
-  const sp = numeroSeguro(precosPorUf.SP);
-  return {
-    preco: proprio > 0 ? proprio : sp,
-    semPreco: proprio <= 0 && sp <= 0,
-    ufPrecoEfetivo: proprio > 0 ? uf : (sp > 0 ? "SP" : uf),
-    precoSubstituidoSp: proprio <= 0 && sp > 0 && uf !== "SP",
-  };
-}
-
 function extrairValoresPorUf(colunasUf, linhaValores, validarColuna = () => true) {
   return UFS_SINAPI.reduce((precos, uf) => {
     const indice = colunasUf.findIndex(
@@ -121,7 +106,7 @@ function extrairPrecosInsumosSinapi(XLSX, workbook, metadados) {
     const descricao = linha[descricaoCol];
     if (!codigo || !descricao) return [];
     const precosPorUf = extrairValoresPorUf(colunas, linha);
-    const precoSelecionado = valorComFallbackSp(precosPorUf, metadados.uf);
+    const precoSelecionado = resolverPrecoPorUf(precosPorUf, metadados.uf);
     return [criarReferencia({
       codigo,
       descricao,
@@ -166,7 +151,7 @@ function extrairCustosComposicoesSinapi(XLSX, workbook, metadados) {
       linha,
       (indice) => normalizarChave(colunas[indice]).includes("custo"),
     );
-    const precoSelecionado = valorComFallbackSp(precosPorUf, metadados.uf);
+    const precoSelecionado = resolverPrecoPorUf(precosPorUf, metadados.uf);
     return [criarReferencia({
       codigo,
       descricao,
@@ -285,12 +270,18 @@ function extrairMaoObraSinapi(XLSX, workbook, metadados) {
   return linhas.slice(cabecalho + 1).flatMap((linha) => {
     const codigo = String(linha[codigoCol] || "").trim();
     if (!codigo) return [];
+    const percentuaisMaoObraPorUf = extrairValoresPorUf(colunas, linha);
+    const percentualSelecionado = resolverPrecoPorUf(
+      percentuaisMaoObraPorUf,
+      metadados.uf,
+    );
     return [criarReferencia({
       codigo,
       descricao: linha[descricaoCol],
       tipo: "mao_obra",
       unidade: linha[unidadeCol],
-      percentualMaoObra: ufCol >= 0 ? numeroSeguro(linha[ufCol]) : 0,
+      percentualMaoObra: percentualSelecionado.preco,
+      percentuaisMaoObraPorUf,
       grupo: linha[0] || "",
     })];
   });
@@ -395,9 +386,31 @@ export async function importarArquivoBasePrecos(arquivo, metadados) {
     workbooks.forEach(({ workbook }) => referencias.push(...extrairGenerico(XLSX, workbook)));
   }
 
-  const unicas = [...new Map(
+  const unicasOriginais = [...new Map(
     referencias.map((item) => [`${item.tipo}:${item.codigo}`, item]),
   ).values()];
+  const maoObraPorCodigo = new Map(
+    unicasOriginais
+      .filter((item) => item.tipo === "mao_obra")
+      .map((item) => [item.codigo, item]),
+  );
+  const unicas = unicasOriginais.map((item) => {
+    if (item.tipo !== "composicao") return item;
+    const memoriaMaoObra = maoObraPorCodigo.get(item.codigo);
+    const percentuaisMaoObraPorUf = memoriaMaoObra?.percentuaisMaoObraPorUf || {};
+    const percentualMaoObra = Number(
+      percentuaisMaoObraPorUf[item.ufPrecoEfetivo || metadados.uf]
+        ?? memoriaMaoObra?.percentualMaoObra,
+    ) || 0;
+    const custoMaoObra = item.preco * percentualMaoObra;
+    return {
+      ...item,
+      percentualMaoObra,
+      percentuaisMaoObraPorUf,
+      custoMaoObra,
+      custoMaterial: item.preco - custoMaoObra,
+    };
+  });
   const catalogo = unicas.filter((item) => ["insumo", "composicao"].includes(item.tipo));
   if (!catalogo.length) {
     throw new Error(

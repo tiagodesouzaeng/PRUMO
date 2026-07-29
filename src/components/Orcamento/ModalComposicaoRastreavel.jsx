@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  avaliarComponenteComposicao,
+  resumirQualidadeComposicao,
+} from "../../domain/composicoes";
 
 const moeda = (valor) => new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -21,6 +25,7 @@ export default function ModalComposicaoRastreavel({
   const [trilha, setTrilha] = useState([referencia]);
   const [componentes, setComponentes] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [alerta, setAlerta] = useState("");
   const atual = trilha.at(-1);
   const baseAtual = useMemo(
     () => basesPrecos.bases.find((base) => base.id === atual.basePrecoId),
@@ -30,6 +35,7 @@ export default function ModalComposicaoRastreavel({
   useEffect(() => {
     let ativo = true;
     setCarregando(true);
+    setAlerta("");
     basesPrecos.carregarItensComposicao(atual.basePrecoId, atual.codigo, ufSelecionada)
       .then((itens) => {
         if (ativo) setComponentes(itens || []);
@@ -42,13 +48,23 @@ export default function ModalComposicaoRastreavel({
       });
     return () => { ativo = false; };
   }, [atual.basePrecoId, atual.codigo, ufSelecionada]);
+  const qualidade = useMemo(
+    () => resumirQualidadeComposicao(componentes, trilha),
+    [componentes, trilha],
+  );
 
   function abrirComposicao(componente) {
-    const codigo = componente.referenciaCodigo || componente.itemCodigo;
-    const basePrecoId = componente.basePrecoId || atual.basePrecoId;
-    if (!codigo || trilha.some((nivel) => (
-      nivel.codigo === codigo && nivel.basePrecoId === basePrecoId
-    ))) return;
+    const avaliacao = avaliarComponenteComposicao(componente, trilha);
+    const { codigo, basePrecoId } = avaliacao;
+    if (!codigo) {
+      setAlerta("Não foi possível abrir a composição porque o código da referência não foi informado.");
+      return;
+    }
+    if (avaliacao.ciclo) {
+      setAlerta(`Ciclo detectado: a composição ${codigo} já existe no caminho atual e não pode ser aberta novamente.`);
+      return;
+    }
+    setAlerta("");
     setTrilha((niveis) => [...niveis, {
       basePrecoId,
       codigo,
@@ -77,29 +93,30 @@ export default function ModalComposicaoRastreavel({
           <div><span>Base</span><strong>{baseAtual?.titulo || atual.baseTitulo || "Base própria"}</strong><small>{baseAtual ? `${baseAtual.uf} · ${baseAtual.referencia} · ${baseAtual.regime}` : "Referência preservada"}</small></div>
           <div><span>Unidade</span><strong>{atual.unidade || "—"}</strong></div>
           <div><span>Preço básico</span><strong>{moeda(atual.preco)}</strong></div>
-          <div><span>Componentes</span><strong>{componentes.length}</strong><small>Nível {trilha.length}</small></div>
+          <div><span>Componentes</span><strong>{componentes.length}</strong><small>{!componentes.length ? "Sem memória analítica" : qualidade.itensComPendencia ? `${qualidade.itensComPendencia} com pendência` : `Nível ${trilha.length} validado`}</small></div>
         </div>
+        {alerta && <div className="composition-quality-alert is-critical" role="alert"><strong>Rastreabilidade interrompida</strong><span>{alerta}</span></div>}
+        {!carregando && !componentes.length && <div className="composition-quality-alert is-warning"><strong>Referência analítica incompleta</strong><span>Nenhum componente foi localizado. Esta composição deverá ser revisada antes da consolidação de insumos e suprimentos.</span></div>}
+        {!carregando && qualidade.itensComPendencia > 0 && <div className="composition-quality-alert is-warning"><strong>{qualidade.itensComPendencia} componente(s) precisam de revisão</strong><span>{qualidade.ciclos ? `${qualidade.ciclos} ciclo(s) detectado(s). ` : ""}Coeficientes, códigos e preços ausentes estão destacados na tabela.</span></div>}
         <div className="composition-editor-table">
           <table>
             <thead><tr><th>Tipo</th><th>Código / descrição</th><th>Base de origem</th><th>Un.</th><th>Coeficiente</th><th>Preço básico</th><th>Total</th><th /></tr></thead>
             <tbody>
               {componentes.map((componente, index) => {
-                const tipo = componente.referenciaTipo || componente.itemTipo;
-                const codigo = componente.referenciaCodigo || componente.itemCodigo;
-                const preco = Number(componente.preco) || 0;
-                const coeficiente = Number(componente.coeficiente) || 0;
+                const avaliacao = qualidade.avaliacoes[index];
+                const { tipo, codigo, preco, coeficiente } = avaliacao;
                 const base = basesPrecos.bases.find((item) => item.id === (componente.basePrecoId || atual.basePrecoId));
                 const composicao = tipo === "composicao";
                 return (
-                  <tr key={`${tipo}-${codigo}-${index}`} className={composicao ? "is-drillable" : ""}>
+                  <tr key={`${tipo}-${codigo}-${index}`} className={`${composicao ? "is-drillable" : ""} ${avaliacao.valido ? "" : "has-quality-warning"}`} title={avaliacao.pendencias.join(" · ") || undefined}>
                     <td><b className={`composition-type ${tipo}`}>{tipo}</b></td>
-                    <td><strong>{codigo}</strong><small>{componente.descricao}</small></td>
+                    <td><strong>{codigo || "Código ausente"}</strong><small>{componente.descricao}{avaliacao.pendencias.length ? ` · ⚠ ${avaliacao.pendencias.join("; ")}` : ""}</small></td>
                     <td>{componente.baseTitulo || base?.titulo || baseAtual?.titulo || "Base própria"}<small>{componente.baseUf ? `${componente.baseUf} · ${componente.baseReferencia}` : base ? `${base.uf} · ${base.referencia}` : ""}</small></td>
                     <td>{componente.unidade || "—"}</td>
                     <td>{numero(coeficiente)}</td>
                     <td>{preco ? <>{moeda(preco)}{componente.precoSubstituidoSp && <sup title={`Preço de SP utilizado por ausência de preço em ${ufSelecionada}`}>*</sup>}</> : "Sem preço"}</td>
                     <td>{moeda(coeficiente * preco)}</td>
-                    <td>{composicao && <button type="button" className="composition-open-button" onClick={() => abrirComposicao(componente)} title="Abrir composição interna">Abrir →</button>}</td>
+                    <td>{composicao && <button type="button" className={`composition-open-button ${avaliacao.ciclo ? "has-cycle" : ""}`} onClick={() => abrirComposicao(componente)} title={avaliacao.ciclo ? "Ciclo detectado no caminho atual" : "Abrir composição interna"}>{avaliacao.ciclo ? "Ciclo ⚠" : "Abrir →"}</button>}</td>
                   </tr>
                 );
               })}

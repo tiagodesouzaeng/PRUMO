@@ -68,7 +68,7 @@ function App() {
         return <Relatorios dadosPPCI={dadosPPCI} />;
 
       case "administracao":
-        return <Administracao />;
+        return <Administracao basesPrecos={basesPrecos} />;
 
       default:
         return (

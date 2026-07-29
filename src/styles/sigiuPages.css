@@ -2444,6 +2444,87 @@ button.sigiu-central-modulo-card:hover {
   background: linear-gradient(135deg, rgba(34, 45, 69, 0.98), rgba(13, 54, 52, 0.94));
 }
 
+.sigiu-integration-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.sigiu-integration-source-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.sigiu-integration-source-list > button {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--sigiu-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sigiu-integration-source-list > button:hover,
+.sigiu-integration-source-list > button.is-active {
+  border-color: var(--sigiu-verde-institucional);
+  background: rgba(8, 127, 116, 0.06);
+  box-shadow: inset 3px 0 0 var(--sigiu-verde-institucional);
+}
+
+.sigiu-integration-source-list span strong,
+.sigiu-integration-source-list span small {
+  display: block;
+}
+
+.sigiu-integration-source-list span strong {
+  color: var(--sigiu-verde-profundo);
+  font-size: 0.84rem;
+}
+
+.sigiu-integration-source-list span small {
+  margin-top: 4px;
+  color: var(--sigiu-text-muted);
+  font-size: 0.7rem;
+}
+
+.sigiu-integration-form {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 16px;
+  background: var(--sigiu-surface-soft);
+}
+
+.sigiu-integration-switch {
+  grid-column: 1 / -1;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 9px !important;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.sigiu-integration-switch input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--sigiu-verde-institucional);
+}
+
+.sigiu-integration-switch span {
+  font-size: 0.78rem !important;
+}
+
 .sigiu-admin-audit-list article {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
@@ -2503,6 +2584,14 @@ button.sigiu-central-modulo-card:hover {
   .sigiu-admin-table--usuarios article > small {
     display: none;
   }
+
+  .sigiu-integration-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sigiu-integration-source-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 820px) {
@@ -2540,5 +2629,87 @@ button.sigiu-central-modulo-card:hover {
 
   .sigiu-admin-audit-list article {
     grid-template-columns: 1fr;
+  }
+
+  .sigiu-integration-source-list {
+    grid-template-columns: 1fr;
+  }
+}
+.sigiu-admin-price-bases {
+  display: grid;
+  gap: 16px;
+}
+
+.sigiu-admin-base-notice {
+  padding: 12px 14px;
+  border: 1px solid #9bc9bf;
+  border-radius: 10px;
+  background: #edf8f6;
+  color: #086d63;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sigiu-admin-base-list article {
+  min-height: 72px;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(260px, auto);
+  gap: 14px;
+  align-items: center;
+  border-top: 1px solid #e7eeee;
+}
+
+.sigiu-admin-base-list article > span:first-child strong,
+.sigiu-admin-base-list article > span:first-child small {
+  display: block;
+}
+
+.sigiu-admin-base-list article > span:first-child strong {
+  color: #173f43;
+  font-size: 13px;
+}
+
+.sigiu-admin-base-list article > span:first-child small {
+  margin-top: 4px;
+  color: #6f8288;
+  font-size: 10px;
+}
+
+.sigiu-admin-base-list article > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sigiu-admin-danger-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d9aaa3;
+  border-radius: 8px;
+  background: #fff3f1;
+  color: #a1453d;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.sigiu-admin-empty {
+  margin: 0;
+  padding: 18px;
+  color: #75878d;
+  font-size: 11px;
+}
+
+@media (max-width: 800px) {
+  .sigiu-admin-base-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .sigiu-admin-base-list article > div {
+    justify-content: stretch;
+  }
+
+  .sigiu-admin-base-list article > div button {
+    flex: 1;
   }
 }

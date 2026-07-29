@@ -96,15 +96,132 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
 - aplicação do BDI sobre o custo direto líquido;
 - preservação da regra financeira e dos totais nas novas revisões.
 
-## Licitações e concorrência — etapa planejada v9.5
+## Homologação de composições e preços — v9.4.7
 
-- submódulo para geração do pacote de planilhas da concorrência;
+- regra estadual e fallback para SP centralizados e testados;
+- consolidação de publicações SINAPI antigas separadas por estado;
+- detecção de ciclos durante a navegação recursiva das composições;
+- validação de códigos, tipos, coeficientes e preços dos componentes;
+- sinalização de referências sem composição analítica;
+- destaques de rastreabilidade incompleta no modal;
+- testes automatizados para preços estaduais e qualidade das composições.
+
+## Governança e carteira de orçamentos — v9.4.8
+
+- dashboard geral antes da abertura de um orçamento, com estatísticas, gráficos,
+  pendências de validação e situação das aprovações;
+- seleção explícita do orçamento antes de acessar planilha, BDI, cronograma,
+  medições, condições comerciais e revisões;
+- navegação bidirecional entre revisões, permitindo retroceder e avançar sem
+  perder o estado editável da revisão atual;
+- inativação, reativação e exclusão de revisões históricas, protegendo sempre a
+  revisão ativa;
+- arquivamento, restauração e exclusão definitiva das bases transferidos para o
+  módulo Administração;
+- exclusão unitária remove catálogo, composições analíticas e arquivo-fonte da
+  publicação selecionada.
+
+## Licitações e concorrência — v9.5
+
+- submódulo integrado ao orçamento para geração do pacote da concorrência;
 - arquivo XLSX único com abas de instruções, orçamento completo, proposta de
   preços, BDI e encargos, cronograma e histograma;
 - fórmulas protegidas e células de preenchimento explicitamente desbloqueadas;
 - cálculos compatíveis com o truncamento monetário da v9.4;
 - identificação da revisão, bases utilizadas pelos itens e versão do arquivo distribuído;
-- validações, filtros, impressão e congelamento de painéis preparados para uso.
+- filtros e congelamento de painéis preparados para uso;
+- cronograma e histograma de mão de obra vinculados por fórmulas;
+- arquivo preparado para recálculo automático ao abrir no Excel.
+
+## EAP e planejamento da obra nas licitações — v9.5.1
+
+- prazo contratual definido por data de início e conclusão no orçamento;
+- intervalo de medição configurável em dias, com recomendação inicial de 30 dias;
+- períodos gerados de forma contínua até a data final, inclusive quando o último
+  período for menor que o intervalo padrão;
+- identificação dos cinco níveis da EAP — Site, Prédio, Andar, Sala e Disciplina —
+  nas abas Orçamento Completo, Proposta de Preços, Cronograma e Histograma;
+- cronograma e histograma dimensionados conforme os períodos reais de medição;
+- prazo e frequência de medição identificados em todas as abas do pacote.
+
+## Identidade visual e integrações assistidas — v9.6
+
+- logotipo oficial do PRUMO aplicado no menu lateral e no cabeçalho móvel;
+- identidade textual atualizada nas áreas administrativas e de navegação;
+- central de integrações para SINAPI, PLEO, SBC e ORSE;
+- configuração de URL direta para publicações ZIP, XLSX, XLS ou CSV;
+- validação de HTTPS, formato e tamanho antes da importação;
+- download e processamento pelo mesmo importador versionado das bases manuais;
+- referência, estado, regime e periodicidade configuráveis por fonte;
+- preservação do hash e da cópia interna do arquivo pelo repositório existente;
+- auditoria local das tentativas e resultados de integração;
+- estrutura preparada para execução agendada por backend quando houver uma API
+  oficial estável ou serviço corporativo.
+
+## Correção do XLSX e suprimentos — v9.7
+
+- correção da exportação do pacote de licitação quando o histograma não possui
+  recurso associado a uma hierarquia EAP;
+- download mais estável por meio de vínculo temporário anexado ao documento;
+- teste de regressão para orçamento sem composição analítica de mão de obra;
+- nova etapa `Suprimentos` dentro do orçamento;
+- explosão recursiva de composições próprias e importadas;
+- consolidação dos insumos por base, código e unidade;
+- memória das quantidades, preços básicos, valores estimados e serviços de origem;
+- detecção de ciclos, referências sem preço e composições sem memória analítica;
+- pendências mantidas visíveis para impedir omissão silenciosa de demanda.
+
+## Planejamento e medições — v9.8
+
+- reorganização das planilhas de licitação conforme a hierarquia da EAP;
+- referência da base, mão de obra, material e custo unitário no orçamento;
+- totalização recursiva das linhas da EAP;
+- cronograma alinhado às linhas e aos valores do orçamento;
+- prazo da obra em dias corridos com cálculo bidirecional das datas;
+- medições propostas conforme o cronograma, editadas por quantidades;
+- retenções, multas, motivos e relação de documentos exigidos.
+
+## Cronograma de aquisições — v9.9
+
+- distribuição dos insumos conforme a execução mensal dos serviços;
+- antecedência padrão e configuração individual por insumo;
+- cálculo da data recomendada de compra;
+- separação da mão de obra da relação de materiais;
+- rastreabilidade entre serviço, composição e demanda do insumo.
+
+## Cobertura operacional — v9.10
+
+- estoque disponível, pedidos emitidos e entregas programadas;
+- projeção de saldo, falta e risco de ruptura por período;
+- validação técnica realizada por testes automatizados e relatórios apresentados
+  externamente, sem formulário dentro do aplicativo.
+
+## Encerramento técnico da Etapa 9 — v9.11
+
+- recolhimento independente de grupos da EAP em todos os níveis do cronograma;
+- ações gerais e por linha para limpar o cronograma e distribuir o saldo
+  exclusivamente nos períodos vazios, preservando zeros informados;
+- percentuais exibidos com duas casas, preservando a precisão digitada;
+- períodos identificados por mês, dias acumulados e intervalo exato de datas;
+- histograma com descrições quebradas, colunas alinhadas e total de horas;
+- limpeza e distribuição de saldo geral e por função também disponíveis no
+  histograma;
+- histograma limitado a quantidades inteiras de pessoas, preservando zeros e
+  permitindo valores manuais acima da sugestão automática;
+- medições com quantidade e valor acumulados, saldo após a medição e bloqueio
+  defensivo quando um item ultrapassa 100% do contratado;
+- alteração explícita do status no cabeçalho do orçamento, com validação das
+  pendências antes da aprovação;
+- perdas técnicas e fatores de conversão configuráveis por insumo;
+- equivalência e substituição por código, descrição, unidade, base e preço;
+- justificativa técnica e preservação das referências originais;
+- relatório XLSX de suprimentos com abas Resumo, Demanda, Calendário,
+  Cobertura, Cotação, Pedidos e Pendências;
+- células protegidas e campos de cotação e acompanhamento desbloqueados;
+- atualização segura do roteiro padrão nos orçamentos já existentes;
+- atualização das bibliotecas de planilha e correção das vulnerabilidades
+  conhecidas pela auditoria de dependências;
+- etapa liberada como RC1 para homologação do usuário.
 
 ## Execução
 

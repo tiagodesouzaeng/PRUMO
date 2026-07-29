@@ -123,3 +123,29 @@ export function descendentesEap(itens, itemId) {
   ids.delete(itemId);
   return ids;
 }
+
+export function mapearHierarquiaEap(itens = []) {
+  const normalizados = reclassificarEap(itens);
+  const porId = new Map(normalizados.map((item) => [item.id, item]));
+  const resultado = new Map();
+  normalizados.forEach((item) => {
+    const hierarquia = {
+      site: "",
+      predio: "",
+      andar: "",
+      sala: "",
+      disciplina: "",
+    };
+    let atual = item.tipo === "grupo" ? item : porId.get(item.parentId);
+    const visitados = new Set();
+    while (atual && !visitados.has(atual.id)) {
+      visitados.add(atual.id);
+      if (Object.hasOwn(hierarquia, atual.nivelEap)) {
+        hierarquia[atual.nivelEap] = `${atual.codigo} · ${atual.descricao}`;
+      }
+      atual = porId.get(atual.parentId);
+    }
+    resultado.set(item.id, hierarquia);
+  });
+  return resultado;
+}
