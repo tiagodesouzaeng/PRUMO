@@ -161,3 +161,32 @@ test("exporta somente as planilhas selecionadas e preserva a proteção", async 
   ]);
   assert.equal(workbook.getWorksheet("Orçamento Completo").model.sheetProtection.sheet, true);
 });
+
+test("exporta BDI normal e diferenciado com memória auditável por item", async () => {
+  const memoria = {
+    inviabilidadeParcelamento: true,
+    naturezaEspecifica: true,
+    fornecedorEspecializado: true,
+    impactoSignificativo: true,
+    meraIntermediacao: true,
+    servicosAssociadosSeparados: true,
+    responsavel: "Engenheiro responsável",
+    justificativa: "Equipamento específico relevante com fornecimento separado da instalação.",
+  };
+  const orcamento = normalizarOrcamento({
+    ...ORCAMENTOS_INICIAIS[0],
+    itens: [
+      { id: "normal", codigo: "1", tipo: "servico", descricao: "Serviço", quantidade: 1, unidade: "UN", unitario: 100, bdiTipo: "padrao" },
+      { id: "reduzido", codigo: "2", tipo: "servico", descricao: "Equipamento", quantidade: 1, unidade: "UN", unitario: 1000, bdiTipo: "diferenciado", bdiDiferenciado: memoria },
+    ],
+  });
+  const workbook = await criarPacoteLicitacao(orcamento);
+  const completa = workbook.Sheets["Orçamento Completo"];
+  assert.notEqual(completa.L4.f, completa.L5.f);
+  const bdi = workbook.Sheets["BDI e Encargos"];
+  const valores = Object.values(bdi).map((celula) => celula?.v).filter(Boolean);
+  assert.ok(valores.includes("BDI DIFERENCIADO — MERO FORNECIMENTO"));
+  assert.ok(valores.includes("MEMÓRIA DOS ITENS COM BDI DIFERENCIADO"));
+  assert.ok(valores.includes("ELEGÍVEL"));
+  assert.ok(valores.some((valor) => String(valor).includes("Engenheiro responsável")));
+});

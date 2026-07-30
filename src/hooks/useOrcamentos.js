@@ -9,6 +9,7 @@ import {
   distribuirSaldoInteiroNosVazios,
   distribuirSaldoNosVazios,
   normalizarPlanejamentoObra,
+  normalizarOrcamento,
   numeroSeguro,
   REGRA_CALCULO_ATUAL,
   truncarMoeda,
@@ -26,6 +27,10 @@ import {
   salvarOrcamentoAtivo,
   salvarOrcamentos,
 } from "../services/orcamentoRepository";
+import {
+  carregarOrcamentosCorporativosSeAtivo,
+  sincronizarOrcamentosCorporativos,
+} from "../services/repositorioCorporativo";
 
 function resumirBasesDosItens(itens) {
   const nomes = [...new Set(
@@ -43,6 +48,7 @@ function capturarEstadoRevisao(orcamento) {
     composicoes: orcamento.composicoes,
     bdi: orcamento.bdi,
     bdiComponentes: orcamento.bdiComponentes,
+    bdiDiferenciadoComponentes: orcamento.bdiDiferenciadoComponentes,
     encargosSociais: orcamento.encargosSociais,
     descontoGlobal: orcamento.descontoGlobal,
     historicoCalculo: orcamento.historicoCalculo,
@@ -89,6 +95,8 @@ export default function useOrcamentos() {
   const [orcamentoAtivoId, setOrcamentoAtivoId] = useState(
     () => carregarOrcamentoAtivo() || carregarOrcamentos()[0]?.id || "",
   );
+  const [modoRepositorio, setModoRepositorio] = useState("local");
+  const [repositorioVerificado, setRepositorioVerificado] = useState(false);
 
   const orcamentoAtivo = useMemo(
     () => orcamentos.find((item) => item.id === orcamentoAtivoId) || orcamentos[0],
@@ -98,6 +106,42 @@ export default function useOrcamentos() {
   useEffect(() => {
     salvarOrcamentos(orcamentos);
   }, [orcamentos]);
+
+  useEffect(() => {
+    let ativo = true;
+    carregarOrcamentosCorporativosSeAtivo()
+      .then((resultado) => {
+        if (!ativo) return;
+        setModoRepositorio(resultado.modo);
+        if (resultado.modo === "corporativo" && resultado.orcamentos.length > 0) {
+          const normalizados = resultado.orcamentos.map(normalizarOrcamento);
+          setOrcamentos(normalizados);
+          setOrcamentoAtivoId((atual) => (
+            normalizados.some((item) => item.id === atual) ? atual : normalizados[0]?.id || ""
+          ));
+        }
+      })
+      .catch((erro) => {
+        console.warn("O repositório corporativo não pôde ser consultado; o cache local foi mantido.", erro);
+        if (ativo) setModoRepositorio("local");
+      })
+      .finally(() => {
+        if (ativo) setRepositorioVerificado(true);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!repositorioVerificado || modoRepositorio === "local") return undefined;
+    const temporizador = globalThis.setTimeout(() => {
+      sincronizarOrcamentosCorporativos(orcamentos).catch((erro) => {
+        console.warn("A sincronização corporativa será repetida após uma nova alteração.", erro);
+      });
+    }, 900);
+    return () => globalThis.clearTimeout(temporizador);
+  }, [modoRepositorio, orcamentos, repositorioVerificado]);
 
   useEffect(() => {
     salvarOrcamentoAtivo(orcamentoAtivoId);
@@ -133,6 +177,16 @@ export default function useOrcamentos() {
         custoMaterial: dados.tipo === "grupo"
           ? 0
           : numeroSeguro(dados.custoMaterial ?? dados.unitario),
+        bdiTipo: dados.tipo === "grupo" ? "padrao" : (dados.bdiTipo || "padrao"),
+        bdiDiferenciado: dados.tipo === "grupo" || dados.bdiTipo !== "diferenciado"
+          ? null
+          : {
+            ...(dados.bdiDiferenciado || {}),
+            justificativa: String(dados.bdiDiferenciado?.justificativa || "").trim(),
+            responsavel: String(dados.bdiDiferenciado?.responsavel || "Usuário atual").trim(),
+            atualizadoEm: new Date().toISOString(),
+            referenciaNormativa: "Súmula TCU 253/2010 e Acórdão TCU 2.622/2013-Plenário",
+          },
       };
       let itensAtualizados;
 
@@ -211,6 +265,20 @@ export default function useOrcamentos() {
 
   function atualizarBdi(bdiComponentes) {
     atualizarAtivo((orcamento) => ({ ...orcamento, bdiComponentes }));
+  }
+
+  function atualizarBdiDiferenciado(bdiDiferenciadoComponentes) {
+    atualizarAtivo((orcamento) => ({
+      ...orcamento,
+      bdiDiferenciadoComponentes,
+      historicoCalculo: [{
+        id: criarId("calc"),
+        acao: "bdi_diferenciado_atualizado",
+        usuario: "Usuário atual",
+        data: new Date().toISOString(),
+        versaoRegra: REGRA_CALCULO_ATUAL,
+      }, ...(orcamento.historicoCalculo || [])],
+    }));
   }
 
   function atualizarEncargosSociais(encargosSociais) {
@@ -631,6 +699,9 @@ export default function useOrcamentos() {
         composicoes: structuredClone(estado.composicoes || orcamento.composicoes),
         bdi: estado.bdi ?? orcamento.bdi,
         bdiComponentes: structuredClone(estado.bdiComponentes || orcamento.bdiComponentes),
+        bdiDiferenciadoComponentes: structuredClone(
+          estado.bdiDiferenciadoComponentes || orcamento.bdiDiferenciadoComponentes,
+        ),
         encargosSociais: structuredClone(estado.encargosSociais || orcamento.encargosSociais),
         descontoGlobal: structuredClone(estado.descontoGlobal ?? alvo.calculo?.descontoGlobal ?? null),
         historicoCalculo: structuredClone(estado.historicoCalculo || orcamento.historicoCalculo),
@@ -713,6 +784,7 @@ export default function useOrcamentos() {
 
   return {
     orcamentos,
+    modoRepositorio,
     orcamentoAtivo,
     orcamentoAtivoId,
     setOrcamentoAtivoId,
@@ -722,6 +794,7 @@ export default function useOrcamentos() {
     moverItem,
     importarItens,
     atualizarBdi,
+    atualizarBdiDiferenciado,
     atualizarEncargosSociais,
     atualizarDescontoGlobal,
     atualizarPlanejamento,

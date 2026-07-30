@@ -1,7 +1,7 @@
 import { reclassificarEap } from "./eap.js";
 
-export const ORCAMENTO_STORAGE_VERSION = 8;
-export const REGRA_CALCULO_ATUAL = "9.4-truncamento-2-casas";
+export const ORCAMENTO_STORAGE_VERSION = 9;
+export const REGRA_CALCULO_ATUAL = "10.2-bdi-diferenciado-tcu";
 
 export const UNIDADES_ORCAMENTARIAS = [
   "UN", "M", "M²", "M³", "KG", "T", "H", "DIA", "MÊS", "VB",
@@ -403,14 +403,14 @@ export function obterHistogramaInteligente(orcamento) {
 
 export function criarMedicoesPropostas(orcamento) {
   const cronograma = obterCronogramaProposto(orcamento);
-  const bdi = obterBdi(orcamento) / 100;
   return cronograma.periodos.map((periodo, indice) => {
     const valorPrevisto = cronograma.servicos.reduce((total, { item, quantidades }) => {
       const quantidade = numeroSeguro(item.quantidade);
       const fracao = quantidade > 0
         ? numeroSeguro(quantidades[periodo.inicio]) / quantidade
         : 0;
-      return total + totalItem(item) * (1 + bdi) * fracao;
+      const bdiItem = obterBdiItem(orcamento, item) / 100;
+      return total + totalItem(item) * (1 + bdiItem) * fracao;
     }, 0);
     return {
       id: `MED-PROP-${String(indice + 1).padStart(3, "0")}`,
@@ -456,6 +456,37 @@ export const BDI_COMPONENTES_PADRAO = {
     ] },
     { id: "E", nome: "Tributos", itens: [
       { id: "E1", descricao: "ISS", percentual: 2 },
+      { id: "E2", descricao: "PIS", percentual: 0.65 },
+      { id: "E3", descricao: "COFINS", percentual: 3 },
+      { id: "E4", descricao: "CPRB", percentual: 0 },
+    ] },
+  ],
+};
+
+export const BDI_DIFERENCIADO_COMPONENTES_PADRAO = {
+  estrutura: "tcu-acordao-2622-2013-bdi-diferenciado",
+  fonte: "Acórdão TCU 2.622/2013-Plenário",
+  faixaReferencia: {
+    primeiroQuartil: 11.1,
+    medio: 14.02,
+    terceiroQuartil: 16.8,
+  },
+  grupos: [
+    { id: "A", nome: "Administração Central, Seguros e Garantias", itens: [
+      { id: "A1", descricao: "Administração Central", percentual: 3.45 },
+      { id: "A2", descricao: "Seguros e Garantias", percentual: 0.48 },
+    ] },
+    { id: "B", nome: "Riscos", itens: [
+      { id: "B1", descricao: "Riscos", percentual: 0.85 },
+    ] },
+    { id: "C", nome: "Despesas Financeiras", itens: [
+      { id: "C1", descricao: "Despesas Financeiras", percentual: 0.85 },
+    ] },
+    { id: "D", nome: "Lucro", itens: [
+      { id: "D1", descricao: "Lucro", percentual: 5.11 },
+    ] },
+    { id: "E", nome: "Tributos sobre o faturamento", itens: [
+      { id: "E1", descricao: "ISS — não incidente no mero fornecimento", percentual: 0 },
       { id: "E2", descricao: "PIS", percentual: 0.65 },
       { id: "E3", descricao: "COFINS", percentual: 3 },
       { id: "E4", descricao: "CPRB", percentual: 0 },
@@ -641,6 +672,44 @@ export function obterBdi(orcamento) {
     : numeroSeguro(orcamento.bdi);
 }
 
+export function obterBdiDiferenciado(orcamento) {
+  return calcularBdiDetalhado(
+    orcamento.bdiDiferenciadoComponentes || BDI_DIFERENCIADO_COMPONENTES_PADRAO,
+  );
+}
+
+const CRITERIOS_BDI_DIFERENCIADO = [
+  ["inviabilidadeParcelamento", "inviabilidade técnico-econômica de parcelamento"],
+  ["naturezaEspecifica", "natureza específica do material ou equipamento"],
+  ["fornecedorEspecializado", "fornecimento por empresa de especialidade própria e diversa"],
+  ["impactoSignificativo", "representatividade significativa no preço global"],
+  ["meraIntermediacao", "mera intermediação e atividade residual da construtora"],
+  ["servicosAssociadosSeparados", "serviços de instalação ou montagem separados do fornecimento"],
+];
+
+export function validarBdiDiferenciadoItem(item = {}) {
+  if (item.tipo === "grupo" || item.bdiTipo !== "diferenciado") {
+    return { elegivel: false, aplicavel: false, pendencias: [] };
+  }
+  const memoria = item.bdiDiferenciado || {};
+  const pendencias = CRITERIOS_BDI_DIFERENCIADO
+    .filter(([campo]) => memoria[campo] !== true)
+    .map(([, descricao]) => descricao);
+  if (String(memoria.justificativa || "").trim().length < 20) {
+    pendencias.push("justificativa técnica detalhada");
+  }
+  return {
+    elegivel: pendencias.length === 0,
+    aplicavel: true,
+    pendencias,
+  };
+}
+
+export function obterBdiItem(orcamento, item) {
+  const validacao = validarBdiDiferenciadoItem(item);
+  return validacao.elegivel ? obterBdiDiferenciado(orcamento) : obterBdi(orcamento);
+}
+
 export function totalItem(item) {
   if (item.tipo === "grupo") return 0;
   return truncarMoeda(numeroSeguro(item.quantidade) * numeroSeguro(item.unitario));
@@ -748,8 +817,33 @@ export function calcularTotais(orcamento) {
   const subtotalBruto = distribuicao.subtotalBruto;
   const valorDesconto = distribuicao.valorDesconto;
   const custoDireto = truncarMoeda(subtotalBruto - valorDesconto);
-  const bdi = obterBdi(orcamento);
-  const valorBdi = truncarMoeda(custoDireto * (bdi / 100));
+  const bdiPadrao = obterBdi(orcamento);
+  const bdiDiferenciado = obterBdiDiferenciado(orcamento);
+  let baseBdiPadrao = 0;
+  let baseBdiDiferenciado = 0;
+  let valorBdiPadrao = 0;
+  let valorBdiDiferenciado = 0;
+  let itensBdiDiferenciado = 0;
+  (orcamento.itens || []).filter((item) => item.tipo !== "grupo").forEach((item) => {
+    const liquido = Math.max(0, truncarMoeda(
+      totalItem(item) - numeroSeguro(distribuicao.porItem.get(item.id)),
+    ));
+    const diferenciado = validarBdiDiferenciadoItem(item).elegivel;
+    if (diferenciado) {
+      baseBdiDiferenciado += liquido;
+      valorBdiDiferenciado += truncarMoeda(liquido * (bdiDiferenciado / 100));
+      itensBdiDiferenciado += 1;
+    } else {
+      baseBdiPadrao += liquido;
+      valorBdiPadrao += truncarMoeda(liquido * (bdiPadrao / 100));
+    }
+  });
+  baseBdiPadrao = truncarMoeda(baseBdiPadrao);
+  baseBdiDiferenciado = truncarMoeda(baseBdiDiferenciado);
+  valorBdiPadrao = truncarMoeda(valorBdiPadrao);
+  valorBdiDiferenciado = truncarMoeda(valorBdiDiferenciado);
+  const valorBdi = truncarMoeda(valorBdiPadrao + valorBdiDiferenciado);
+  const bdi = custoDireto > 0 ? (valorBdi / custoDireto) * 100 : bdiPadrao;
   const precoTotal = truncarMoeda(custoDireto + valorBdi);
   const pendencias = orcamento.itens.filter(
     (item) => item.tipo !== "grupo" && (!numeroSeguro(item.quantidade) || !numeroSeguro(item.unitario)),
@@ -761,6 +855,13 @@ export function calcularTotais(orcamento) {
     descontoPercentual: distribuicao.percentual,
     custoDireto,
     bdi,
+    bdiPadrao,
+    bdiDiferenciado,
+    baseBdiPadrao,
+    baseBdiDiferenciado,
+    valorBdiPadrao,
+    valorBdiDiferenciado,
+    itensBdiDiferenciado,
     valorBdi,
     precoTotal,
     pendencias,
@@ -785,6 +886,13 @@ export function validarOrcamento(orcamento) {
       if (!numeroSeguro(item.quantidade)) problemas.push({ tipo: "alerta", mensagem: `Item ${item.codigo} sem quantidade.` });
       if (!numeroSeguro(item.unitario)) problemas.push({ tipo: "alerta", mensagem: `Item ${item.codigo} sem preço unitário.` });
       if (!UNIDADES_ORCAMENTARIAS.includes(item.unidade?.toUpperCase())) problemas.push({ tipo: "erro", mensagem: `Unidade inválida no item ${item.codigo}.` });
+      const validacaoBdi = validarBdiDiferenciadoItem(item);
+      if (validacaoBdi.aplicavel && !validacaoBdi.elegivel) {
+        problemas.push({
+          tipo: "erro",
+          mensagem: `BDI diferenciado incompleto no item ${item.codigo}: ${validacaoBdi.pendencias.join(", ")}.`,
+        });
+      }
     }
     return problemas.map((problema) => ({ ...problema, itemId: item.id }));
   });
@@ -821,6 +929,11 @@ function normalizarBdiComponentes(componentes) {
   return clonarConfiguracao(BDI_COMPONENTES_PADRAO);
 }
 
+function normalizarBdiDiferenciadoComponentes(componentes) {
+  if (Array.isArray(componentes?.grupos)) return clonarConfiguracao(componentes);
+  return clonarConfiguracao(BDI_DIFERENCIADO_COMPONENTES_PADRAO);
+}
+
 export function normalizarOrcamento(orcamento) {
   const dadosOrcamento = { ...orcamento };
   delete dadosOrcamento.base;
@@ -830,6 +943,9 @@ export function normalizarOrcamento(orcamento) {
     ...dadosOrcamento,
     ...planejamento,
     bdiComponentes: normalizarBdiComponentes(orcamento.bdiComponentes),
+    bdiDiferenciadoComponentes: normalizarBdiDiferenciadoComponentes(
+      orcamento.bdiDiferenciadoComponentes,
+    ),
     encargosSociais: orcamento.encargosSociais?.estrutura === ENCARGOS_SOCIAIS_PADRAO.estrutura
       && Array.isArray(orcamento.encargosSociais?.grupos)
       ? clonarConfiguracao(orcamento.encargosSociais)
@@ -866,6 +982,10 @@ export function normalizarOrcamento(orcamento) {
       custoMaterial: item.tipo === "grupo"
         ? 0
         : numeroSeguro(item.custoMaterial ?? item.unitario),
+      bdiTipo: item.tipo === "grupo" ? "padrao" : (item.bdiTipo || "padrao"),
+      bdiDiferenciado: item.tipo === "grupo"
+        ? null
+        : (item.bdiDiferenciado || null),
     }))),
     composicoes: (orcamento.composicoes || []).map((composicao) => ({
       ...composicao,
@@ -908,6 +1028,7 @@ export function criarOrcamento({
     revisao: "R01",
     bdi: numeroSeguro(bdi),
     bdiComponentes: clonarConfiguracao(BDI_COMPONENTES_PADRAO),
+    bdiDiferenciadoComponentes: clonarConfiguracao(BDI_DIFERENCIADO_COMPONENTES_PADRAO),
     encargosSociais: clonarConfiguracao(ENCARGOS_SOCIAIS_PADRAO),
     descontoGlobal: null,
     historicoCalculo: [],

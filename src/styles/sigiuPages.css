@@ -2700,6 +2700,355 @@ button.sigiu-central-modulo-card:hover {
   font-size: 11px;
 }
 
+.sigiu-infrastructure-summary .sigiu-admin-definition-list strong {
+  max-width: 62%;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.sigiu-infrastructure-result {
+  align-self: center;
+  color: #60757b;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.sigiu-infrastructure-result.is-success {
+  color: #087667;
+}
+
+.sigiu-infrastructure-result.is-error {
+  color: #a3443a;
+}
+
+.sigiu-infrastructure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sigiu-infrastructure-grid article {
+  padding: 14px;
+  border: 1px solid #dce6e7;
+  border-radius: 10px;
+  background: #f9fbfb;
+}
+
+.sigiu-infrastructure-grid article > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sigiu-infrastructure-grid article > div > strong {
+  color: #173f4b;
+  font-size: 13px;
+}
+
+.sigiu-infrastructure-grid article p {
+  margin: 9px 0 0;
+  color: #6d8086;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.sigiu-access-matrix {
+  overflow-x: auto;
+  border: 1px solid #dce6e7;
+  border-radius: 10px;
+}
+
+.sigiu-access-matrix > div {
+  min-width: 920px;
+  display: grid;
+  grid-template-columns: minmax(240px, 1.5fr) repeat(6, minmax(90px, .7fr));
+  align-items: stretch;
+  border-bottom: 1px solid #e5ecee;
+}
+
+.sigiu-access-matrix > div:last-child {
+  border-bottom: 0;
+}
+
+.sigiu-access-matrix__header {
+  background: #173f4b;
+  color: #fff;
+}
+
+.sigiu-access-matrix > div > span,
+.sigiu-access-matrix > div > strong,
+.sigiu-access-matrix > div > b {
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #e2e9ea;
+  text-align: center;
+}
+
+.sigiu-access-matrix > div > span:first-child,
+.sigiu-access-matrix > div > strong:first-child {
+  align-items: flex-start;
+  justify-content: center;
+  flex-direction: column;
+  text-align: left;
+}
+
+.sigiu-access-matrix > div > span strong,
+.sigiu-access-matrix > div > span small {
+  display: block;
+}
+
+.sigiu-access-matrix > div > span strong {
+  color: #173f4b;
+  font-size: 12px;
+}
+
+.sigiu-access-matrix > div > span small {
+  margin-top: 3px;
+  color: #73868c;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.sigiu-access-matrix__header span,
+.sigiu-access-matrix__header strong {
+  color: #fff !important;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.sigiu-access-matrix b.is-allowed {
+  color: #087667;
+  background: #eff9f6;
+}
+
+.sigiu-access-matrix b.is-denied {
+  color: #9ba8ac;
+}
+
+.sigiu-admin-security-note {
+  margin-top: 12px;
+  color: #6d8086;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.sigiu-migration-plan,
+.sigiu-corporate-domain-list {
+  overflow: hidden;
+  border: 1px solid #dce6e7;
+  border-radius: 10px;
+}
+
+.sigiu-migration-plan article {
+  min-height: 62px;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 34px minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #e5ecee;
+}
+
+.sigiu-migration-plan article:last-child,
+.sigiu-corporate-domain-list article:last-child {
+  border-bottom: 0;
+}
+
+.sigiu-migration-plan article > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e4f3f1;
+  color: #087667;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.sigiu-migration-plan article strong,
+.sigiu-migration-plan article small,
+.sigiu-corporate-domain-list article strong,
+.sigiu-corporate-domain-list article small {
+  display: block;
+}
+
+.sigiu-migration-plan article strong,
+.sigiu-corporate-domain-list article strong {
+  color: #173f4b;
+  font-size: 12px;
+}
+
+.sigiu-migration-plan article small,
+.sigiu-corporate-domain-list article small {
+  margin-top: 3px;
+  color: #70848a;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.sigiu-migration-plan article em,
+.sigiu-corporate-domain-list article em,
+.sigiu-corporate-domain-list article > span {
+  color: #087667;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sigiu-repository-transition-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.sigiu-tenant-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sigiu-tenant-grid > article {
+  padding: 16px;
+  border: 1px solid #dce6e7;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f9fbfb, #edf8f6);
+}
+
+.sigiu-tenant-grid > article > div > span,
+.sigiu-tenant-grid > article > div > strong,
+.sigiu-tenant-grid > article > div > small {
+  display: block;
+}
+
+.sigiu-tenant-grid > article > div > span {
+  color: #0a8779;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .12em;
+}
+
+.sigiu-tenant-grid > article > div > strong {
+  margin-top: 5px;
+  color: #173f4b;
+  font-size: 15px;
+}
+
+.sigiu-tenant-grid > article > div > small {
+  margin-top: 4px;
+  color: #71858a;
+  font-size: 10px;
+}
+
+.sigiu-tenant-grid ul {
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+  list-style: none;
+}
+
+.sigiu-tenant-grid li {
+  padding: 9px 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 8px;
+  background: #fff;
+  color: #36545b;
+  font-size: 10px;
+}
+
+.sigiu-tenant-grid li small {
+  color: #839398;
+}
+
+.sigiu-corporate-domain-list article {
+  min-height: 68px;
+  padding: 11px 14px;
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 130px 100px;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #e5ecee;
+}
+
+.sigiu-corporate-domain-list article > span {
+  color: #5b7076;
+}
+
+.sigiu-platform-module-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.sigiu-platform-module-grid article {
+  min-height: 86px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid #dce6e7;
+  border-radius: 10px;
+  background: #f9fbfb;
+}
+
+.sigiu-platform-module-grid article span,
+.sigiu-platform-module-grid article strong,
+.sigiu-platform-module-grid article small {
+  display: block;
+}
+
+.sigiu-platform-module-grid article span {
+  color: #0a8779;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .1em;
+}
+
+.sigiu-platform-module-grid article strong {
+  margin-top: 5px;
+  color: #173f4b;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.sigiu-platform-module-grid article small {
+  margin-top: 4px;
+  color: #839398;
+  font-size: 9px;
+}
+
+@media (max-width: 760px) {
+  .sigiu-infrastructure-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sigiu-infrastructure-summary .sigiu-admin-definition-list strong {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .sigiu-tenant-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sigiu-platform-module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sigiu-migration-plan article,
+  .sigiu-corporate-domain-list article {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 800px) {
   .sigiu-admin-base-list article {
     grid-template-columns: 1fr;

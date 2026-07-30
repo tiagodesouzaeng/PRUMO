@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BDI_COMPONENTES_PADRAO,
+  BDI_DIFERENCIADO_COMPONENTES_PADRAO,
   ENCARGOS_SOCIAIS_PADRAO,
   calcularBdiDetalhado,
   calcularDataFimPorPrazo,
@@ -20,6 +21,7 @@ import {
   totalGrupo,
   totalItem,
   UNIDADES_ORCAMENTARIAS,
+  validarBdiDiferenciadoItem,
   validarMedicaoAcumulada,
   validarOrcamento,
 } from "../domain/orcamento";
@@ -112,7 +114,7 @@ function Indicadores({ orcamento }) {
   return (
     <div className="orc-kpis">
       <article><span>CUSTO DIRETO LÍQUIDO</span><strong>{formatarMoeda(totais.custoDireto)}</strong><small className="orc-positive">{totais.valorDesconto ? `${formatarMoeda(totais.valorDesconto)} de desconto` : "Calculado a partir dos serviços"}</small></article>
-      <article><span>BDI MÉDIO</span><strong>{totais.bdi.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong><small>Aplicado após o desconto</small></article>
+      <article><span>BDI EFETIVO</span><strong>{totais.bdi.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong><small>{totais.itensBdiDiferenciado ? `${totais.itensBdiDiferenciado} itens com BDI diferenciado` : "Todos os itens com BDI padrão"}</small></article>
       <article className="orc-kpi-total"><span>PREÇO TOTAL</span><strong>{formatarMoeda(totais.precoTotal)}</strong><small>{formatarMoeda(totais.valorPorArea)} / m²</small></article>
       <article><span>PENDÊNCIAS</span><strong>{totais.pendencias} {totais.pendencias === 1 ? "item" : "itens"}</strong><small className={totais.pendencias ? "orc-warning" : "orc-positive"}>{totais.pendencias ? "Quantidade ou preço a completar" : "Planilha consistente"}</small></article>
     </div>
@@ -165,7 +167,7 @@ function TabelaItens({
               onClick={() => item.tipo !== "grupo" && item.referenciaTipo === "composicao" && abrirDetalhe?.(item)}
             >
               <td>{item.tipo === "grupo" && <i>⌄</i>}{item.codigo}</td>
-              <td style={{ paddingLeft: `${10 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}><strong>{item.descricao}</strong>{item.fonte && <small>{item.fonte}</small>}</td>
+              <td style={{ paddingLeft: `${10 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}><strong>{item.descricao}</strong>{item.fonte && <small>{item.fonte}</small>}{item.tipo !== "grupo" && item.bdiTipo === "diferenciado" && <small className={validarBdiDiferenciadoItem(item).elegivel ? "orc-bdi-item-tag" : "orc-bdi-item-tag is-pending"}>{validarBdiDiferenciadoItem(item).elegivel ? "BDI DIFERENCIADO" : "BDI DIFERENCIADO PENDENTE"}</small>}</td>
               <td>{item.quantidade?.toLocaleString("pt-BR") || "—"}</td>
               <td>{item.unidade || ""}</td>
               <td>{item.unitario ? formatarPrecoUnitario(item.unitario) : ""}</td>
@@ -334,7 +336,7 @@ function Planilha({
         />
         <footer className="orc-table-footer">
           <span>{orcamento.itens.filter((item) => item.tipo !== "grupo").length} itens · {orcamento.itens.filter((item) => item.tipo === "grupo").length} grupos · {totais.pendencias} pendências</span>
-          <div><span>Bruto: {formatarMoeda(totais.subtotalBruto)}</span><span>Descontos: − {formatarMoeda(totais.valorDesconto)}</span><span>Líquido: {formatarMoeda(totais.custoDireto)}</span><span>BDI: {formatarMoeda(totais.valorBdi)}</span><strong>Total com BDI: {formatarMoeda(totais.precoTotal)}</strong></div>
+          <div><span>Bruto: {formatarMoeda(totais.subtotalBruto)}</span><span>Descontos: − {formatarMoeda(totais.valorDesconto)}</span><span>Líquido: {formatarMoeda(totais.custoDireto)}</span><span>BDI padrão: {formatarMoeda(totais.valorBdiPadrao)}</span>{totais.baseBdiDiferenciado > 0 && <span>BDI diferenciado: {formatarMoeda(totais.valorBdiDiferenciado)}</span>}<strong>Total com BDI: {formatarMoeda(totais.precoTotal)}</strong></div>
         </footer>
       </article>
     </>
@@ -423,17 +425,23 @@ function EditorPercentuais({ configuracao, alterar, prefixo }) {
   );
 }
 
-function BdiDetalhado({ orcamento, salvarBdi, salvarEncargos }) {
+function BdiDetalhado({ orcamento, salvarBdi, salvarBdiDiferenciado, salvarEncargos }) {
   const [guia, setGuia] = useState("bdi");
   const [componentes, setComponentes] = useState(() => clonar(orcamento.bdiComponentes || BDI_COMPONENTES_PADRAO));
+  const [componentesDiferenciados, setComponentesDiferenciados] = useState(
+    () => clonar(orcamento.bdiDiferenciadoComponentes || BDI_DIFERENCIADO_COMPONENTES_PADRAO),
+  );
   const [encargos, setEncargos] = useState(() => clonar(orcamento.encargosSociais || ENCARGOS_SOCIAIS_PADRAO));
   const bdiCalculado = calcularBdiDetalhado(componentes);
+  const bdiDiferenciadoCalculado = calcularBdiDetalhado(componentesDiferenciados);
   const totalEncargos = calcularTotalPercentuais(encargos.grupos);
+  const totais = calcularTotais(orcamento);
 
   return (
     <>
       <nav className="bdi-subnav" aria-label="BDI e encargos">
         <button type="button" className={guia === "bdi" ? "is-active" : ""} onClick={() => setGuia("bdi")}>Composição do BDI</button>
+        <button type="button" className={guia === "bdi-diferenciado" ? "is-active" : ""} onClick={() => setGuia("bdi-diferenciado")}>BDI diferenciado</button>
         <button type="button" className={guia === "encargos" ? "is-active" : ""} onClick={() => setGuia("encargos")}>Encargos sociais</button>
       </nav>
       {guia === "bdi" && <div className="orc-bdi-grid analytic-config-grid">
@@ -450,6 +458,28 @@ function BdiDetalhado({ orcamento, salvarBdi, salvarEncargos }) {
           <div><span>Desconto global</span><strong>− {formatarMoeda(calcularTotais(orcamento).valorDesconto)}</strong></div>
           <div className="total"><span>Preço com BDI</span><strong>{formatarMoeda(calcularTotais({ ...orcamento, bdiComponentes: componentes }).precoTotal)}</strong></div>
           <p>Fórmula: (((1 + A + B) × (1 + C) × (1 + D)) ÷ (1 − E)) − 1</p>
+        </aside>
+      </div>}
+      {guia === "bdi-diferenciado" && <div className="orc-bdi-grid analytic-config-grid">
+        <article className="orc-card">
+          <header><div><span>MERO FORNECIMENTO DE MATERIAIS E EQUIPAMENTOS</span><h3>Composição analítica do BDI diferenciado</h3></div><strong>{bdiDiferenciadoCalculado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></header>
+          <aside className="orc-bdi-legal-note">
+            <strong>Aplicação condicionada — Súmula TCU 253</strong>
+            <span>A taxa reduzida somente será aplicada aos itens cuja memória demonstre simultaneamente inviabilidade de parcelamento, natureza específica, fornecedor especializado, impacto significativo, mera intermediação e separação dos serviços associados.</span>
+          </aside>
+          <EditorPercentuais configuracao={componentesDiferenciados} alterar={setComponentesDiferenciados} prefixo="BDI diferenciado" />
+          <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={() => setComponentesDiferenciados(clonar(BDI_DIFERENCIADO_COMPONENTES_PADRAO))}>Restaurar referência TCU</button><button type="button" className="orc-btn orc-btn-primary" onClick={() => salvarBdiDiferenciado(componentesDiferenciados)}>Aplicar BDI diferenciado</button></footer>
+        </article>
+        <aside className="orc-card orc-bdi-summary">
+          <header><div><span>REFERÊNCIA E INCIDÊNCIA</span><h3>Acórdão TCU 2.622/2013</h3></div></header>
+          <div><span>1º quartil</span><strong>11,10%</strong></div>
+          <div><span>Referência média</span><strong>14,02%</strong></div>
+          <div><span>3º quartil</span><strong>16,80%</strong></div>
+          <div><span>Taxa calculada nesta proposta</span><strong>{bdiDiferenciadoCalculado.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</strong></div>
+          <div><span>Base elegível</span><strong>{formatarMoeda(totais.baseBdiDiferenciado)}</strong></div>
+          <div><span>Valor do BDI diferenciado</span><strong>{formatarMoeda(totais.valorBdiDiferenciado)}</strong></div>
+          <div className="total"><span>Itens validados</span><strong>{totais.itensBdiDiferenciado}</strong></div>
+          <p>Os percentuais são referências para análise, não limites automáticos. Valores fora da faixa exigem exame pormenorizado e justificativa do caso concreto.</p>
         </aside>
       </div>}
       {guia === "encargos" && <div className="social-charges-grid analytic-config-grid">
@@ -1332,6 +1362,17 @@ function ModalItem({
     percentualMaoObra: item.percentualMaoObra || 0,
     custoMaoObra: item.custoMaoObra || 0,
     custoMaterial: item.custoMaterial ?? item.unitario ?? 0,
+    bdiTipo: item.bdiTipo || "padrao",
+    bdiDiferenciado: item.bdiDiferenciado || {
+      inviabilidadeParcelamento: false,
+      naturezaEspecifica: false,
+      fornecedorEspecializado: false,
+      impactoSignificativo: false,
+      meraIntermediacao: false,
+      servicosAssociadosSeparados: false,
+      justificativa: "",
+      responsavel: "",
+    },
   } : {
     tipo: tipoInicial,
     parentId: tipoInicial === "grupo" ? "" : grupoInicial,
@@ -1350,6 +1391,17 @@ function ModalItem({
     percentualMaoObra: 0,
     custoMaoObra: 0,
     custoMaterial: 0,
+    bdiTipo: "padrao",
+    bdiDiferenciado: {
+      inviabilidadeParcelamento: false,
+      naturezaEspecifica: false,
+      fornecedorEspecializado: false,
+      impactoSignificativo: false,
+      meraIntermediacao: false,
+      servicosAssociadosSeparados: false,
+      justificativa: "",
+      responsavel: "",
+    },
   });
   const [novoGrupo, setNovoGrupo] = useState({
     aberto: false,
@@ -1396,6 +1448,16 @@ function ModalItem({
 
   function atualizar(campo, valor) {
     setDados((atuais) => ({ ...atuais, [campo]: valor }));
+  }
+
+  function atualizarCriterioBdi(campo, valor) {
+    setDados((atuais) => ({
+      ...atuais,
+      bdiDiferenciado: {
+        ...(atuais.bdiDiferenciado || {}),
+        [campo]: valor,
+      },
+    }));
   }
 
   function selecionarGrupo(codigoGrupo) {
@@ -1524,6 +1586,19 @@ function ModalItem({
             <label><span>Quantidade</span><input required min="0" step="any" type="number" value={dados.quantidade} onChange={(event) => atualizar("quantidade", event.target.value)} /></label>
             <label><span>Unidade</span><select required value={dados.unidade} onChange={(event) => atualizar("unidade", event.target.value)}>{UNIDADES_ORCAMENTARIAS.map((unidade) => <option key={unidade}>{unidade}</option>)}</select></label>
             <label><span>Preço unitário (precisão livre)</span><input required min="0" step="any" type="number" value={dados.unitario} onChange={(event) => atualizar("unitario", event.target.value)} /></label>
+            <label className="orc-field-wide"><span>Regra de BDI do item</span><select value={dados.bdiTipo} onChange={(event) => atualizar("bdiTipo", event.target.value)}><option value="padrao">BDI padrão da obra</option><option value="diferenciado">BDI diferenciado — mero fornecimento relevante</option></select></label>
+            {dados.bdiTipo === "diferenciado" && <fieldset className="orc-bdi-eligibility orc-field-wide">
+              <legend>Memória obrigatória para aplicação do BDI diferenciado</legend>
+              <p>Confirme todas as condições. Enquanto houver pendência, o sistema continuará aplicando o BDI padrão.</p>
+              <label><input required type="checkbox" checked={dados.bdiDiferenciado?.inviabilidadeParcelamento === true} onChange={(event) => atualizarCriterioBdi("inviabilidadeParcelamento", event.target.checked)} /><span>Há inviabilidade técnico-econômica justificada para parcelar o fornecimento.</span></label>
+              <label><input required type="checkbox" checked={dados.bdiDiferenciado?.naturezaEspecifica === true} onChange={(event) => atualizarCriterioBdi("naturezaEspecifica", event.target.checked)} /><span>O material ou equipamento possui natureza específica.</span></label>
+              <label><input required type="checkbox" checked={dados.bdiDiferenciado?.fornecedorEspecializado === true} onChange={(event) => atualizarCriterioBdi("fornecedorEspecializado", event.target.checked)} /><span>Pode ser fornecido por empresa de especialidade própria e diversa.</span></label>
+              <label><input required type="checkbox" checked={dados.bdiDiferenciado?.impactoSignificativo === true} onChange={(event) => atualizarCriterioBdi("impactoSignificativo", event.target.checked)} /><span>Representa percentual significativo do preço global, avaliado no caso concreto.</span></label>
+              <label><input required type="checkbox" checked={dados.bdiDiferenciado?.meraIntermediacao === true} onChange={(event) => atualizarCriterioBdi("meraIntermediacao", event.target.checked)} /><span>A aquisição constitui mera intermediação e atividade residual da construtora.</span></label>
+              <label><input required type="checkbox" checked={dados.bdiDiferenciado?.servicosAssociadosSeparados === true} onChange={(event) => atualizarCriterioBdi("servicosAssociadosSeparados", event.target.checked)} /><span>Montagem, instalação ou aplicação estão discriminadas separadamente, quando existentes.</span></label>
+              <label><span>Responsável técnico</span><input required value={dados.bdiDiferenciado?.responsavel || ""} onChange={(event) => atualizarCriterioBdi("responsavel", event.target.value)} placeholder="Nome do profissional responsável pela análise" /></label>
+              <label className="orc-field-wide"><span>Justificativa técnica</span><textarea required minLength="20" value={dados.bdiDiferenciado?.justificativa || ""} onChange={(event) => atualizarCriterioBdi("justificativa", event.target.value)} placeholder="Descreva a inviabilidade de parcelamento, a relevância financeira e a caracterização do mero fornecimento." /></label>
+            </fieldset>}
           </>}
         </div>
         <footer><button type="button" className="orc-btn orc-btn-ghost" onClick={fechar}>Cancelar</button><button type="submit" className="orc-btn orc-btn-primary">{item ? "Salvar alterações" : "Adicionar"}</button></footer>
@@ -1791,6 +1866,7 @@ export default function Orcamento({ basesPrecos }) {
     moverItem,
     importarItens,
     atualizarBdi,
+    atualizarBdiDiferenciado,
     atualizarEncargosSociais,
     atualizarDescontoGlobal,
     atualizarPlanejamento,
@@ -1886,6 +1962,11 @@ export default function Orcamento({ basesPrecos }) {
   function salvarBdi(componentes) {
     atualizarBdi(componentes);
     notificar("Composição do BDI aplicada ao orçamento.");
+  }
+
+  function salvarBdiDiferenciado(componentes) {
+    atualizarBdiDiferenciado(componentes);
+    notificar("Composição do BDI diferenciado aplicada com referência do TCU.");
   }
 
   function salvarEncargos(encargos) {
@@ -2014,7 +2095,7 @@ export default function Orcamento({ basesPrecos }) {
       <CabecalhoSecao etapa={etapaAtual.id} exportar={exportar} novaRevisao={adicionarRevisao} />
       {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
       {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} abrirDetalhe={setItemDetalhe} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} />}
-      {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} salvarEncargos={salvarEncargos} />}
+      {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} salvarBdiDiferenciado={salvarBdiDiferenciado} salvarEncargos={salvarEncargos} />}
       {etapa === "cronograma" && <Cronograma orcamento={orcamentoAtivo} atualizarQuantidade={atualizarCronogramaQuantidade} atualizarGrupo={atualizarCronogramaGrupo} limparValores={limparCronograma} distribuirSaldos={distribuirSaldosCronograma} />}
       {etapa === "histograma" && <Histograma orcamento={orcamentoAtivo} atualizarEquipe={atualizarHistogramaEquipe} limparValores={limparHistograma} distribuirSaldos={distribuirSaldosHistograma} basesPrecos={basesPrecos} />}
       {etapa === "medicoes" && <Medicoes orcamento={orcamentoAtivo} abrirMedicao={abrirMedicao} />}

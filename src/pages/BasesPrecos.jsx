@@ -310,6 +310,7 @@ export default function BasesPrecos({ basesPrecos }) {
         </div>
       </section>
       <section className="orc-card base-filter-panel">
+        <div className="base-filter-actions"><button className="orc-btn orc-btn-ghost" type="button" onClick={() => setModal("importar")}>⇧ Importar base</button><button className="orc-btn orc-btn-primary" type="button" onClick={() => { basesPrecos.setBaseAtivaId(BASE_PROPRIA_ID); setModal("composicao"); }}>＋ Composição própria</button></div>
         <div className="base-filter-primary">
           <label><span>BUSCAR NA BASE</span><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Pesquisar por código, descrição ou unidade..." /></label>
           <button type="button" className="orc-btn orc-btn-primary" onClick={() => setBusca((atual) => atual.trim())}>Atualizar</button>
@@ -323,7 +324,6 @@ export default function BasesPrecos({ basesPrecos }) {
         <button className="base-filter-toggle" type="button" onClick={() => setFiltrosAbertos((aberto) => !aberto)}><span><i>{filtrosAbertos ? "−" : "+"}</i> Filtros da visualização <em>{filtrosAplicados.length} aplicados</em></span><b>{referenciasFiltradas.length.toLocaleString("pt-BR")} de {Number(tipo === "todos" ? totalItensPreco : baseAtiva?.[tipo === "composicao" ? "composicoes" : "insumos"] || 0).toLocaleString("pt-BR")}</b></button>
         <div className="base-active-filters"><span>VISUALIZAÇÃO ATUAL</span>{filtrosAplicados.map((filtro) => <b key={filtro}>{filtro}</b>)}{!filtrosAplicados.length && <b className="is-empty">Sem filtros adicionais</b>}<button type="button" onClick={limparFiltros}>× Limpar filtros</button></div>
         {filtrosAbertos && !baseAtiva?.propria && <div className="base-filter-options compact"><label className="base-state-select"><span>Mês de referência</span><select value={mesSelecionado} onChange={(event) => selecionarMes(event.target.value)}>{baseAtiva?.id === BASES_TODAS_ID && <option value="">Todos os meses</option>}{mesesDisponiveis.map((referencia) => <option key={referencia}>{referencia}</option>)}</select></label><label className="base-state-select"><span>Estado para preços</span><select value={ufSelecionada} onChange={(event) => selecionarEstado(event.target.value)}>{UFS_SINAPI.map((uf) => <option key={uf}>{uf}</option>)}</select></label></div>}
-        <div className="base-filter-actions"><button className="orc-btn orc-btn-ghost" type="button" onClick={() => setModal("importar")}>⇧ Importar base</button><button className="orc-btn orc-btn-primary" type="button" onClick={() => { basesPrecos.setBaseAtivaId(BASE_PROPRIA_ID); setModal("composicao"); }}>＋ Composição própria</button></div>
       </section>
       <div className="base-count-grid">
         <article><span>COMPOSIÇÕES</span><strong>{Number(baseAtiva?.composicoes || 0).toLocaleString("pt-BR")}</strong><small>Serviços compostos</small></article>

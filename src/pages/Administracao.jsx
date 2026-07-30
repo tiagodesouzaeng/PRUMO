@@ -6,7 +6,7 @@
                     parâmetros, sincronização e auditoria.
 ===================================================== */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   SIGIU_ADMIN_AUDITORIA,
   SIGIU_ADMIN_CADASTROS_MESTRES,
@@ -23,12 +23,38 @@ import {
   registrarAuditoriaIntegracao,
   salvarIntegracoesBases,
 } from "../services/integracaoBasesPrecos";
+import {
+  criarClientePrumo,
+  diagnosticarInfraestrutura,
+  obterConfiguracaoInfraestrutura,
+  obterContextoDesenvolvimento,
+  verificarInfraestrutura,
+} from "../services/infraestruturaCorporativa";
+import {
+  PERFIS_ACESSO_PRUMO,
+  possuiPermissao,
+} from "../domain/acesso";
+import {
+  DOMINIOS_CORPORATIVOS,
+  EMPRESAS_DEMONSTRACAO,
+  EQUIPES_DEMONSTRACAO,
+} from "../domain/multiempresa";
+import {
+  criarPacoteMigracao,
+  criarPlanoMigracao,
+  inventariarDadosLocais,
+} from "../services/migracaoCorporativa";
+import { carregarOrcamentos } from "../services/orcamentoRepository";
+import { listarComposicoesProprias } from "../services/composicoesPropriasRepository";
+import { MODULOS_PLATAFORMA } from "../../shared/platform";
 
 const ABAS_ADMIN = [
   { id: "geral", label: "Geral", badge: "8.0" },
+  { id: "infraestrutura", label: "Infraestrutura", badge: "10.3" },
+  { id: "organizacoes", label: "Empresas e equipes", badge: "10.3" },
   { id: "fontes", label: "Fontes de dados", badge: "4" },
   { id: "bases-precos", label: "Bases de preços", badge: "ADM" },
-  { id: "usuarios", label: "Usuários e acessos", badge: "3" },
+  { id: "usuarios", label: "Usuários e acessos", badge: "10.2" },
   { id: "cadastros", label: "Cadastros mestres", badge: "4" },
   { id: "parametros", label: "Parâmetros", badge: "3" },
   { id: "sync", label: "Integrações", badge: "9.6" },
@@ -77,6 +103,25 @@ function ConfigResumo() {
         </div>
       </section>
 
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Catálogo multimódulo</h2>
+            <p>Todos os domínios reutilizam o mesmo núcleo de empresas, equipes, permissões, auditoria e integrações.</p>
+          </div>
+          <StatusChip status={`${MODULOS_PLATAFORMA.length} módulos`} />
+        </header>
+        <div className="sigiu-platform-module-grid">
+          {MODULOS_PLATAFORMA.map((modulo) => (
+            <article key={modulo.id}>
+              <span>{String(modulo.ordem).padStart(3, "0")}</span>
+              <strong>{modulo.nome}</strong>
+              <small>{modulo.id}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="sigiu-card sigiu-admin-card sigiu-admin-card--notice">
         <header>
           <span>⚠</span>
@@ -85,6 +130,484 @@ function ConfigResumo() {
             <p>
               Usuários, senhas e permissões reais não devem ser armazenados em React, localStorage ou planilha.
               Esta sprint cria a estrutura gerencial. A autenticação segura deve ser feita em backend/serviço próprio.
+            </p>
+          </div>
+        </header>
+      </section>
+    </div>
+  );
+}
+
+function InfraestruturaCorporativa({ basesPrecos }) {
+  const configuracao = useMemo(() => obterConfiguracaoInfraestrutura(), []);
+  const contexto = useMemo(() => obterContextoDesenvolvimento(), []);
+  const cliente = useMemo(() => (
+    configuracao.apiConfigurada && contexto
+      ? criarClientePrumo({
+        baseUrl: configuracao.apiUrl,
+        obterContexto: () => contexto,
+      })
+      : null
+  ), [configuracao, contexto]);
+  const diagnostico = useMemo(
+    () => diagnosticarInfraestrutura(configuracao),
+    [configuracao],
+  );
+  const [verificando, setVerificando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const [processandoLote, setProcessandoLote] = useState(false);
+  const [mensagemLote, setMensagemLote] = useState("");
+  const [lotes, setLotes] = useState([]);
+  const [trabalhos, setTrabalhos] = useState([]);
+  const [transicoes, setTransicoes] = useState([]);
+  const [processandoTrabalho, setProcessandoTrabalho] = useState(false);
+  const [mensagemGovernanca, setMensagemGovernanca] = useState("");
+  const dadosMigracao = useMemo(() => ({
+    orcamentos: carregarOrcamentos(),
+    composicoesProprias: listarComposicoesProprias(),
+    bases: basesPrecos?.bases || [],
+  }), [basesPrecos?.bases]);
+  const planoMigracao = useMemo(
+    () => criarPlanoMigracao(inventariarDadosLocais(dadosMigracao)),
+    [dadosMigracao],
+  );
+
+  async function carregarLotes() {
+    if (!cliente) return;
+    try {
+      setLotes(await cliente.listarLotesMigracao());
+    } catch {
+      setLotes([]);
+    }
+  }
+
+  async function carregarGovernanca() {
+    if (!cliente) return;
+    try {
+      const [fila, estados] = await Promise.all([
+        cliente.listarTrabalhos(),
+        cliente.listarTransicoesRepositorio(),
+      ]);
+      setTrabalhos(fila);
+      setTransicoes(estados);
+    } catch {
+      setTrabalhos([]);
+      setTransicoes([]);
+    }
+  }
+
+  useEffect(() => {
+    carregarLotes();
+    carregarGovernanca();
+  }, [cliente]);
+
+  async function testarInfraestrutura() {
+    setVerificando(true);
+    setResultado(await verificarInfraestrutura(configuracao));
+    setVerificando(false);
+  }
+
+  async function enviarLote() {
+    if (!cliente || !contexto) {
+      setMensagemLote("Configure a sessão corporativa local para enviar o lote.");
+      return;
+    }
+    setProcessandoLote(true);
+    setMensagemLote("");
+    try {
+      const pacote = await criarPacoteMigracao({
+        contexto,
+        dados: dadosMigracao,
+        usuarioId: contexto.usuarioId,
+      });
+      const recebido = await cliente.receberLoteMigracao(pacote);
+      const validado = await cliente.validarLoteMigracao(recebido.id);
+      setMensagemLote(
+        validado.status === "validado"
+          ? "Lote recebido e validado. Revise as contagens antes de homologar."
+          : `Lote rejeitado: ${(validado.erros || []).join(" · ")}`,
+      );
+      await carregarLotes();
+    } catch (erro) {
+      setMensagemLote(erro.message);
+    } finally {
+      setProcessandoLote(false);
+    }
+  }
+
+  async function homologarLote(loteId) {
+    setProcessandoLote(true);
+    setMensagemLote("");
+    try {
+      await cliente.homologarLoteMigracao(loteId);
+      setMensagemLote("Lote homologado no banco corporativo com rastreabilidade.");
+      await carregarLotes();
+      await carregarGovernanca();
+    } catch (erro) {
+      setMensagemLote(erro.message);
+    } finally {
+      setProcessandoLote(false);
+    }
+  }
+
+  async function testarWorker() {
+    if (!cliente) return;
+    setProcessandoTrabalho(true);
+    setMensagemGovernanca("");
+    try {
+      await cliente.criarTrabalho(
+        { tipo: "sistema.diagnostico", payload: { origem: "administracao" } },
+        `diagnostico:${Date.now()}`,
+      );
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 350));
+      await carregarGovernanca();
+      setMensagemGovernanca("Worker respondeu e registrou o processamento na fila.");
+    } catch (erro) {
+      setMensagemGovernanca(erro.message);
+    } finally {
+      setProcessandoTrabalho(false);
+    }
+  }
+
+  async function alterarModoRepositorio(dominioId, modo) {
+    setMensagemGovernanca("");
+    try {
+      await cliente.alterarTransicaoRepositorio(dominioId, modo);
+      await carregarGovernanca();
+      setMensagemGovernanca(
+        modo === "corporativo"
+          ? "Banco corporativo ativado como fonte principal. Reabra o módulo para recarregar os dados."
+          : `Domínio alterado para o modo ${modo}.`,
+      );
+    } catch (erro) {
+      setMensagemGovernanca(erro.message);
+    }
+  }
+
+  return (
+    <div className="sigiu-admin-stack">
+      <section className="sigiu-card sigiu-admin-card sigiu-infrastructure-summary">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Fundação corporativa</h2>
+            <p>Diagnóstico da transição entre o armazenamento local e a futura plataforma centralizada.</p>
+          </div>
+          <StatusChip status={configuracao.modo === "corporativo" ? "Modo corporativo" : "Modo local seguro"} />
+        </header>
+        <div className="sigiu-admin-definition-list">
+          <div><span>API do PRUMO</span><strong>{configuracao.apiUrl || "Não configurada"}</strong></div>
+          <div><span>Provedor de autenticação</span><strong>{configuracao.autenticacaoUrl || "Não configurado"}</strong></div>
+          <div><span>Compatibilidade local</span><strong>Ativa durante a migração</strong></div>
+          <div><span>Backlog permanente</span><strong>BACKLOG_PRUMO.md</strong></div>
+        </div>
+        <footer className="sigiu-admin-card-actions">
+          <button
+            type="button"
+            className="sigiu-btn sigiu-btn--primary"
+            disabled={verificando}
+            onClick={testarInfraestrutura}
+          >
+            {verificando ? "Verificando..." : "Verificar infraestrutura"}
+          </button>
+          {resultado && (
+            <span className={`sigiu-infrastructure-result ${resultado.ok ? "is-success" : "is-error"}`} role="status">
+              {resultado.mensagem}
+              {Number.isFinite(resultado.latenciaMs) ? ` · ${resultado.latenciaMs} ms` : ""}
+              {resultado.versao ? ` · ${resultado.versao}` : ""}
+            </span>
+          )}
+        </footer>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Inventário para migração</h2>
+            <p>Cada domínio será migrado com validação, rastreabilidade e possibilidade de retorno.</p>
+          </div>
+          <StatusChip status="Sprint 10.3" />
+        </header>
+        <div className="sigiu-infrastructure-grid">
+          {diagnostico.map((item) => (
+            <article key={item.id}>
+              <div><strong>{item.titulo}</strong><StatusChip status={item.status} /></div>
+              <p>{item.detalhe}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Plano de migração assistida</h2>
+            <p>Ordem, contagens e barreiras previstas antes da publicação no banco corporativo.</p>
+          </div>
+          <StatusChip status="Sprint 10.3" />
+        </header>
+        <div className="sigiu-migration-plan">
+          {planoMigracao.map((dominio, indice) => (
+            <article key={dominio.dominioId}>
+              <span>{indice + 1}</span>
+              <div>
+                <strong>{dominio.titulo}</strong>
+                <small>{dominio.total.toLocaleString("pt-BR")} registros identificados · {dominio.situacao}</small>
+              </div>
+              <em>{dominio.permiteRetorno ? "Reversível" : "Definitivo"}</em>
+            </article>
+          ))}
+        </div>
+        <footer className="sigiu-admin-security-note">
+          Cada lote terá hash, chave de idempotência, empresa de destino, responsável e conferência de contagens.
+        </footer>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Homologação dos dados locais</h2>
+            <p>O envio grava primeiro uma área temporária. A publicação definitiva exige validação e confirmação administrativa.</p>
+          </div>
+          <StatusChip status={cliente ? "Banco conectado" : "Sessão necessária"} />
+        </header>
+        <div className="sigiu-migration-plan">
+          {lotes.length === 0 && (
+            <article>
+              <span>0</span>
+              <div>
+                <strong>Nenhum lote corporativo enviado</strong>
+                <small>Os dados locais permanecem preservados e operacionais.</small>
+              </div>
+              <em>Aguardando</em>
+            </article>
+          )}
+          {lotes.map((lote) => (
+            <article key={lote.id}>
+              <span>{Object.values(lote.contagens || {}).reduce((soma, total) => soma + Number(total || 0), 0)}</span>
+              <div>
+                <strong>{String(lote.hash || "").slice(0, 12)}…</strong>
+                <small>
+                  {Object.entries(lote.contagens || {})
+                    .map(([dominio, total]) => `${dominio}: ${total}`)
+                    .join(" · ")}
+                </small>
+              </div>
+              {lote.status === "validado" ? (
+                <button
+                  type="button"
+                  className="sigiu-btn sigiu-btn--primary"
+                  disabled={processandoLote}
+                  onClick={() => homologarLote(lote.id)}
+                >
+                  Homologar
+                </button>
+              ) : <em>{lote.status}</em>}
+            </article>
+          ))}
+        </div>
+        <footer className="sigiu-admin-card-actions">
+          <button
+            type="button"
+            className="sigiu-btn sigiu-btn--primary"
+            disabled={!cliente || processandoLote}
+            onClick={enviarLote}
+          >
+            {processandoLote ? "Processando..." : "Gerar, enviar e validar lote"}
+          </button>
+          {mensagemLote && <span className="sigiu-infrastructure-result" role="status">{mensagemLote}</span>}
+        </footer>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Fila de processamento</h2>
+            <p>Importações e cálculos extensos são executados fora da interação principal e permanecem rastreáveis.</p>
+          </div>
+          <StatusChip status={`${trabalhos.length} trabalho(s)`} />
+        </header>
+        <div className="sigiu-migration-plan">
+          {trabalhos.length === 0 && (
+            <article>
+              <span>0</span>
+              <div>
+                <strong>Fila vazia</strong>
+                <small>Nenhuma importação ou cálculo está aguardando processamento.</small>
+              </div>
+              <em>Disponível</em>
+            </article>
+          )}
+          {trabalhos.slice(0, 8).map((trabalho) => (
+            <article key={trabalho.id}>
+              <span>{Math.round(Number(trabalho.progresso) || 0)}%</span>
+              <div>
+                <strong>{trabalho.tipo}</strong>
+                <small>
+                  tentativa {trabalho.tentativas}/{trabalho.maxTentativas}
+                  {trabalho.erro?.mensagem ? ` · ${trabalho.erro.mensagem}` : ""}
+                </small>
+              </div>
+              <em>{trabalho.status}</em>
+            </article>
+          ))}
+        </div>
+        <footer className="sigiu-admin-card-actions">
+          <button
+            type="button"
+            className="sigiu-btn sigiu-btn--primary"
+            disabled={!cliente || processandoTrabalho}
+            onClick={testarWorker}
+          >
+            {processandoTrabalho ? "Testando..." : "Testar worker"}
+          </button>
+          <button
+            type="button"
+            className="sigiu-btn"
+            disabled={!cliente}
+            onClick={carregarGovernanca}
+          >
+            Atualizar fila
+          </button>
+        </footer>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Transição dos repositórios</h2>
+            <p>O modo híbrido mantém o cache local enquanto confere e sincroniza os registros corporativos.</p>
+          </div>
+          <StatusChip status="Reversível" />
+        </header>
+        <div className="sigiu-migration-plan">
+          {transicoes.length === 0 && (
+            <article>
+              <span>—</span>
+              <div>
+                <strong>Nenhum domínio homologado</strong>
+                <small>A transição será habilitada após a homologação de um lote com dados.</small>
+              </div>
+              <em>Local</em>
+            </article>
+          )}
+          {transicoes.map((transicao) => (
+            <article key={transicao.dominioId}>
+              <span>↻</span>
+              <div>
+                <strong>{transicao.dominioId}</strong>
+                <small>
+                  {transicao.sincronizadoEm
+                    ? `sincronizado em ${new Date(transicao.sincronizadoEm).toLocaleString("pt-BR")}`
+                    : "aguardando primeira sincronização"}
+                </small>
+              </div>
+              <div className="sigiu-repository-transition-actions">
+                {transicao.modo === "hibrido" ? (
+                  <button
+                    type="button"
+                    className="sigiu-btn sigiu-btn--primary"
+                    onClick={() => alterarModoRepositorio(transicao.dominioId, "corporativo")}
+                  >
+                    Ativar corporativo
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="sigiu-btn"
+                    onClick={() => alterarModoRepositorio(transicao.dominioId, "hibrido")}
+                  >
+                    Voltar ao híbrido
+                  </button>
+                )}
+                <em>{transicao.modo}</em>
+              </div>
+            </article>
+          ))}
+        </div>
+        {mensagemGovernanca && (
+          <footer className="sigiu-infrastructure-result" role="status">
+            {mensagemGovernanca}
+          </footer>
+        )}
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card sigiu-admin-card--notice">
+        <header>
+          <span>✓</span>
+          <div>
+            <h2>Transição sem perda de dados</h2>
+            <p>
+              O modo híbrido preserva o cache local e sincroniza o PostgreSQL. A troca para o modo
+              corporativo exige uma confirmação administrativa e pode retornar ao híbrido.
+            </p>
+          </div>
+        </header>
+      </section>
+    </div>
+  );
+}
+
+function OrganizacoesCorporativas() {
+  return (
+    <div className="sigiu-admin-stack">
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Empresas e equipes</h2>
+            <p>Modelo de propriedade que impedirá o compartilhamento involuntário de dados entre clientes.</p>
+          </div>
+          <StatusChip status="Contrato 10.3" />
+        </header>
+        <div className="sigiu-tenant-grid">
+          {EMPRESAS_DEMONSTRACAO.map((empresa) => (
+            <article key={empresa.id}>
+              <div>
+                <span>EMPRESA</span>
+                <strong>{empresa.nomeFantasia || empresa.nome}</strong>
+                <small>{empresa.plano} · {empresa.status}</small>
+              </div>
+              <ul>
+                {EQUIPES_DEMONSTRACAO.filter((equipe) => equipe.tenantId === empresa.id).map((equipe) => (
+                  <li key={equipe.id}><b>{equipe.nome}</b><small>{equipe.id}</small></li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+        <footer className="sigiu-admin-security-note">
+          Os registros demonstrativos não representam clientes reais. O cadastro definitivo dependerá da autenticação e da API.
+        </footer>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Classificação dos dados</h2>
+            <p>Bases públicas podem ser compartilhadas; orçamentos, composições próprias e documentos permanecem privados.</p>
+          </div>
+        </header>
+        <div className="sigiu-corporate-domain-list">
+          {DOMINIOS_CORPORATIVOS.map((dominio) => (
+            <article key={dominio.id}>
+              <div>
+                <strong>{dominio.nome}</strong>
+                <small>{dominio.estrategia}</small>
+              </div>
+              <span>{dominio.escopo}</span>
+              <em>{dominio.proprietario === "plataforma" ? "Compartilhado" : "Privado"}</em>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card sigiu-admin-card--notice">
+        <header>
+          <span>◈</span>
+          <div>
+            <h2>Defesa em profundidade</h2>
+            <p>
+              A interface informa a empresa ativa, a API valida o vínculo autenticado e o PostgreSQL aplica
+              segurança por linha. Arquivos usam caminhos segregados e somente URLs temporárias autorizadas.
             </p>
           </div>
         </header>
@@ -237,6 +760,14 @@ function GerenciarBasesPrecos({ basesPrecos }) {
 }
 
 function UsuariosAcessos() {
+  const permissoesChave = [
+    ["orcamento.editar", "Editar orçamento"],
+    ["orcamento.aprovar", "Aprovar orçamento"],
+    ["medicao.registrar", "Registrar medição"],
+    ["medicao.aprovar", "Aprovar medição"],
+    ["bases.administrar", "Administrar bases"],
+    ["usuarios.administrar", "Administrar usuários"],
+  ];
   return (
     <div className="sigiu-admin-stack">
       <section className="sigiu-card sigiu-admin-card">
@@ -279,6 +810,39 @@ function UsuariosAcessos() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Matriz de permissões</h2>
+            <p>Políticas da Sprint 10.2 preparadas para o futuro provedor de identidade.</p>
+          </div>
+          <StatusChip status="Sessão em memória" />
+        </header>
+        <div className="sigiu-access-matrix">
+          <div className="sigiu-access-matrix__header">
+            <strong>Perfil</strong>
+            {permissoesChave.map(([, nome]) => <span key={nome}>{nome}</span>)}
+          </div>
+          {PERFIS_ACESSO_PRUMO.map((perfil) => (
+            <div key={perfil.id}>
+              <span><strong>{perfil.nome}</strong><small>{perfil.descricao}</small></span>
+              {permissoesChave.map(([permissao]) => (
+                <b
+                  key={permissao}
+                  className={possuiPermissao(perfil, permissao) ? "is-allowed" : "is-denied"}
+                  aria-label={`${perfil.nome}: ${permissao}`}
+                >
+                  {possuiPermissao(perfil, permissao) ? "✓" : "—"}
+                </b>
+              ))}
+            </div>
+          ))}
+        </div>
+        <footer className="sigiu-admin-security-note">
+          Tokens permanecem somente em memória. Senhas e credenciais não são persistidas em localStorage, IndexedDB ou planilhas.
+        </footer>
       </section>
     </div>
   );
@@ -556,6 +1120,10 @@ function Auditoria() {
 
 function renderizarAba(abaAtiva, basesPrecos) {
   switch (abaAtiva) {
+    case "infraestrutura":
+      return <InfraestruturaCorporativa basesPrecos={basesPrecos} />;
+    case "organizacoes":
+      return <OrganizacoesCorporativas />;
     case "bases-precos":
       return <GerenciarBasesPrecos basesPrecos={basesPrecos} />;
     case "fontes":
@@ -591,8 +1159,8 @@ export default function Administracao({ basesPrecos }) {
           </p>
         </div>
         <div className="sigiu-page-heading__meta sigiu-page-heading__meta--admin">
-          <strong>9.6</strong>
-          <span>integrações assistidas</span>
+          <strong>10.3</strong>
+          <span>fundação multiempresa</span>
         </div>
       </div>
 
@@ -617,9 +1185,9 @@ export default function Administracao({ basesPrecos }) {
         </article>
         <article className="sigiu-module-kpi sigiu-module-kpi--success">
           <span>✓</span>
-          <small>Base</small>
-          <strong>OK</strong>
-          <em>pronta para Sprint 9</em>
+          <small>Plataforma</small>
+          <strong>10.3</strong>
+          <em>isolamento preparado</em>
         </article>
       </div>
 

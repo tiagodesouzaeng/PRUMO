@@ -223,6 +223,64 @@ visualmente para PRUMO e acrescido do módulo de Orçamentos.
   conhecidas pela auditoria de dependências;
 - etapa liberada como RC1 para homologação do usuário.
 
+## Sprint 10 — plataforma corporativa
+
+O incremento 10.1 iniciou a preparação para API, autenticação, banco central e
+auditoria sem interromper a persistência local existente. O incremento 10.2
+acrescenta a fundação de sessão em memória, seis perfis corporativos e uma
+matriz de permissões no módulo Administração. A autenticação real continuará
+dependente da futura API e do provedor de identidade.
+
+Como entrega complementar da v10.2, o orçamento passa a admitir BDI
+diferenciado por item. A taxa reduzida somente é aplicada quando os requisitos
+técnicos e jurídicos estiverem integralmente declarados; itens incompletos
+permanecem com o BDI normal. O pacote de licitação preserva as duas composições,
+as fórmulas aplicáveis e a memória de justificativa.
+
+O incremento 10.3 DEV1 introduz a fundação multiempresa: empresas, equipes,
+vínculos, propriedade dos registros, contexto corporativo nas chamadas da API,
+idempotência, controle de concorrência e pacotes de migração com hash. O módulo
+Administração apresenta a classificação dos dados e o plano de migração. A
+referência das políticas PostgreSQL está em
+`docs/arquitetura/MULTIEMPRESA_POSTGRESQL.sql`.
+
+O incremento 10.3 DEV2 acrescenta uma API executável, autenticação OIDC
+substituível, adaptador PostgreSQL, migração inicial, segurança por linha,
+idempotência e controle de concorrência. O modo em memória existe somente para
+desenvolvimento; a configuração de produção exige PostgreSQL e provedor OIDC.
+
+O PRUMO permanece uma plataforma multimódulo. A fundação corporativa da Sprint
+10 é compartilhada por Obras, Manutenção, PPCI, Orçamentos, Bases de Preços,
+Suprimentos, Medições, Administração, GED e módulos futuros. A diretriz
+permanente está em `docs/arquitetura/PLATAFORMA_MULTIMODULO.md`.
+
+Na DEV3, o catálogo dos módulos passou a ser compartilhado entre frontend e
+backend. A API também recebeu empreendimentos, revisões, medições, permissões
+por módulo e eventos de integração. A segunda migração PostgreSQL está em
+`server/migrations/002_nucleo_multimodulo.sql`.
+
+As DEV4 e DEV5 ativam o catálogo corporativo e a migração assistida no
+PostgreSQL real. Bases, publicações, preços por UF, componentes analíticos e
+composições próprias possuem persistência e RLS. Os dados locais podem ser
+enviados para uma área temporária, validados por hash e contagens e homologados
+transacionalmente. A estrutura está em
+`server/migrations/003_catalogo_e_migracao_assistida.sql`.
+
+As DEV6 e DEV7 acrescentam uma fila durável para importações e cálculos, além
+da transição reversível dos repositórios. Após a homologação, cada domínio
+começa em modo híbrido; o PostgreSQL só se torna a fonte principal mediante
+confirmação administrativa. A estrutura está em
+`server/migrations/004_fila_e_transicao_repositorios.sql`.
+
+A versão `10.3.0` encerra esta fundação com testes reais de invasão entre
+empresas e equipes, recuperação de trabalhos pendentes e reprocessamento
+controlado de falhas.
+
+- plano da sprint: `docs/SPRINT_10.md`;
+- backlog permanente: `BACKLOG_PRUMO.md`;
+- configuração da futura API: `VITE_PRUMO_API_URL`;
+- configuração do futuro provedor de identidade: `VITE_PRUMO_AUTH_URL`.
+
 ## Execução
 
 Requisitos já utilizados na validação:
@@ -233,6 +291,33 @@ Requisitos já utilizados na validação:
 ```bash
 pnpm install
 pnpm dev
+```
+
+API local temporária, sem dados persistentes:
+
+```bash
+PRUMO_API_STORAGE=memory PRUMO_DEV_IDENTITY=true pnpm api
+```
+
+No PowerShell:
+
+```powershell
+$env:PRUMO_API_STORAGE="memory"
+$env:PRUMO_DEV_IDENTITY="true"
+pnpm api
+```
+
+A API utiliza `http://127.0.0.1:8787` por padrão. A rota `/health` não exige
+autenticação; as rotas `/v1` exigem identidade, empresa ativa e, quando
+aplicável, equipe.
+
+Para PostgreSQL, copie somente as variáveis necessárias do `.env.example`.
+Use `PRUMO_DATABASE_URL` para a conta limitada da API e
+`PRUMO_MIGRATION_DATABASE_URL` para a conta proprietária das migrações:
+
+```bash
+pnpm db:migrate
+pnpm api
 ```
 
 Validação de produção:
@@ -246,7 +331,7 @@ manter instalações reproduzíveis entre os ambientes.
 
 ## Observação
 
-O módulo oferece persistência local, motor orçamentário editável e importação
-manual de bases versionadas. A autenticação, o banco relacional compartilhado
-e futuras integrações automatizadas com as fontes oficiais devem ser conectados
-nas próximas etapas.
+O frontend ainda oferece persistência local, motor orçamentário editável, BDI
+diferenciado auditável e importação manual de bases versionadas. A API e o
+contrato PostgreSQL já estão preparados, mas uma instância de banco e um
+provedor OIDC precisam ser provisionados antes da migração real.

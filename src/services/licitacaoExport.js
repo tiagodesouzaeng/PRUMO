@@ -3,6 +3,7 @@ import {
   calcularTotais,
   criarPeriodosMedicao,
   obterBdi,
+  validarBdiDiferenciadoItem,
 } from "../domain/orcamento.js";
 import { mapearHierarquiaEap } from "../domain/eap.js";
 
@@ -243,7 +244,7 @@ function criarInstrucoes(XLSX, orcamento) {
     ["3", "Os percentuais dos períodos de medição devem totalizar 100% por serviço.", ""],
     ["4", "Valores monetários são calculados com truncamento após a segunda casa decimal.", ""],
     ["5", "Senha de proteção administrativa: PRUMO.", ""],
-    ["6", "O BDI padrão vem da guia BDI e Encargos; no orçamento, a coluna BDI admite ajuste por item.", ""],
+    ["6", "O BDI normal ou diferenciado vem da guia BDI e Encargos. A taxa reduzida exige elegibilidade e memória técnica por item.", ""],
   ];
   const aba = XLSX.utils.aoa_to_sheet(dados);
   aba["!merges"] = [
@@ -259,7 +260,13 @@ function criarInstrucoes(XLSX, orcamento) {
   return aba;
 }
 
-function criarOrcamentoCompleto(XLSX, orcamento, linhaBdi) {
+function linhaBdiAplicavel(item, linhasBdi) {
+  return validarBdiDiferenciadoItem(item).elegivel
+    ? linhasBdi.diferenciado
+    : linhasBdi.padrao;
+}
+
+function criarOrcamentoCompleto(XLSX, orcamento, linhasBdi) {
   const distribuicao = calcularDistribuicaoDesconto(orcamento);
   const itens = orcamento.itens || [];
   const filhos = mapearFilhos(itens);
@@ -345,7 +352,10 @@ function criarOrcamentoCompleto(XLSX, orcamento, linhaBdi) {
     aba[`H${linha}`] = { t: "n", f: `SUM(F${linha}:G${linha})` };
     aba[`I${linha}`] = { t: "n", f: `IF(E${linha}="","",TRUNC(E${linha}*H${linha},2))` };
     aba[`K${linha}`] = { t: "n", f: `IF(I${linha}="","",TRUNC(I${linha}-J${linha},2))` };
-    aba[`L${linha}`] = { t: "n", f: `'BDI e Encargos'!$C$${linhaBdi}` };
+    aba[`L${linha}`] = {
+      t: "n",
+      f: `'BDI e Encargos'!$C$${linhaBdiAplicavel(item, linhasBdi)}`,
+    };
     aba[`M${linha}`] = { t: "n", f: `IF(E${linha}>0,TRUNC((K${linha}/E${linha})*(1+L${linha}),2),0)` };
     aba[`N${linha}`] = { t: "n", f: `IF(E${linha}>0,TRUNC(E${linha}*M${linha},2),0)` };
     ["F", "G", "H", "M"].forEach((coluna) => estilizarCelula(aba[`${coluna}${linha}`], {
@@ -376,7 +386,7 @@ function criarOrcamentoCompleto(XLSX, orcamento, linhaBdi) {
   return { aba, linhasServico, linhasItens };
 }
 
-function criarProposta(XLSX, orcamento, linhaBdi) {
+function criarProposta(XLSX, orcamento, linhasBdi) {
   const itens = orcamento.itens || [];
   const filhos = mapearFilhos(itens);
   const cabecalho = [
@@ -451,7 +461,10 @@ function criarProposta(XLSX, orcamento, linhaBdi) {
     aba[`H${linha}`] = { t: "n", f: `SUM(F${linha}:G${linha})` };
     aba[`I${linha}`] = { t: "n", f: `IF(E${linha}="","",TRUNC(E${linha}*H${linha},2))` };
     aba[`K${linha}`] = { t: "n", f: `IF(I${linha}="","",TRUNC(I${linha}-J${linha},2))` };
-    aba[`L${linha}`] = { t: "n", f: `'BDI e Encargos'!$C$${linhaBdi}` };
+    aba[`L${linha}`] = {
+      t: "n",
+      f: `'BDI e Encargos'!$C$${linhaBdiAplicavel(item, linhasBdi)}`,
+    };
     aba[`M${linha}`] = { t: "n", f: `IF(E${linha}>0,TRUNC((K${linha}/E${linha})*(1+L${linha}),2),0)` };
     aba[`N${linha}`] = { t: "n", f: `IF(E${linha}>0,TRUNC(E${linha}*M${linha},2),0)` };
     ["F", "G"].forEach((coluna) => estilizarCelula(
@@ -513,6 +526,26 @@ function criarBdiEncargos(XLSX, orcamento) {
   const linhaBdi = linhas.length + 1;
   linhas.push(["", "BDI CALCULADO", null, "RESULTADO", "Fórmula analítica"]);
   linhas.push(["", "", "", "", ""]);
+  const totaisBdiDiferenciado = {};
+  linhas.push(["", "BDI DIFERENCIADO — MERO FORNECIMENTO", null, "BDI DIFERENCIADO", "Acórdão TCU 2.622/2013-Plenário"]);
+  (orcamento.bdiDiferenciadoComponentes?.grupos || []).forEach((grupo) => {
+    linhas.push([grupo.id, `GRUPO ${grupo.id} — ${grupo.nome}`, null, "BDI DIFERENCIADO", ""]);
+    const inicio = linhas.length + 1;
+    grupo.itens.forEach((item) => linhas.push([
+      item.id,
+      item.descricao,
+      (Number(item.percentual) || 0) / 100,
+      "BDI DIFERENCIADO",
+      "",
+    ]));
+    const fim = linhas.length;
+    const linhaTotal = linhas.length + 1;
+    linhas.push(["", `TOTAL GRUPO ${grupo.id}`, null, "BDI DIFERENCIADO", ""]);
+    totaisBdiDiferenciado[grupo.id] = { linhaTotal, inicio, fim };
+  });
+  const linhaBdiDiferenciado = linhas.length + 1;
+  linhas.push(["", "BDI DIFERENCIADO CALCULADO", null, "RESULTADO", "Referência TCU: 11,10% a 16,80%; média 14,02%"]);
+  linhas.push(["", "", "", "", ""]);
   const encargosInicio = linhas.length + 1;
   linhas.push(["", "ENCARGOS SOCIAIS", null, "", ""]);
   const totaisEncargos = [];
@@ -549,6 +582,18 @@ function criarBdiEncargos(XLSX, orcamento) {
     t: "n",
     f: `(((1+C${a}+C${b})*(1+C${c})*(1+C${d}))/(1-C${e}))-1`,
   };
+  Object.values(totaisBdiDiferenciado).forEach(({ linhaTotal, inicio, fim }) => {
+    aba[`C${linhaTotal}`] = { t: "n", f: `SUM(C${inicio}:C${fim})` };
+  });
+  const ad = totaisBdiDiferenciado.A?.linhaTotal || 1;
+  const bd = totaisBdiDiferenciado.B?.linhaTotal || 1;
+  const cd = totaisBdiDiferenciado.C?.linhaTotal || 1;
+  const dd = totaisBdiDiferenciado.D?.linhaTotal || 1;
+  const ed = totaisBdiDiferenciado.E?.linhaTotal || 1;
+  aba[`C${linhaBdiDiferenciado}`] = {
+    t: "n",
+    f: `(((1+C${ad}+C${bd})*(1+C${cd})*(1+C${dd}))/(1-C${ed}))-1`,
+  };
   totaisEncargos.forEach(({ linhaTotal, inicio, fim }) => {
     aba[`C${linhaTotal}`] = { t: "n", f: `SUM(C${inicio}:C${fim})` };
   });
@@ -561,7 +606,7 @@ function criarBdiEncargos(XLSX, orcamento) {
     const tipo = aba[`D${linha}`]?.v;
     const total = String(aba[`B${linha}`]?.v || "").startsWith("TOTAL") || tipo === "RESULTADO";
     const grupo = String(aba[`B${linha}`]?.v || "").startsWith("GRUPO");
-    if (tipo === "BDI" || tipo === "ENCARGOS") {
+    if (["BDI", "BDI DIFERENCIADO", "ENCARGOS"].includes(tipo)) {
       const editavel = !grupo && !total && aba[`A${linha}`]?.v;
       if (editavel) {
         estilizarCelula(aba[`C${linha}`], {
@@ -581,8 +626,43 @@ function criarBdiEncargos(XLSX, orcamento) {
       });
     }
   }
-  prepararAba(aba, [11, 62, 15, 14, 30], `A3:E${linhaEncargos}`);
-  return { aba, linhaBdi };
+  const itensDiferenciados = (orcamento.itens || []).filter(
+    (item) => item.tipo !== "grupo" && item.bdiTipo === "diferenciado",
+  );
+  if (itensDiferenciados.length) {
+    const inicioMemoria = linhaEncargos + 2;
+    aba[`A${inicioMemoria}`] = { t: "s", v: "MEMÓRIA DOS ITENS COM BDI DIFERENCIADO" };
+    aba[`A${inicioMemoria + 1}`] = { t: "s", v: "ITEM" };
+    aba[`B${inicioMemoria + 1}`] = { t: "s", v: "RESPONSÁVEL / JUSTIFICATIVA" };
+    aba[`C${inicioMemoria + 1}`] = { t: "s", v: "VALIDAÇÃO" };
+    aba[`D${inicioMemoria + 1}`] = { t: "s", v: "REFERÊNCIA" };
+    aba[`E${inicioMemoria + 1}`] = { t: "s", v: "CRITÉRIOS" };
+    itensDiferenciados.forEach((item, indice) => {
+      const linha = inicioMemoria + 2 + indice;
+      const validacao = validarBdiDiferenciadoItem(item);
+      aba[`A${linha}`] = { t: "s", v: `${item.codigo} · ${item.descricao}` };
+      aba[`B${linha}`] = { t: "s", v: `${item.bdiDiferenciado?.responsavel || "Não informado"} · ${item.bdiDiferenciado?.justificativa || "Sem justificativa"}` };
+      aba[`C${linha}`] = { t: "s", v: validacao.elegivel ? "ELEGÍVEL" : `PENDENTE: ${validacao.pendencias.join(", ")}` };
+      aba[`D${linha}`] = { t: "s", v: "Súmula TCU 253/2010 · Acórdão 2.622/2013-Plenário" };
+      aba[`E${linha}`] = { t: "s", v: "Parcelamento · natureza específica · especialidade · relevância · intermediação · serviços separados" };
+      enderecosIntervalo(XLSX, `A${linha}:E${linha}`).forEach((endereco) => {
+        estilizarCelula(aba[endereco], { quebrar: true });
+      });
+    });
+    aba["!merges"] = [
+      ...(aba["!merges"] || []),
+      XLSX.utils.decode_range(`A${inicioMemoria}:E${inicioMemoria}`),
+    ];
+    enderecosIntervalo(XLSX, `A${inicioMemoria}:E${inicioMemoria}`).forEach((endereco) => {
+      estilizarCelula(aba[endereco], { preenchimento: COR.marinho, corTexto: COR.branco, negrito: true });
+    });
+    aplicarEstiloCabecalho(aba, `A${inicioMemoria + 1}:E${inicioMemoria + 1}`);
+  }
+  const ultimaLinha = itensDiferenciados.length
+    ? linhaEncargos + 3 + itensDiferenciados.length
+    : linhaEncargos;
+  prepararAba(aba, [24, 62, 34, 36, 48], `A3:E${ultimaLinha}`);
+  return { aba, linhaBdi, linhaBdiDiferenciado };
 }
 
 function criarCronograma(XLSX, orcamento, linhasOrcamento) {
@@ -814,8 +894,12 @@ export async function criarPacoteLicitacao(orcamento, abasSelecionadas = null) {
   globalThis.__PRUMO_XLSX__ = XLSX;
   const workbook = XLSX.utils.book_new();
   const bdiEncargos = criarBdiEncargos(XLSX, orcamento);
-  const orcamentoCompleto = criarOrcamentoCompleto(XLSX, orcamento, bdiEncargos.linhaBdi);
-  const proposta = criarProposta(XLSX, orcamento, bdiEncargos.linhaBdi);
+  const linhasBdi = {
+    padrao: bdiEncargos.linhaBdi,
+    diferenciado: bdiEncargos.linhaBdiDiferenciado,
+  };
+  const orcamentoCompleto = criarOrcamentoCompleto(XLSX, orcamento, linhasBdi);
+  const proposta = criarProposta(XLSX, orcamento, linhasBdi);
   const cronograma = criarCronograma(XLSX, orcamento, orcamentoCompleto.linhasItens);
   const abas = [
     ["Instruções", criarInstrucoes(XLSX, orcamento)],
@@ -985,7 +1069,7 @@ export async function gerarArquivoPacoteLicitacao(orcamento, abasSelecionadas = 
         };
         celula.font = { name: "Aptos", size: 9, bold: true, color: { argb: COR.texto } };
       });
-    } else if (linha.getCell(1).value && ["BDI", "ENCARGOS"].includes(tipo)) {
+    } else if (linha.getCell(1).value && ["BDI", "BDI DIFERENCIADO", "ENCARGOS"].includes(tipo)) {
       const percentual = linha.getCell(3);
       percentual.style = {
         ...(percentual.style || {}),
