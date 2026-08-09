@@ -4,6 +4,11 @@ import { ApiError } from "../errors.js";
 import { PERMISSOES_PLATAFORMA } from "../domain/platform.js";
 import { validarPacoteNoServidor } from "../domain/migration.js";
 import { validarSolicitacaoTrabalho } from "../domain/jobs.js";
+import {
+  criarHashAuditoria,
+  normalizarFiltrosAuditoria,
+  sanitizarDadosAuditoria,
+} from "../domain/audit.js";
 
 const { Pool } = pg;
 
@@ -188,6 +193,59 @@ function mapearTransicao(linha) {
   };
 }
 
+function mapearAuditoria(linha) {
+  return {
+    id: linha.id,
+    tenantId: linha.tenant_id,
+    teamId: linha.team_id || "",
+    sequencia: Number(linha.sequencia),
+    moduleId: linha.module_id,
+    acao: linha.acao,
+    entidadeTipo: linha.entidade_tipo,
+    entidadeId: linha.entidade_id,
+    usuarioId: linha.usuario_id,
+    resultado: linha.resultado,
+    antes: linha.antes ?? null,
+    depois: linha.depois ?? null,
+    metadados: linha.metadados || {},
+    hashAnterior: linha.hash_anterior,
+    hash: linha.hash,
+    criadoEm: linha.criado_em,
+  };
+}
+
+function mapearPoliticaAuditoria(linha) {
+  return {
+    tenantId: linha.tenant_id,
+    retencaoDias: Number(linha.retencao_dias),
+    frequenciaBackup: linha.frequencia_backup,
+    ultimoBackupEm: linha.ultimo_backup_em || "",
+    ultimoBackupHash: linha.ultimo_backup_hash || "",
+    ultimoTesteRestauracaoEm: linha.ultimo_teste_restauracao_em || "",
+    ultimoTesteRestauracaoOk: linha.ultimo_teste_restauracao_ok,
+    atualizadoPor: linha.atualizado_por,
+    atualizadoEm: linha.atualizado_em,
+  };
+}
+
+function mapearDocumento(linha) {
+  return {
+    id: linha.id, tenantId: linha.tenant_id, teamId: linha.team_id || "", titulo: linha.titulo,
+    tipo: linha.tipo, status: linha.status, versaoAtual: Number(linha.versao_atual),
+    metadados: linha.metadados || {}, versoes: linha.versoes || [], criadoPor: linha.criado_por,
+    criadoEm: linha.criado_em, atualizadoEm: linha.atualizado_em,
+  };
+}
+
+function mapearIntegracao(linha) {
+  return {
+    id: linha.id, tenantId: linha.tenant_id, nome: linha.nome, provedor: linha.provedor,
+    status: linha.status, credentialReference: linha.credential_reference ? "configurada" : "",
+    configuracao: linha.configuracao || {}, execucoes: linha.execucoes || [], criadoPor: linha.criado_por,
+    criadoEm: linha.criado_em, atualizadoEm: linha.atualizado_em,
+  };
+}
+
 export function criarRepositorioPostgres({
   connectionString,
   ssl = false,
@@ -248,7 +306,10 @@ export function criarRepositorioPostgres({
       const modulosResultado = await cliente.query(
         `SELECT m.id, m.nome, m.ordem
            FROM app.modules m
+           LEFT JOIN app.tenant_module_contracts c
+             ON c.tenant_id = $1 AND c.module_id = m.id
           WHERE m.status = 'ativo'
+            AND coalesce(c.disponivel AND c.contratado AND c.habilitado, true)
             AND (
               NOT EXISTS (
                 SELECT 1 FROM app.tenant_modules x WHERE x.tenant_id = $1
@@ -291,6 +352,10 @@ export function criarRepositorioPostgres({
     if (!contexto.permissoes.includes(permissao)) {
       throw new ApiError(403, "PERMISSAO_NEGADA", "O perfil não permite executar esta operação.");
     }
+    const moduloId = PERMISSOES_PLATAFORMA.find((item) => item.id === permissao)?.moduloId;
+    if (moduloId && !contexto.modulos.some((item) => item.id === moduloId)) {
+      throw new ApiError(403, "MODULO_NAO_HABILITADO", "O módulo não está contratado e habilitado para esta organização.");
+    }
   }
 
   async function obterIdempotente(cliente, tenantId, chave) {
@@ -314,12 +379,77 @@ export function criarRepositorioPostgres({
     );
   }
 
+  async function registrarAuditoria(cliente, contexto, {
+    moduleId,
+    action,
+    entityType,
+    entityId,
+    result = "sucesso",
+    before = null,
+    after = null,
+    metadata = {},
+  }) {
+    await cliente.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`auditoria:${contexto.tenantId}`],
+    );
+    const anterior = await cliente.query(
+      `SELECT hash FROM app.audit_events
+        WHERE tenant_id = $1
+        ORDER BY sequencia DESC
+        LIMIT 1`,
+      [contexto.tenantId],
+    );
+    const hashAnterior = anterior.rows[0]?.hash || "0".repeat(64);
+    const criadoEm = new Date().toISOString();
+    const evento = {
+      tenantId: contexto.tenantId,
+      teamId: contexto.teamId || "",
+      moduleId,
+      action,
+      entityType,
+      entityId: String(entityId),
+      actorId: contexto.usuarioId,
+      result,
+      before: sanitizarDadosAuditoria(before),
+      after: sanitizarDadosAuditoria(after),
+      metadata: sanitizarDadosAuditoria(metadata),
+      createdAt: criadoEm,
+    };
+    const hash = criarHashAuditoria(evento, hashAnterior);
+    await cliente.query(
+      `INSERT INTO app.audit_events
+        (tenant_id, id, team_id, module_id, acao, entidade_tipo, entidade_id,
+         usuario_id, resultado, antes, depois, metadados, hash_anterior, hash, criado_em)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      [
+        contexto.tenantId,
+        randomUUID(),
+        contexto.teamId || null,
+        moduleId,
+        action,
+        entityType,
+        String(entityId),
+        contexto.usuarioId,
+        result,
+        evento.before,
+        evento.after,
+        evento.metadata,
+        hashAnterior,
+        hash,
+        criadoEm,
+      ],
+    );
+  }
+
   async function registrarEvento(cliente, contexto, {
     moduleId,
     eventType,
     aggregateType,
     aggregateId,
     payload = {},
+    before = null,
+    after = null,
   }) {
     await cliente.query(
       `INSERT INTO app.domain_events
@@ -336,6 +466,15 @@ export function criarRepositorioPostgres({
         contexto.usuarioId,
       ],
     );
+    await registrarAuditoria(cliente, contexto, {
+      moduleId,
+      action: eventType,
+      entityType: aggregateType,
+      entityId: aggregateId,
+      before,
+      after: after ?? payload,
+      metadata: { origem: "evento-dominio" },
+    });
   }
 
   return {
@@ -347,6 +486,266 @@ export function criarRepositorioPostgres({
     },
     async validarContexto(contexto) {
       return comContexto(contexto, async (_cliente, validado) => validado);
+    },
+    async listarAuditoria(contexto, filtros = {}) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "auditoria.consultar");
+        const consulta = normalizarFiltrosAuditoria(filtros);
+        const resultado = await cliente.query(
+          `SELECT tenant_id, id, team_id, sequencia, module_id, acao,
+                  entidade_tipo, entidade_id, usuario_id, resultado, antes,
+                  depois, metadados, hash_anterior, hash, criado_em,
+                  count(*) OVER()::integer AS total
+             FROM app.audit_events
+            WHERE ($1::text IS NULL OR module_id = $1)
+              AND ($2::text IS NULL OR acao ILIKE '%' || $2 || '%')
+              AND ($3::text IS NULL OR usuario_id ILIKE '%' || $3 || '%')
+              AND ($4::text IS NULL OR entidade_tipo = $4)
+              AND ($5::text IS NULL OR entidade_id = $5)
+              AND ($6::timestamptz IS NULL OR criado_em >= $6)
+              AND ($7::timestamptz IS NULL OR criado_em <= $7)
+            ORDER BY sequencia DESC
+            LIMIT $8 OFFSET $9`,
+          [
+            consulta.moduleId || null,
+            consulta.action || null,
+            consulta.actorId || null,
+            consulta.entityType || null,
+            consulta.entityId || null,
+            consulta.dataInicial || null,
+            consulta.dataFinal || null,
+            consulta.limite,
+            consulta.deslocamento,
+          ],
+        );
+        const itens = resultado.rows.map(mapearAuditoria);
+        const invalidos = itens.filter((item) => criarHashAuditoria({
+          tenantId: item.tenantId,
+          teamId: item.teamId,
+          moduleId: item.moduleId,
+          action: item.acao,
+          entityType: item.entidadeTipo,
+          entityId: item.entidadeId,
+          actorId: item.usuarioId,
+          result: item.resultado,
+          before: item.antes,
+          after: item.depois,
+          metadata: item.metadados,
+          createdAt: new Date(item.criadoEm).toISOString(),
+        }, item.hashAnterior) !== item.hash);
+        return {
+          itens,
+          total: Number(resultado.rows[0]?.total || 0),
+          limite: consulta.limite,
+          deslocamento: consulta.deslocamento,
+          integridade: { ok: invalidos.length === 0, invalidos: invalidos.length },
+        };
+      });
+    },
+    async obterPoliticaAuditoria(contexto) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "auditoria.consultar");
+        const resultado = await cliente.query(
+          `INSERT INTO app.audit_policies (tenant_id, atualizado_por)
+           VALUES ($1, $2)
+           ON CONFLICT (tenant_id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id
+           RETURNING tenant_id, retencao_dias, frequencia_backup,
+                     ultimo_backup_em, ultimo_backup_hash,
+                     ultimo_teste_restauracao_em, ultimo_teste_restauracao_ok,
+                     atualizado_por, atualizado_em`,
+          [validado.tenantId, validado.usuarioId],
+        );
+        return mapearPoliticaAuditoria(resultado.rows[0]);
+      });
+    },
+    async atualizarPoliticaAuditoria(contexto, dados) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "auditoria.administrar");
+        const anterior = await cliente.query(
+          "SELECT * FROM app.audit_policies WHERE tenant_id = $1",
+          [validado.tenantId],
+        );
+        const politicaAnterior = anterior.rows[0]
+          ? mapearPoliticaAuditoria(anterior.rows[0])
+          : null;
+        const recuperacao = {
+          ultimoBackupEm: dados.ultimoBackupEm ?? politicaAnterior?.ultimoBackupEm ?? null,
+          ultimoBackupHash: dados.ultimoBackupHash ?? politicaAnterior?.ultimoBackupHash ?? null,
+          ultimoTesteRestauracaoEm: dados.ultimoTesteRestauracaoEm
+            ?? politicaAnterior?.ultimoTesteRestauracaoEm ?? null,
+          ultimoTesteRestauracaoOk: dados.ultimoTesteRestauracaoOk
+            ?? politicaAnterior?.ultimoTesteRestauracaoOk ?? null,
+        };
+        const resultado = await cliente.query(
+          `INSERT INTO app.audit_policies
+            (tenant_id, retencao_dias, frequencia_backup,
+             ultimo_backup_em, ultimo_backup_hash,
+             ultimo_teste_restauracao_em, ultimo_teste_restauracao_ok,
+             atualizado_por)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (tenant_id) DO UPDATE
+             SET retencao_dias = EXCLUDED.retencao_dias,
+                 frequencia_backup = EXCLUDED.frequencia_backup,
+                 ultimo_backup_em = EXCLUDED.ultimo_backup_em,
+                 ultimo_backup_hash = EXCLUDED.ultimo_backup_hash,
+                 ultimo_teste_restauracao_em = EXCLUDED.ultimo_teste_restauracao_em,
+                 ultimo_teste_restauracao_ok = EXCLUDED.ultimo_teste_restauracao_ok,
+                 atualizado_por = EXCLUDED.atualizado_por,
+                 atualizado_em = now()
+           RETURNING tenant_id, retencao_dias, frequencia_backup,
+                     ultimo_backup_em, ultimo_backup_hash,
+                     ultimo_teste_restauracao_em, ultimo_teste_restauracao_ok,
+                     atualizado_por, atualizado_em`,
+          [
+            validado.tenantId,
+            dados.retencaoDias,
+            dados.frequenciaBackup,
+            recuperacao.ultimoBackupEm || null,
+            recuperacao.ultimoBackupHash || null,
+            recuperacao.ultimoTesteRestauracaoEm || null,
+            recuperacao.ultimoTesteRestauracaoOk,
+            validado.usuarioId,
+          ],
+        );
+        const resposta = mapearPoliticaAuditoria(resultado.rows[0]);
+        await registrarAuditoria(cliente, validado, {
+          moduleId: "administracao",
+          action: dados.ultimoTesteRestauracaoEm
+            ? "auditoria.recuperacao-registrada"
+            : "auditoria.politica-atualizada",
+          entityType: "politica-auditoria",
+          entityId: validado.tenantId,
+          before: politicaAnterior,
+          after: resposta,
+        });
+        return resposta;
+      });
+    },
+    async listarDocumentos(contexto) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "documentos.consultar");
+        const resultado = await cliente.query(
+          `SELECT d.*, coalesce(v.versoes, '[]'::jsonb) AS versoes
+             FROM app.documents d
+             LEFT JOIN LATERAL (
+               SELECT jsonb_agg(jsonb_build_object(
+                 'numero', dv.numero, 'nomeArquivo', dv.nome_arquivo, 'tipoMime', dv.tipo_mime,
+                 'tamanhoBytes', dv.tamanho_bytes, 'sha256', dv.sha256,
+                 'storageKey', dv.storage_key, 'responsavel', dv.responsavel,
+                 'metadados', dv.metadados, 'criadoEm', dv.criado_em
+               ) ORDER BY dv.numero DESC) AS versoes
+               FROM app.document_versions dv
+              WHERE dv.tenant_id = d.tenant_id AND dv.document_id = d.id
+             ) v ON true
+            WHERE d.tenant_id = $1 ORDER BY d.atualizado_em DESC`,
+          [validado.tenantId],
+        );
+        return resultado.rows.map(mapearDocumento);
+      });
+    },
+    async criarDocumento(contexto, dados, idempotencyKey) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "documentos.editar");
+        const anterior = await obterIdempotente(cliente, validado.tenantId, idempotencyKey);
+        if (anterior) return anterior;
+        const id = randomUUID();
+        const resultado = await cliente.query(
+          `INSERT INTO app.documents (tenant_id,id,team_id,titulo,tipo,status,metadados,criado_por)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+          [validado.tenantId,id,validado.teamId || null,dados.titulo,dados.tipo || "documento_tecnico",dados.status || "rascunho",dados.metadados || {},validado.usuarioId],
+        );
+        const item = mapearDocumento({ ...resultado.rows[0], versoes: [] });
+        await salvarIdempotencia(cliente, validado, idempotencyKey, item);
+        await registrarAuditoria(cliente, validado, { moduleId:"documentos",action:"documento.criado",entityType:"documento",entityId:id,after:item });
+        return item;
+      });
+    },
+    async adicionarVersaoDocumento(contexto, documentoId, dados) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "documentos.editar");
+        const documento = await cliente.query("SELECT * FROM app.documents WHERE tenant_id=$1 AND id=$2 FOR UPDATE", [validado.tenantId,documentoId]);
+        if (!documento.rows[0]) throw new ApiError(404, "DOCUMENTO_NAO_ENCONTRADO", "Documento não encontrado.");
+        const numero = Number(documento.rows[0].versao_atual) + 1;
+        await cliente.query(`INSERT INTO app.document_versions
+          (tenant_id,document_id,numero,nome_arquivo,tipo_mime,tamanho_bytes,sha256,storage_key,responsavel,metadados)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [validado.tenantId,documentoId,numero,dados.nomeArquivo,dados.tipoMime || "application/octet-stream",dados.tamanhoBytes || 0,dados.sha256,dados.storageKey,validado.usuarioId,dados.metadados || {}]);
+        const atualizado = await cliente.query("UPDATE app.documents SET versao_atual=$3,atualizado_em=now() WHERE tenant_id=$1 AND id=$2 RETURNING *", [validado.tenantId,documentoId,numero]);
+        await registrarAuditoria(cliente, validado, { moduleId:"documentos",action:"documento.versao-adicionada",entityType:"documento",entityId:documentoId,metadata:{ numero,sha256:dados.sha256 } });
+        return mapearDocumento({ ...atualizado.rows[0], versoes: [] });
+      });
+    },
+    async listarIntegracoes(contexto) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "integracoes.consultar");
+        const resultado = await cliente.query(`SELECT i.*, coalesce(r.execucoes, '[]'::jsonb) AS execucoes
+          FROM app.integrations i LEFT JOIN LATERAL (
+            SELECT jsonb_agg(jsonb_build_object('id',ir.id,'status',ir.status,'direcao',ir.direcao,'contagens',ir.contagens,'erroSanitizado',ir.erro_sanitizado,'iniciadoEm',ir.iniciado_em,'concluidoEm',ir.concluido_em) ORDER BY ir.iniciado_em DESC) execucoes
+            FROM app.integration_runs ir WHERE ir.tenant_id=i.tenant_id AND ir.integration_id=i.id
+          ) r ON true WHERE i.tenant_id=$1 ORDER BY i.nome`, [validado.tenantId]);
+        return resultado.rows.map(mapearIntegracao);
+      });
+    },
+    async criarIntegracao(contexto, dados, idempotencyKey) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "integracoes.administrar");
+        const anterior = await obterIdempotente(cliente, validado.tenantId, idempotencyKey);
+        if (anterior) return anterior;
+        const id = randomUUID();
+        const resultado = await cliente.query(`INSERT INTO app.integrations
+          (tenant_id,id,nome,provedor,status,credential_reference,configuracao,criado_por)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [validado.tenantId,id,dados.nome,dados.provedor,dados.status || "inativa",dados.credentialReference || "",dados.configuracao || {},validado.usuarioId]);
+        const item = mapearIntegracao({ ...resultado.rows[0], execucoes: [] });
+        await salvarIdempotencia(cliente, validado, idempotencyKey, item);
+        await registrarAuditoria(cliente, validado, { moduleId:"administracao",action:"integracao.criada",entityType:"integracao",entityId:id,after:item });
+        return item;
+      });
+    },
+    async registrarExecucaoIntegracao(contexto, integracaoId, dados) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "integracoes.administrar");
+        const id = randomUUID();
+        const resultado = await cliente.query(`INSERT INTO app.integration_runs
+          (tenant_id,id,integration_id,status,direcao,contagens,erro_sanitizado,executado_por,concluido_em)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CASE WHEN $4='iniciada' THEN NULL ELSE now() END) RETURNING *`, [validado.tenantId,id,integracaoId,dados.status || "iniciada",dados.direcao || "entrada",dados.contagens || {},dados.erroSanitizado || "",validado.usuarioId]);
+        await registrarAuditoria(cliente, validado, { moduleId:"administracao",action:"integracao.executada",entityType:"integracao",entityId:integracaoId,metadata:{ execucaoId:id,status:resultado.rows[0].status } });
+        return { id,status:resultado.rows[0].status,direcao:resultado.rows[0].direcao,contagens:resultado.rows[0].contagens,erroSanitizado:resultado.rows[0].erro_sanitizado,iniciadoEm:resultado.rows[0].iniciado_em };
+      });
+    },
+    async obterProdutoModular(contexto) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "produto-modular.consultar");
+        const [perfil,modulos,catalogo] = await Promise.all([
+          cliente.query("SELECT * FROM app.tenant_product_profiles WHERE tenant_id=$1",[validado.tenantId]),
+          cliente.query(`SELECT m.id,m.nome,m.ordem,c.disponivel,c.contratado,c.habilitado,c.pacote,c.limites,
+            coalesce((SELECT jsonb_agg(jsonb_build_object('id',mc.capability_id,'nome',mc.nome)) FROM app.module_capabilities mc WHERE mc.module_id=m.id AND mc.status='ativa'),'[]'::jsonb) capacidades,
+            coalesce((SELECT jsonb_agg(jsonb_build_object('moduleId',md.depends_on_module_id,'obrigatoria',md.obrigatoria)) FROM app.module_dependencies md WHERE md.module_id=m.id),'[]'::jsonb) dependencias
+            FROM app.modules m LEFT JOIN app.tenant_module_contracts c ON c.tenant_id=$1 AND c.module_id=m.id ORDER BY m.ordem`,[validado.tenantId]),
+          cliente.query("SELECT max(versao) versao FROM app.module_catalog_versions WHERE status='publicada'"),
+        ]);
+        const p = perfil.rows[0] || { tenant_id:validado.tenantId,perfil:"publico",terminologia:{},templates:{} };
+        return { versaoCatalogo:Number(catalogo.rows[0]?.versao)||1,perfil:{tenantId:p.tenant_id,perfil:p.perfil,terminologia:p.terminologia||{},templates:p.templates||{}},modulos:modulos.rows.map((m)=>({id:m.id,nome:m.nome,ordem:m.ordem,disponivel:m.disponivel??true,contratado:m.contratado??true,habilitado:m.habilitado??true,pacote:m.pacote||"plataforma",limites:m.limites||{},capacidades:m.capacidades||[],dependencias:m.dependencias||[]})) };
+      });
+    },
+    async atualizarPerfilProduto(contexto, dados) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado,"produto-modular.administrar");
+        const resultado = await cliente.query(`INSERT INTO app.tenant_product_profiles (tenant_id,perfil,terminologia,templates,atualizado_por) VALUES ($1,$2,$3,$4,$5)
+          ON CONFLICT (tenant_id) DO UPDATE SET perfil=EXCLUDED.perfil,terminologia=EXCLUDED.terminologia,templates=EXCLUDED.templates,atualizado_por=EXCLUDED.atualizado_por,atualizado_em=now() RETURNING *`,[validado.tenantId,dados.perfil,dados.terminologia||{},dados.templates||{},validado.usuarioId]);
+        const p=resultado.rows[0];
+        await registrarAuditoria(cliente,validado,{moduleId:"administracao",action:"produto.perfil-atualizado",entityType:"perfil-produto",entityId:validado.tenantId,after:{perfil:p.perfil,terminologia:p.terminologia,templates:p.templates}});
+        return {tenantId:p.tenant_id,perfil:p.perfil,terminologia:p.terminologia,templates:p.templates,atualizadoEm:p.atualizado_em};
+      });
+    },
+    async atualizarContratoModulo(contexto, moduleId, dados) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado,"produto-modular.administrar");
+        const resultado=await cliente.query(`INSERT INTO app.tenant_module_contracts (tenant_id,module_id,disponivel,contratado,habilitado,pacote,limites,atualizado_por)
+          VALUES ($1,$2,coalesce($3,true),coalesce($4,true),coalesce($5,true),coalesce($6,'plataforma'),coalesce($7,'{}'::jsonb),$8)
+          ON CONFLICT (tenant_id,module_id) DO UPDATE SET disponivel=coalesce($3,app.tenant_module_contracts.disponivel),contratado=coalesce($4,app.tenant_module_contracts.contratado),habilitado=coalesce($5,app.tenant_module_contracts.habilitado),pacote=coalesce($6,app.tenant_module_contracts.pacote),limites=coalesce($7,app.tenant_module_contracts.limites),atualizado_por=$8,atualizado_em=now() RETURNING *`,[validado.tenantId,moduleId,dados.disponivel,dados.contratado,dados.habilitado,dados.pacote,dados.limites,validado.usuarioId]);
+        const c=resultado.rows[0];
+        await registrarAuditoria(cliente,validado,{moduleId:"administracao",action:"produto.modulo-atualizado",entityType:"contrato-modulo",entityId:moduleId,after:{disponivel:c.disponivel,contratado:c.contratado,habilitado:c.habilitado,pacote:c.pacote}});
+        return {tenantId:c.tenant_id,moduleId:c.module_id,disponivel:c.disponivel,contratado:c.contratado,habilitado:c.habilitado,pacote:c.pacote,limites:c.limites};
+      });
     },
     async listarOrcamentos(contexto) {
       return comContexto(contexto, async (cliente, validado) => {
@@ -404,6 +803,7 @@ export function criarRepositorioPostgres({
           aggregateType: "orcamento",
           aggregateId: resposta.id,
           payload: { nome: resposta.nome, versao: resposta.versao },
+          after: resposta,
         });
         return resposta;
       });
@@ -411,6 +811,17 @@ export function criarRepositorioPostgres({
     async atualizarOrcamento(contexto, id, dados, versaoEsperada) {
       return comContexto(contexto, async (cliente, validado) => {
         exigirPermissao(validado, "orcamento.editar");
+        const anterior = await cliente.query(
+          `SELECT tenant_id, id, team_id, nome, versao, dados, criado_por,
+                  criado_em, atualizado_em
+             FROM app.orcamentos
+            WHERE id = $1`,
+          [id],
+        );
+        if (!anterior.rows[0]) {
+          throw new ApiError(404, "ORCAMENTO_NAO_ENCONTRADO", "Orçamento não encontrado.");
+        }
+        const antes = mapearOrcamento(anterior.rows[0]);
         const resultado = await cliente.query(
           `UPDATE app.orcamentos
               SET nome = $2,
@@ -429,6 +840,8 @@ export function criarRepositorioPostgres({
             aggregateType: "orcamento",
             aggregateId: resposta.id,
             payload: { versao: resposta.versao },
+            before: antes,
+            after: resposta,
           });
           return resposta;
         }
@@ -484,6 +897,7 @@ export function criarRepositorioPostgres({
           aggregateType: "empreendimento",
           aggregateId: resposta.id,
           payload: { nome: resposta.nome, tipo: resposta.tipo },
+          after: resposta,
         });
         return resposta;
       });
@@ -544,6 +958,7 @@ export function criarRepositorioPostgres({
           aggregateType: "orcamento",
           aggregateId: orcamentoId,
           payload: { revisaoId: resposta.id, numero: resposta.numero, tipo: resposta.tipo },
+          after: resposta,
         });
         return resposta;
       });
@@ -609,6 +1024,7 @@ export function criarRepositorioPostgres({
           aggregateType: "orcamento",
           aggregateId: orcamentoId,
           payload: { medicaoId: resposta.id, numero: resposta.numero },
+          after: resposta,
         });
         return resposta;
       });

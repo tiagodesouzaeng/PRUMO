@@ -12,6 +12,21 @@ const arquivoFila = new URL(
   "../server/migrations/004_fila_e_transicao_repositorios.sql",
   import.meta.url,
 );
+const arquivoAuditoria = new URL(
+  "../server/migrations/005_auditoria_governanca.sql",
+  import.meta.url,
+);
+const arquivoAuditoriaOperacional = new URL(
+  "../server/migrations/006_auditoria_operacional.sql",
+  import.meta.url,
+);
+const arquivoAuditoriaLimpezaRls = new URL(
+  "../server/migrations/007_auditoria_limpeza_teste_rls.sql",
+  import.meta.url,
+);
+const arquivoDocumentos = new URL("../server/migrations/008_documentos_integracoes.sql", import.meta.url);
+const arquivoProdutoModular = new URL("../server/migrations/009_produto_modular.sql", import.meta.url);
+const arquivoEndurecimento = new URL("../server/migrations/010_endurecimento_ged_modular.sql", import.meta.url);
 
 test("migração PostgreSQL força RLS e ativa contexto somente após validar vínculo", async () => {
   const sql = await readFile(arquivo, "utf8");
@@ -79,4 +94,51 @@ test("fila e transição dos repositórios são duráveis e isoladas por empresa
   assert.match(sql, /ALTER TABLE app\.jobs FORCE ROW LEVEL SECURITY/);
   assert.match(sql, /CREATE POLICY jobs_isolamento/);
   assert.match(sql, /modo IN \('local', 'hibrido', 'corporativo'\)/);
+});
+
+test("auditoria é imutável, encadeada e isolada por empresa", async () => {
+  const sql = await readFile(arquivoAuditoria, "utf8");
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS app\.audit_events/);
+  assert.match(sql, /hash_anterior char\(64\)/);
+  assert.match(sql, /CREATE TRIGGER audit_events_imutaveis/);
+  assert.match(sql, /BEFORE UPDATE OR DELETE ON app\.audit_events/);
+  assert.match(sql, /ALTER TABLE app\.audit_events FORCE ROW LEVEL SECURITY/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS app\.audit_policies/);
+  assert.match(sql, /auditoria\.administrar/);
+});
+
+test("limpeza técnica da auditoria não fica exposta à API", async () => {
+  const sql = await readFile(arquivoAuditoriaOperacional, "utf8");
+  const sqlRls = await readFile(arquivoAuditoriaLimpezaRls, "utf8");
+  assert.match(sql, /nome LIKE 'Teste %'/);
+  assert.match(sqlRls, /REVOKE ALL ON FUNCTION app\.limpar_auditoria_tenant_teste/);
+  assert.match(sqlRls, /CREATE POLICY audit_events_limpeza_teste/);
+  assert.match(sqlRls, /set_config\('app\.tenant_id'/);
+});
+
+test("GED e integrações preservam versões, hashes, referências seguras e RLS", async () => {
+  const sql = await readFile(arquivoDocumentos, "utf8");
+  assert.match(sql, /CREATE TABLE app\.documents/);
+  assert.match(sql, /CREATE TABLE app\.document_versions/);
+  assert.match(sql, /sha256 text NOT NULL/);
+  assert.match(sql, /credential_reference text/);
+  assert.match(sql, /ALTER TABLE app\.integration_runs FORCE ROW LEVEL SECURITY/);
+});
+
+test("produto modular distingue catálogo, capacidades, contratos e perfil organizacional", async () => {
+  const sql = await readFile(arquivoProdutoModular, "utf8");
+  assert.match(sql, /CREATE TABLE app\.module_catalog_versions/);
+  assert.match(sql, /CREATE TABLE app\.module_capabilities/);
+  assert.match(sql, /disponivel boolean/);
+  assert.match(sql, /contratado boolean/);
+  assert.match(sql, /habilitado boolean/);
+  assert.match(sql, /'publico', 'federacao', 'privado', 'escritorio', 'facilities'/);
+});
+
+test("históricos do GED e integrações são imutáveis e dependências são protegidas", async () => {
+  const sql = await readFile(arquivoEndurecimento, "utf8");
+  assert.match(sql, /document_versions_imutaveis/);
+  assert.match(sql, /integration_runs_imutaveis/);
+  assert.match(sql, /REVOKE UPDATE, DELETE/);
+  assert.match(sql, /tenant_module_contracts_dependencias/);
 });

@@ -6,19 +6,28 @@
 
 .sigiu-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: var(--sigiu-sidebar-width) minmax(0, 1fr);
   background: var(--sigiu-bg);
   color: var(--sigiu-text);
 }
 
+.sigiu-shell.is-sidebar-collapsed {
+  grid-template-columns: 78px minmax(0, 1fr);
+}
+
 .sigiu-sidebar-main {
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 22px 14px;
+  padding: 18px 14px max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
   z-index: 50;
 }
 
@@ -63,9 +72,21 @@
 }
 
 .sigiu-sidebar-nav {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.sigiu-sidebar-nav::-webkit-scrollbar { width: 6px; }
+.sigiu-sidebar-nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .sigiu-nav-item {
@@ -101,7 +122,8 @@
 }
 
 .sigiu-sidebar-collapse {
-  margin-top: auto;
+  flex: 0 0 auto;
+  margin-top: 12px;
   align-self: flex-end;
   width: 42px;
   height: 36px;
@@ -110,6 +132,41 @@
   background: rgba(0, 0, 0, 0.18);
   color: #fff;
   cursor: pointer;
+}
+
+.sigiu-sidebar-main.is-collapsed {
+  padding-inline: 10px;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-sidebar-brand {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-nav-item {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-nav-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-nav-icon {
+  width: auto;
+  font-size: 1.15rem;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-sidebar-collapse {
+  align-self: center;
 }
 
 .sigiu-main {

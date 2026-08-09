@@ -92,6 +92,7 @@ export function criarClientePrumo({
       exigirEmpresa = caminho !== "health",
       idempotencyKey = "",
       versao = "",
+      tipoResposta = "json",
       ...opcoesFetch
     } = opcoes;
     if (exigirEmpresa && !contexto?.tenantId) {
@@ -121,7 +122,8 @@ export function criarClientePrumo({
         }
         throw new Error(`A API do PRUMO respondeu com o código ${resposta.status}.`);
       }
-      return resposta.status === 204 ? null : resposta.json();
+      if (resposta.status === 204) return null;
+      return tipoResposta === "text" ? resposta.text() : resposta.json();
     } catch (error) {
       if (error.name === "AbortError") {
         throw new Error("A API do PRUMO não respondeu dentro do prazo.");
@@ -223,6 +225,27 @@ export function criarClientePrumo({
         body: JSON.stringify({ modo }),
       },
     ),
+    listarAuditoria: (filtros = {}) => requisitar(
+      `v1/auditoria?${new URLSearchParams(filtros)}`,
+    ),
+    exportarAuditoria: (filtros = {}) => requisitar(
+      `v1/auditoria/exportacao.csv?${new URLSearchParams(filtros)}`,
+      { tipoResposta: "text" },
+    ),
+    obterPoliticaAuditoria: () => requisitar("v1/auditoria/politica"),
+    atualizarPoliticaAuditoria: (dados) => requisitar("v1/auditoria/politica", {
+      method: "PUT",
+      body: JSON.stringify(dados),
+    }),
+    listarDocumentos: () => requisitar("v1/documentos"),
+    criarDocumento: (dados, idempotencyKey) => requisitar("v1/documentos", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    adicionarVersaoDocumento: (id, dados) => requisitar(`v1/documentos/${encodeURIComponent(id)}/versoes`, { method: "POST", body: JSON.stringify(dados) }),
+    listarIntegracoes: () => requisitar("v1/integracoes"),
+    criarIntegracao: (dados, idempotencyKey) => requisitar("v1/integracoes", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    registrarExecucaoIntegracao: (id, dados) => requisitar(`v1/integracoes/${encodeURIComponent(id)}/execucoes`, { method: "POST", body: JSON.stringify(dados) }),
+    obterProdutoModular: () => requisitar("v1/produto-modular"),
+    atualizarPerfilProduto: (dados) => requisitar("v1/produto-modular/perfil", { method: "PUT", body: JSON.stringify(dados) }),
+    atualizarContratoModulo: (id, dados) => requisitar(`v1/produto-modular/modulos/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(dados) }),
     listar: (recurso) => requisitar(`v1/${recurso}`),
     obter: (recurso, id) => requisitar(`v1/${recurso}/${encodeURIComponent(id)}`),
     salvar: (recurso, dados) => requisitar(`v1/${recurso}`, {

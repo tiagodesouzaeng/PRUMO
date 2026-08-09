@@ -108,7 +108,21 @@ export default function ModalComposicaoRastreavel({
                 const base = basesPrecos.bases.find((item) => item.id === (componente.basePrecoId || atual.basePrecoId));
                 const composicao = tipo === "composicao";
                 return (
-                  <tr key={`${tipo}-${codigo}-${index}`} className={`${composicao ? "is-drillable" : ""} ${avaliacao.valido ? "" : "has-quality-warning"}`} title={avaliacao.pendencias.join(" · ") || undefined}>
+                  <tr
+                    key={`${tipo}-${codigo}-${index}`}
+                    className={`${composicao ? "is-drillable" : ""} ${avaliacao.valido ? "" : "has-quality-warning"}`}
+                    title={avaliacao.pendencias.join(" · ") || (composicao ? "Clique para abrir a composição interna" : undefined)}
+                    onClick={composicao ? () => abrirComposicao(componente) : undefined}
+                    onKeyDown={composicao ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        abrirComposicao(componente);
+                      }
+                    } : undefined}
+                    tabIndex={composicao ? 0 : undefined}
+                    role={composicao ? "button" : undefined}
+                    aria-label={composicao ? `Abrir composição ${codigo}` : undefined}
+                  >
                     <td><b className={`composition-type ${tipo}`}>{tipo}</b></td>
                     <td><strong>{codigo || "Código ausente"}</strong><small>{componente.descricao}{avaliacao.pendencias.length ? ` · ⚠ ${avaliacao.pendencias.join("; ")}` : ""}</small></td>
                     <td>{componente.baseTitulo || base?.titulo || baseAtual?.titulo || "Base própria"}<small>{componente.baseUf ? `${componente.baseUf} · ${componente.baseReferencia}` : base ? `${base.uf} · ${base.referencia}` : ""}</small></td>
@@ -116,7 +130,7 @@ export default function ModalComposicaoRastreavel({
                     <td>{numero(coeficiente)}</td>
                     <td>{preco ? <>{moeda(preco)}{componente.precoSubstituidoSp && <sup title={`Preço de SP utilizado por ausência de preço em ${ufSelecionada}`}>*</sup>}</> : "Sem preço"}</td>
                     <td>{moeda(coeficiente * preco)}</td>
-                    <td>{composicao && <button type="button" className={`composition-open-button ${avaliacao.ciclo ? "has-cycle" : ""}`} onClick={() => abrirComposicao(componente)} title={avaliacao.ciclo ? "Ciclo detectado no caminho atual" : "Abrir composição interna"}>{avaliacao.ciclo ? "Ciclo ⚠" : "Abrir →"}</button>}</td>
+                    <td>{composicao && <button type="button" className={`composition-open-button ${avaliacao.ciclo ? "has-cycle" : ""}`} onClick={(event) => { event.stopPropagation(); abrirComposicao(componente); }} title={avaliacao.ciclo ? "Ciclo detectado no caminho atual" : "Abrir composição interna"}>{avaliacao.ciclo ? "Ciclo ⚠" : "Abrir →"}</button>}</td>
                   </tr>
                 );
               })}

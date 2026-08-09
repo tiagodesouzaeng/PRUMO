@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { ApiError, asApiError } from "./errors.js";
 import { criarWorkerTrabalhos } from "./workers/jobWorker.js";
+import { exportarAuditoriaCsv } from "./domain/audit.js";
 
 const esquemaOrcamento = {
   type: "object",
@@ -150,6 +151,80 @@ const esquemaTransicaoRepositorio = {
   },
 };
 
+const esquemaPoliticaAuditoria = {
+  type: "object",
+  required: ["retencaoDias", "frequenciaBackup"],
+  additionalProperties: false,
+  properties: {
+    retencaoDias: { type: "integer", minimum: 365, maximum: 36500 },
+    frequenciaBackup: { enum: ["diario", "semanal", "mensal"] },
+    ultimoBackupEm: { type: "string", format: "date-time" },
+    ultimoBackupHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+    ultimoTesteRestauracaoEm: { type: "string", format: "date-time" },
+    ultimoTesteRestauracaoOk: { type: "boolean" },
+  },
+};
+
+const esquemaDocumento = {
+  type: "object", required: ["titulo"], additionalProperties: false,
+  properties: {
+    titulo: { type: "string", minLength: 2, maxLength: 240 },
+    tipo: { type: "string", maxLength: 80 },
+    status: { enum: ["rascunho", "em_revisao", "aprovado", "arquivado"] },
+    metadados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaVersaoDocumento = {
+  type: "object", required: ["nomeArquivo", "sha256", "storageKey"], additionalProperties: false,
+  properties: {
+    nomeArquivo: { type: "string", minLength: 1, maxLength: 500 },
+    tipoMime: { type: "string", maxLength: 160 },
+    tamanhoBytes: { type: "integer", minimum: 0 },
+    sha256: { type: "string", pattern: "^[0-9a-f]{64}$" },
+    storageKey: { type: "string", minLength: 1, maxLength: 1000 },
+    metadados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaIntegracao = {
+  type: "object", required: ["nome", "provedor"], additionalProperties: false,
+  properties: {
+    nome: { type: "string", minLength: 2, maxLength: 240 },
+    provedor: { type: "string", minLength: 2, maxLength: 160 },
+    status: { enum: ["ativa", "inativa", "suspensa"] },
+    credentialReference: { type: "string", maxLength: 500 },
+    configuracao: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaExecucaoIntegracao = {
+  type: "object", additionalProperties: false,
+  properties: {
+    status: { enum: ["iniciada", "concluida", "falhou"] },
+    direcao: { enum: ["entrada", "saida", "bidirecional"] },
+    contagens: { type: "object", additionalProperties: true },
+    erroSanitizado: { type: "string", maxLength: 2000 },
+  },
+};
+
+const esquemaPerfilProduto = {
+  type: "object", required: ["perfil"], additionalProperties: false,
+  properties: {
+    perfil: { enum: ["publico", "federacao", "privado", "escritorio", "facilities"] },
+    terminologia: { type: "object", additionalProperties: true },
+    templates: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaContratoModulo = {
+  type: "object", additionalProperties: false,
+  properties: {
+    disponivel: { type: "boolean" }, contratado: { type: "boolean" }, habilitado: { type: "boolean" },
+    pacote: { type: "string", maxLength: 120 }, limites: { type: "object", additionalProperties: true },
+  },
+};
+
 function contextoDaRequisicao(request, identity) {
   const tenantId = String(request.headers["x-prumo-tenant-id"] || "").trim();
   const teamId = String(request.headers["x-prumo-team-id"] || "").trim();
@@ -240,7 +315,7 @@ export async function criarAplicacaoApi({
     return {
       ok: true,
       servico: "PRUMO API",
-      versao: "10.3.0",
+      versao: "10.6.0",
       armazenamento: repository.tipo,
       banco,
     };
@@ -479,6 +554,85 @@ export async function criarAplicacaoApi({
       request.params.dominioId,
       request.body.modo,
     )
+  ));
+
+  app.get("/v1/auditoria", async (request) => (
+    repository.listarAuditoria(
+      contextoDaRequisicao(request, request.identity),
+      request.query || {},
+    )
+  ));
+
+  app.get("/v1/auditoria/exportacao.csv", async (request, reply) => {
+    const contexto = contextoDaRequisicao(request, request.identity);
+    const filtros = request.query || {};
+    const itens = [];
+    let deslocamento = 0;
+    let total = 0;
+    do {
+      const pagina = await repository.listarAuditoria(contexto, {
+        ...filtros,
+        limite: 200,
+        deslocamento,
+      });
+      itens.push(...pagina.itens);
+      total = pagina.total;
+      deslocamento += pagina.itens.length;
+      if (!pagina.itens.length) break;
+    } while (deslocamento < total && deslocamento < 10_000);
+    reply
+      .type("text/csv; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="prumo-auditoria-${new Date().toISOString().slice(0, 10)}.csv"`);
+    return exportarAuditoriaCsv(itens);
+  });
+
+  app.get("/v1/auditoria/politica", async (request) => (
+    repository.obterPoliticaAuditoria(
+      contextoDaRequisicao(request, request.identity),
+    )
+  ));
+
+  app.put("/v1/auditoria/politica", {
+    schema: { body: esquemaPoliticaAuditoria },
+  }, async (request) => (
+    repository.atualizarPoliticaAuditoria(
+      contextoDaRequisicao(request, request.identity),
+      request.body,
+    )
+  ));
+
+  app.get("/v1/documentos", async (request) => (
+    repository.listarDocumentos(contextoDaRequisicao(request, request.identity))
+  ));
+  app.post("/v1/documentos", { schema: { body: esquemaDocumento } }, async (request, reply) => {
+    const item = await repository.criarDocumento(contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request));
+    reply.code(201);
+    return item;
+  });
+  app.post("/v1/documentos/:id/versoes", { schema: { body: esquemaVersaoDocumento } }, async (request) => (
+    repository.adicionarVersaoDocumento(contextoDaRequisicao(request, request.identity), request.params.id, request.body)
+  ));
+
+  app.get("/v1/integracoes", async (request) => (
+    repository.listarIntegracoes(contextoDaRequisicao(request, request.identity))
+  ));
+  app.post("/v1/integracoes", { schema: { body: esquemaIntegracao } }, async (request, reply) => {
+    const item = await repository.criarIntegracao(contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request));
+    reply.code(201);
+    return item;
+  });
+  app.post("/v1/integracoes/:id/execucoes", { schema: { body: esquemaExecucaoIntegracao } }, async (request) => (
+    repository.registrarExecucaoIntegracao(contextoDaRequisicao(request, request.identity), request.params.id, request.body)
+  ));
+
+  app.get("/v1/produto-modular", async (request) => (
+    repository.obterProdutoModular(contextoDaRequisicao(request, request.identity))
+  ));
+  app.put("/v1/produto-modular/perfil", { schema: { body: esquemaPerfilProduto } }, async (request) => (
+    repository.atualizarPerfilProduto(contextoDaRequisicao(request, request.identity), request.body)
+  ));
+  app.put("/v1/produto-modular/modulos/:moduleId", { schema: { body: esquemaContratoModulo } }, async (request) => (
+    repository.atualizarContratoModulo(contextoDaRequisicao(request, request.identity), request.params.moduleId, request.body)
   ));
 
   app.addHook("onClose", async () => {

@@ -5,8 +5,9 @@
 Preparar o PRUMO para operar com usuários autenticados, banco de dados
 centralizado, auditoria e controle de acesso, mantendo compatibilidade temporária
 com os dados locais da versão atual. A fundação deve atender toda a plataforma:
-Obras, Manutenção, PPCI, Orçamentos, Bases de Preços, Suprimentos, Medições,
-Relatórios, Administração, GED e módulos futuros.
+Patrimônio, Planejamento, Obras, Manutenção, Regularidade, Orçamentos, Bases de
+Preços, Suprimentos, Contratos, Financeiro, Medições, Convênios, Relatórios,
+Administração, GED e módulos futuros.
 
 ## Princípio multimódulo
 
@@ -18,6 +19,20 @@ Relatórios, Administração, GED e módulos futuros.
 - contratos e eventos devem permitir integração progressiva entre os módulos.
 
 Referência permanente: `docs/arquitetura/PLATAFORMA_MULTIMODULO.md`.
+
+## Realinhamento após a v10.3.0
+
+O PRUMO passa a ser formalmente um produto único e modular para governança de
+patrimônio, obras, contratos, serviços e investimentos. O setor público,
+federações e entidades distribuídas constituem o público prioritário.
+
+`PRUMO ERP` e `PRUMO Governança` são edições comerciais compostas por módulos da
+mesma plataforma. Não haverá bifurcação da base de código ou duplicação de
+cadastros. A hierarquia física compartilhada será `Cliente > Site > Prédio >
+Sala`, independente da EAP dos orçamentos.
+
+O catálogo funcional está em `docs/arquitetura/CATALOGO_MODULOS.md` e a sequência
+das próximas entregas em `docs/ROADMAP_MODULAR.md`.
 
 ## Incremento 10.1 — Fundação e diagnóstico
 
@@ -188,17 +203,110 @@ nos incrementos seguintes.
 - eventos com usuário, data, módulo, antes e depois;
 - trilha imutável para aprovações, revisões e exclusões;
 - consulta e exportação administrativa;
-- política de retenção, backup e restauração.
+- tratamento seguro de campos sensíveis na auditoria;
+- política de retenção, backup e restauração;
+- teste documentado de recuperação do PostgreSQL;
+- decisões arquiteturais de licenciamento, capacidades, dependências e perfis
+  de organização.
+
+#### Incremento DEV1 — implementado e validado localmente
+
+- trilha corporativa imutável, isolada por empresa e encadeada por SHA-256;
+- captura de estado anterior e posterior em orçamentos, empreendimentos,
+  revisões, medições e políticas de governança;
+- remoção de senhas, tokens, segredos e credenciais dos dados auditados;
+- filtros administrativos por módulo, ação e usuário;
+- exportação CSV da trilha de auditoria;
+- política por empresa para retenção, frequência de backup e último teste de
+  restauração;
+- scripts locais para gerar, verificar e restaurar backups PostgreSQL em banco
+  descartável;
+- navegação do orçamento ajustada para exibir todos os módulos sem corte;
+- colunas separadas de mão de obra e material na planilha orçamentária;
+- abertura de composição filha ao clicar na própria linha, preservando o botão
+  explícito para acessibilidade;
+- 93 testes aprovados, inclusive o isolamento real no PostgreSQL, e build de
+  produção concluído.
+
+#### Encerramento v10.4.0 — concluído
+
+- role operacional `prumo_backup` criada sem ampliar `prumo_api` ou
+  `prumo_migrator`;
+- cópia completa posterior às migrações 005–007 gerada e validada;
+- SHA-256 `a930d9a268f29c946d0e7f40e469f9b349a7bc8c94434589658af59623d3d920`;
+- restauração integral aprovada no banco descartável
+  `prumo_restauracao_teste`;
+- resultado registrado na política corporativa e na trilha de auditoria;
+- 93 testes aprovados sem falhas;
+- versão local promovida para `10.4.0`.
 
 ### 10.5 — Documentos e integrações
 
 - fundação para o futuro GED;
 - anexos de medições e documentos técnicos;
+- metadados, versão, hash, responsável e histórico dos arquivos;
 - credenciais seguras para integrações;
-- rotinas de sincronização executadas no servidor.
+- rotinas de sincronização executadas e auditadas no servidor.
+
+#### Encerramento v10.5 — concluído no incremento 10.6.0
+
+- módulo Documentos e GED incluído na navegação e conectado à API corporativa;
+- registros, versões imutáveis, SHA-256, responsável, metadados e referência de
+  armazenamento persistidos no PostgreSQL com RLS;
+- vínculos polimórficos preparados para medições e demais entidades técnicas;
+- integrações corporativas persistem somente referência de credencial e nunca
+  devolvem seu conteúdo ao frontend;
+- execuções de integração são históricas, imutáveis e auditadas no servidor;
+- migração `008_documentos_integracoes.sql` aplicada e endurecida pela migração
+  `010_endurecimento_ged_modular.sql`.
+
+### 10.6 — Produto modular
+
+- catálogo versionado de módulos e funcionalidades;
+- distinção entre módulo disponível, contratado, habilitado e permitido;
+- capacidades e dependências por empresa;
+- perfis `publico`, `federacao`, `privado`, `escritorio` e `facilities`;
+- terminologia e modelos iniciais configuráveis por perfil;
+- bloqueio das capacidades no frontend, API, tarefas, relatórios e integrações;
+- ativação e suspensão auditáveis sem migração para outro produto;
+- fundação para pacotes comerciais e módulos avulsos.
+
+#### Encerramento v10.6.0 — concluído localmente
+
+- catálogo versionado com capacidades e dependências técnicas;
+- contratos por empresa distinguem disponibilidade, contratação e habilitação;
+- permissões de perfil continuam determinando o quarto controle: permitido;
+- perfis `publico`, `federacao`, `privado`, `escritorio` e `facilities`
+  disponíveis na Administração;
+- módulos suspensos deixam de aparecer no contexto da API e no menu lateral;
+- alterações de perfil, pacote e habilitação são registradas na auditoria;
+- dependências obrigatórias protegidas na API e no PostgreSQL;
+- menu lateral passou a rolar dentro da altura útil e pode ser recolhido para
+  78 px, exibindo somente ícones e preservando a preferência local;
+- build de produção concluído e 99 testes aprovados, sem falhas ou saltos.
+
+## Continuidade após a Sprint 10
+
+O desenvolvimento seguirá o roadmap modular:
+
+- Sprint 11 — cadastro patrimonial;
+- Sprint 12 — demandas e investimentos;
+- Sprint 13 — suprimentos e contratações;
+- Sprint 14 — contratos;
+- Sprint 15 — financeiro-orçamentário;
+- Sprint 16 — obras e medições corporativas;
+- Sprint 17 — manutenção e facilities;
+- Sprint 18 — convênios e prestação de contas;
+- Sprint 19 — compliance e transparência;
+- Sprint 20 — BI, portais e consolidação.
+
+Os detalhes, dependências e critérios de passagem estão em
+`docs/ROADMAP_MODULAR.md`.
 
 ## Fora do escopo imediato
 
-Os itens financeiros ainda ativos no `BACKLOG_PRUMO.md` não devem interromper
-a implantação da plataforma corporativa. O BL-002 foi concluído como entrega
-complementar do incremento 10.2.
+Os itens financeiros e funcionais ainda ativos no `BACKLOG_PRUMO.md` não devem
+interromper as fundações de auditoria, documentos e modularização. O BL-002 foi
+concluído como entrega complementar do incremento 10.2. Nenhum módulo futuro
+deve entrar no catálogo executável antes de possuir permissões, API, persistência
+e uma experiência mínima segura.

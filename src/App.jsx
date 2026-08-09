@@ -6,7 +6,7 @@
                     Manutenção, Relatórios e Administração.
 ===================================================== */
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 import usePPCI from "./hooks/usePPCI";
@@ -22,11 +22,27 @@ import Administracao from "./pages/Administracao";
 import Orcamento from "./pages/Orcamento";
 import BasesPrecos from "./pages/BasesPrecos";
 import useBasesPrecos from "./hooks/useBasesPrecos";
+import Documentos from "./pages/Documentos";
+import { criarClientePrumo, obterConfiguracaoInfraestrutura, obterContextoDesenvolvimento } from "./services/infraestruturaCorporativa";
 
 function App() {
   const [paginaAtiva, setPaginaAtiva] = useState("visao-geral");
   const dadosPPCI = usePPCI();
   const basesPrecos = useBasesPrecos();
+  const [modulosPermitidos, setModulosPermitidos] = useState(null);
+  const cliente = useMemo(() => {
+    const config = obterConfiguracaoInfraestrutura();
+    return config.apiConfigurada
+      ? criarClientePrumo({ baseUrl: config.apiUrl, obterContexto: () => obterContextoDesenvolvimento() })
+      : null;
+  }, []);
+
+  useEffect(() => {
+    if (!cliente) return;
+    cliente.listarModulos()
+      .then((modulos) => setModulosPermitidos(new Set(modulos.map((item) => item.id))))
+      .catch(() => setModulosPermitidos(null));
+  }, [cliente]);
 
   function renderizarPagina() {
     switch (paginaAtiva) {
@@ -64,6 +80,9 @@ function App() {
       case "manutencao":
         return <Manutencao />;
 
+      case "documentos":
+        return <Documentos />;
+
       case "relatorios":
         return <Relatorios dadosPPCI={dadosPPCI} />;
 
@@ -85,6 +104,7 @@ function App() {
       paginaAtiva={paginaAtiva}
       setPaginaAtiva={setPaginaAtiva}
       ultimaAtualizacao={dadosPPCI.ultimaAtualizacao}
+      modulosPermitidos={modulosPermitidos}
     >
       {renderizarPagina()}
     </SigiuLayout>

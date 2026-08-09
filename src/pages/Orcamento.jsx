@@ -14,6 +14,7 @@ import {
   criarPeriodosMedicao,
   criarId,
   criarMedicoesPropostas,
+  decomporParcelasUnitarias,
   obterCronogramaProposto,
   obterHistogramaInteligente,
   proximoCodigoGrupo,
@@ -146,7 +147,7 @@ function TabelaItens({
   return (
     <div className="orc-table-wrap">
       <table className="orc-table">
-        <thead><tr><th>ITEM</th><th>DESCRIÇÃO / FONTE</th><th>QUANTIDADE</th><th>UN.</th><th>PREÇO UNIT.</th><th>BRUTO</th><th>DESCONTO</th><th>TOTAL LÍQUIDO</th><th /></tr></thead>
+        <thead><tr><th>ITEM</th><th>DESCRIÇÃO / FONTE</th><th>QUANTIDADE</th><th>UN.</th><th>MO UNIT.</th><th>MATERIAL UNIT.</th><th>PREÇO UNIT.</th><th>BRUTO</th><th>DESCONTO</th><th>TOTAL LÍQUIDO</th><th /></tr></thead>
         <tbody>
           {linhas.map((item, index) => {
             const descontoItem = item.tipo === "grupo"
@@ -160,6 +161,7 @@ function TabelaItens({
             const valorLiquido = item.tipo === "grupo"
               ? totalGrupo(itens, item.codigo, descontos)
               : valorBruto - descontoItem;
+            const parcelas = item.tipo === "grupo" ? null : decomporParcelasUnitarias(item);
             return (
             <tr
               key={item.id || `${item.codigo}-${index}`}
@@ -170,6 +172,8 @@ function TabelaItens({
               <td style={{ paddingLeft: `${10 + Math.max(0, String(item.codigo).split(".").length - 1) * 12}px` }}><strong>{item.descricao}</strong>{item.fonte && <small>{item.fonte}</small>}{item.tipo !== "grupo" && item.bdiTipo === "diferenciado" && <small className={validarBdiDiferenciadoItem(item).elegivel ? "orc-bdi-item-tag" : "orc-bdi-item-tag is-pending"}>{validarBdiDiferenciadoItem(item).elegivel ? "BDI DIFERENCIADO" : "BDI DIFERENCIADO PENDENTE"}</small>}</td>
               <td>{item.quantidade?.toLocaleString("pt-BR") || "—"}</td>
               <td>{item.unidade || ""}</td>
+              <td className="orc-cost-component">{parcelas ? formatarPrecoUnitario(parcelas.maoObra) : "—"}</td>
+              <td className="orc-cost-component">{parcelas ? formatarPrecoUnitario(parcelas.material) : "—"}</td>
               <td>{item.unitario ? formatarPrecoUnitario(item.unitario) : ""}</td>
               <td>{formatarMoeda(valorBruto)}</td>
               <td className="orc-discount-value">{descontoItem ? `− ${formatarMoeda(descontoItem)}` : "—"}</td>
@@ -186,7 +190,7 @@ function TabelaItens({
             </tr>
             );
           })}
-          {!linhas.length && <tr><td colSpan="9" className="orc-empty-table">Nenhum item encontrado.</td></tr>}
+          {!linhas.length && <tr><td colSpan="11" className="orc-empty-table">Nenhum item encontrado.</td></tr>}
         </tbody>
       </table>
     </div>

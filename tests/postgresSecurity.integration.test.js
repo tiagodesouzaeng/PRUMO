@@ -126,6 +126,8 @@ test("PostgreSQL real impede invasão entre empresas e equipes", {
         [`orcamento:orcamento-rls-${sufixo}`],
       );
       await admin.query("COMMIT");
+      await admin.query("SELECT app.limpar_auditoria_tenant_teste($1)", [tenantA]);
+      await admin.query("SELECT app.limpar_auditoria_tenant_teste($1)", [tenantB]);
       await admin.query(
         "DELETE FROM app.team_memberships WHERE tenant_id IN ($1, $2)",
         [tenantA, tenantB],
@@ -241,6 +243,7 @@ test("worker real retoma pendência e registra falha reprocessável", {
         "DELETE FROM app.idempotency_keys WHERE chave LIKE 'trabalho:%'",
       );
       await admin.query("COMMIT");
+      await admin.query("SELECT app.limpar_auditoria_tenant_teste($1)", [tenantId]);
       await admin.query("DELETE FROM app.team_memberships WHERE tenant_id = $1", [tenantId]);
       await admin.query("DELETE FROM app.memberships WHERE tenant_id = $1", [tenantId]);
       await admin.query("DELETE FROM app.teams WHERE tenant_id = $1", [tenantId]);

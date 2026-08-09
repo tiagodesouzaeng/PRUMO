@@ -57,7 +57,8 @@ const ABAS_ADMIN = [
   { id: "usuarios", label: "Usuários e acessos", badge: "10.2" },
   { id: "cadastros", label: "Cadastros mestres", badge: "4" },
   { id: "parametros", label: "Parâmetros", badge: "3" },
-  { id: "sync", label: "Integrações", badge: "9.6" },
+  { id: "sync", label: "Integrações", badge: "10.5" },
+  { id: "produto", label: "Produto modular", badge: "10.6" },
   { id: "auditoria", label: "Auditoria", badge: "log" },
 ];
 
@@ -1095,26 +1096,186 @@ function Sincronizacao({ basesPrecos }) {
 }
 
 function Auditoria() {
+  const configuracao = useMemo(() => obterConfiguracaoInfraestrutura(), []);
+  const contexto = useMemo(() => obterContextoDesenvolvimento(), []);
+  const cliente = useMemo(() => (
+    configuracao.apiConfigurada && contexto
+      ? criarClientePrumo({
+        baseUrl: configuracao.apiUrl,
+        obterContexto: () => contexto,
+      })
+      : null
+  ), [configuracao, contexto]);
+  const [filtros, setFiltros] = useState({ moduleId: "", action: "", actorId: "" });
+  const [resultado, setResultado] = useState({ itens: [], total: 0, integridade: null });
+  const [politica, setPolitica] = useState(null);
+  const [carregando, setCarregando] = useState(false);
+  const [mensagem, setMensagem] = useState("");
+
+  async function carregar() {
+    if (!cliente) return;
+    setCarregando(true);
+    setMensagem("");
+    try {
+      const [eventos, politicaAtual] = await Promise.all([
+        cliente.listarAuditoria({ ...filtros, limite: 100 }),
+        cliente.obterPoliticaAuditoria(),
+      ]);
+      setResultado(eventos);
+      setPolitica(politicaAtual);
+    } catch (erro) {
+      setMensagem(erro.message);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  useEffect(() => {
+    carregar();
+  }, [cliente]);
+
+  async function exportar() {
+    if (!cliente) return;
+    setMensagem("");
+    try {
+      const conteudo = await cliente.exportarAuditoria(filtros);
+      const url = URL.createObjectURL(new Blob([conteudo], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `prumo-auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setMensagem("Exportação da auditoria concluída.");
+    } catch (erro) {
+      setMensagem(erro.message);
+    }
+  }
+
+  async function salvarPolitica(event) {
+    event.preventDefault();
+    if (!cliente || !politica) return;
+    setMensagem("");
+    try {
+      const atualizada = await cliente.atualizarPoliticaAuditoria({
+        retencaoDias: Number(politica.retencaoDias),
+        frequenciaBackup: politica.frequenciaBackup,
+      });
+      setPolitica(atualizada);
+      setMensagem("Política de auditoria atualizada e registrada na própria trilha.");
+      await carregar();
+    } catch (erro) {
+      setMensagem(erro.message);
+    }
+  }
+
+  const eventos = cliente ? resultado.itens : SIGIU_ADMIN_AUDITORIA.map((evento, indice) => ({
+    id: `local-${indice}`,
+    criadoEm: evento.data,
+    acao: evento.acao,
+    usuarioId: evento.usuario,
+    moduleId: "administracao",
+    entidadeTipo: "demonstração local",
+    entidadeId: "—",
+    resultado: "local",
+    metadados: { detalhe: evento.detalhe },
+  }));
+
   return (
-    <section className="sigiu-card sigiu-admin-card">
-      <header className="sigiu-card-header-row">
-        <div>
-          <h2>Auditoria</h2>
-          <p>Registro estrutural de eventos administrativos. Logs reais dependem da autenticação/backend.</p>
+    <div className="sigiu-admin-stack">
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Auditoria corporativa</h2>
+            <p>Trilha imutável por organização, com usuário, módulo, entidade e estados anterior e posterior.</p>
+          </div>
+          <StatusChip status={cliente ? (resultado.integridade?.ok ? "Integridade verificada" : "Verificação necessária") : "Modo local"} />
+        </header>
+        <div className="sigiu-audit-summary">
+          <article><span>Eventos filtrados</span><strong>{cliente ? resultado.total : eventos.length}</strong></article>
+          <article><span>Integridade</span><strong>{resultado.integridade?.ok ? "OK" : cliente ? "Pendente" : "Local"}</strong></article>
+          <article><span>Retenção</span><strong>{politica ? `${politica.retencaoDias} dias` : "Não configurada"}</strong></article>
+          <article><span>Último backup</span><strong>{politica?.ultimoBackupEm ? new Date(politica.ultimoBackupEm).toLocaleString("pt-BR") : "Pendente"}</strong></article>
         </div>
-      </header>
-      <div className="sigiu-admin-audit-list">
-        {SIGIU_ADMIN_AUDITORIA.map((evento) => (
-          <article key={`${evento.data}-${evento.acao}`}>
-            <span>{evento.data}</span>
-            <div>
-              <strong>{evento.acao}</strong>
-              <small>{evento.usuario} · {evento.detalhe}</small>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
+        <form className="sigiu-audit-filters" onSubmit={(event) => { event.preventDefault(); carregar(); }}>
+          <label><span>Módulo</span><select value={filtros.moduleId} onChange={(event) => setFiltros((atual) => ({ ...atual, moduleId: event.target.value }))}><option value="">Todos</option>{MODULOS_PLATAFORMA.map((modulo) => <option key={modulo.id} value={modulo.id}>{modulo.nome}</option>)}</select></label>
+          <label><span>Ação contém</span><input value={filtros.action} onChange={(event) => setFiltros((atual) => ({ ...atual, action: event.target.value }))} placeholder="Ex.: orçamento" /></label>
+          <label><span>Usuário contém</span><input value={filtros.actorId} onChange={(event) => setFiltros((atual) => ({ ...atual, actorId: event.target.value }))} placeholder="Identificador" /></label>
+          <button type="submit" className="sigiu-btn sigiu-btn--primary" disabled={!cliente || carregando}>{carregando ? "Consultando..." : "Consultar"}</button>
+          <button type="button" className="sigiu-btn sigiu-btn--outline" disabled={!cliente || !resultado.total} onClick={exportar}>Exportar CSV</button>
+        </form>
+        {!cliente && <footer className="sigiu-admin-security-note">Configure a API e a identidade de desenvolvimento para consultar a trilha corporativa. Os registros abaixo são apenas a demonstração local anterior.</footer>}
+        {mensagem && <div className="sigiu-infrastructure-result" role="status">{mensagem}</div>}
+        <div className="sigiu-admin-audit-list sigiu-admin-audit-list--corporate">
+          {eventos.map((evento) => (
+            <article key={evento.id || `${evento.criadoEm}-${evento.acao}`}>
+              <span>{evento.criadoEm ? new Date(evento.criadoEm).toLocaleString("pt-BR") : "—"}</span>
+              <div>
+                <strong>{evento.acao}</strong>
+                <small>{evento.usuarioId} · {evento.moduleId} · {evento.entidadeTipo} {evento.entidadeId}</small>
+                {(evento.antes || evento.depois || evento.metadados?.detalhe) && <details><summary>Ver registro</summary><pre>{JSON.stringify({ antes: evento.antes, depois: evento.depois, metadados: evento.metadados }, null, 2)}</pre></details>}
+                {evento.hash && <small className="sigiu-audit-hash">#{evento.sequencia} · {evento.hash.slice(0, 16)}…</small>}
+              </div>
+            </article>
+          ))}
+          {!eventos.length && <p className="sigiu-admin-empty">Nenhum evento encontrado para os filtros informados.</p>}
+        </div>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div><h2>Retenção, backup e restauração</h2><p>A política é corporativa; a confirmação só ocorre após execução e verificação no PostgreSQL.</p></div>
+          <StatusChip status={politica?.ultimoTesteRestauracaoOk ? "Restauração verificada" : "Teste pendente"} />
+        </header>
+        <form className="sigiu-audit-policy" onSubmit={salvarPolitica}>
+          <label><span>Retenção mínima em dias</span><input type="number" min="365" max="36500" value={politica?.retencaoDias || 2555} onChange={(event) => setPolitica((atual) => ({ ...(atual || {}), retencaoDias: event.target.value }))} /></label>
+          <label><span>Frequência de backup</span><select value={politica?.frequenciaBackup || "diario"} onChange={(event) => setPolitica((atual) => ({ ...(atual || {}), frequenciaBackup: event.target.value }))}><option value="diario">Diário</option><option value="semanal">Semanal</option><option value="mensal">Mensal</option></select></label>
+          <button type="submit" className="sigiu-btn sigiu-btn--primary" disabled={!cliente || !politica}>Salvar política</button>
+        </form>
+        <div className="sigiu-admin-definition-list">
+          <div><span>Último backup confirmado</span><strong>{politica?.ultimoBackupEm ? new Date(politica.ultimoBackupEm).toLocaleString("pt-BR") : "Pendente"}</strong></div>
+          <div><span>Último teste de restauração</span><strong>{politica?.ultimoTesteRestauracaoEm ? new Date(politica.ultimoTesteRestauracaoEm).toLocaleString("pt-BR") : "Pendente"}</strong></div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ProdutoModular() {
+  const configuracao = obterConfiguracaoInfraestrutura();
+  const cliente = useMemo(() => configuracao.apiConfigurada ? criarClientePrumo({ baseUrl: configuracao.apiUrl, obterContexto: () => obterContextoDesenvolvimento() }) : null, [configuracao.apiUrl]);
+  const [produto, setProduto] = useState(null);
+  const [mensagem, setMensagem] = useState(cliente ? "Carregando catálogo modular…" : "Conecte a API corporativa para administrar o produto modular.");
+  async function carregar() {
+    if (!cliente) return;
+    try { setProduto(await cliente.obterProdutoModular()); setMensagem(""); } catch (error) { setMensagem(error.message); }
+  }
+  useEffect(() => { carregar(); }, []);
+  async function mudarPerfil(event) {
+    try {
+      const perfil = await cliente.atualizarPerfilProduto({ perfil: event.target.value, terminologia: produto.perfil.terminologia || {}, templates: produto.perfil.templates || {} });
+      setProduto((atual) => ({ ...atual, perfil }));
+    } catch (error) { setMensagem(error.message); }
+  }
+  async function alternarModulo(modulo) {
+    try {
+      const contrato = await cliente.atualizarContratoModulo(modulo.id, { habilitado: !modulo.habilitado });
+      setProduto((atual) => ({ ...atual, modulos: atual.modulos.map((item) => item.id === modulo.id ? { ...item, ...contrato } : item) }));
+    } catch (error) { setMensagem(error.message); }
+  }
+  return (
+    <div className="sigiu-admin-grid">
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row"><div><h2>Perfil da organização</h2><p>Ajusta terminologia e modelos sem separar o PRUMO em produtos diferentes.</p></div><StatusChip status={`Catálogo v${produto?.versaoCatalogo || 1}`} /></header>
+        <label className="sigiu-product-profile"><span>Perfil operacional</span><select value={produto?.perfil?.perfil || "publico"} onChange={mudarPerfil} disabled={!produto}><option value="publico">Órgão público</option><option value="federacao">Federação</option><option value="privado">Empresa privada</option><option value="escritorio">Escritório de engenharia/arquitetura</option><option value="facilities">Facilities</option></select></label>
+        {mensagem && <p className="sigiu-empty-inline">{mensagem}</p>}
+      </section>
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row"><div><h2>Módulos comercializáveis</h2><p>Disponível, contratado, habilitado e permitido são controles independentes e auditáveis.</p></div></header>
+        <div className="sigiu-product-modules">
+          {produto?.modulos?.map((modulo) => <article key={modulo.id}><div><strong>{modulo.nome}</strong><span>{modulo.pacote} · {modulo.capacidades?.length || 0} capacidades</span></div><div className="sigiu-product-states"><StatusChip status={modulo.contratado ? "Contratado" : "Não contratado"} /><button type="button" className={`sigiu-toggle ${modulo.habilitado ? "is-on" : ""}`} onClick={() => alternarModulo(modulo)} disabled={!modulo.contratado || modulo.id === "visao-geral"} aria-pressed={modulo.habilitado}>{modulo.habilitado ? "Habilitado" : "Suspenso"}</button></div></article>)}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1136,6 +1297,8 @@ function renderizarAba(abaAtiva, basesPrecos) {
       return <ParametrosAlertas />;
     case "sync":
       return <Sincronizacao basesPrecos={basesPrecos} />;
+    case "produto":
+      return <ProdutoModular />;
     case "auditoria":
       return <Auditoria />;
     case "geral":
@@ -1159,8 +1322,8 @@ export default function Administracao({ basesPrecos }) {
           </p>
         </div>
         <div className="sigiu-page-heading__meta sigiu-page-heading__meta--admin">
-          <strong>10.3</strong>
-          <span>fundação multiempresa</span>
+          <strong>10.6</strong>
+          <span>produto modular</span>
         </div>
       </div>
 
@@ -1186,8 +1349,8 @@ export default function Administracao({ basesPrecos }) {
         <article className="sigiu-module-kpi sigiu-module-kpi--success">
           <span>✓</span>
           <small>Plataforma</small>
-          <strong>10.3</strong>
-          <em>isolamento preparado</em>
+          <strong>10.6</strong>
+          <em>GED e módulos contratáveis</em>
         </article>
       </div>
 

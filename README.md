@@ -1,7 +1,21 @@
-# PRUMO — Módulo de Orçamentos Integrado
+# PRUMO — Plataforma modular de engenharia e governança
 
 Pacote completo baseado no `src` histórico do SIGIU v8.2.0 RC1, atualizado
 visualmente para PRUMO e acrescido do módulo de Orçamentos.
+
+## Direção do produto
+
+O PRUMO evolui como um produto único e modular para governança de patrimônio,
+obras, contratos, serviços e investimentos, com prioridade para setor público,
+federações e organizações distribuídas. `PRUMO ERP` e `PRUMO Governança` são
+edições comerciais da mesma plataforma, com módulos contratáveis separadamente.
+
+- arquitetura permanente: `docs/arquitetura/PLATAFORMA_MULTIMODULO.md`;
+- catálogo funcional e comercial: `docs/arquitetura/CATALOGO_MODULOS.md`;
+- roadmap após a v10.3.0: `docs/ROADMAP_MODULAR.md`;
+- operação de backup e restauração: `docs/operacao/BACKUP_RESTAURACAO_POSTGRESQL.md`;
+- acessos locais PostgreSQL e Git: `docs/operacao/ACESSOS_DESENVOLVIMENTO.md`;
+- backlog permanente: `BACKLOG_PRUMO.md`.
 
 ## Conteúdo integrado
 
@@ -276,6 +290,19 @@ A versão `10.3.0` encerra esta fundação com testes reais de invasão entre
 empresas e equipes, recuperação de trabalhos pendentes e reprocessamento
 controlado de falhas.
 
+O incremento 10.4 DEV1 adiciona auditoria corporativa imutável, consulta e
+exportação administrativa, política de retenção e ferramentas operacionais de
+backup e restauração. A versão `10.4.0` encerra o incremento após a geração de
+uma cópia completa, verificação de integridade e restauração integral aprovada
+em banco descartável.
+
+A versão `10.6.0` conclui as duas etapas seguintes. A fundação do GED mantém
+documentos, versões imutáveis, hash e referências seguras de armazenamento no
+PostgreSQL. O produto modular separa catálogo, contrato, habilitação e permissão
+por empresa, com capacidades, dependências e perfis de organização. A navegação
+lateral agora possui rolagem própria e recolhimento para ícones, evitando que a
+Administração fique encoberta pela barra do sistema operacional.
+
 - plano da sprint: `docs/SPRINT_10.md`;
 - backlog permanente: `BACKLOG_PRUMO.md`;
 - configuração da futura API: `VITE_PRUMO_API_URL`;
@@ -331,7 +358,9 @@ manter instalações reproduzíveis entre os ambientes.
 
 ## Observação
 
-O frontend ainda oferece persistência local, motor orçamentário editável, BDI
-diferenciado auditável e importação manual de bases versionadas. A API e o
-contrato PostgreSQL já estão preparados, mas uma instância de banco e um
-provedor OIDC precisam ser provisionados antes da migração real.
+O frontend ainda oferece persistência local e IndexedDB para dados históricos
+do orçamento, composições próprias, preferências e bases de preços. A API e o
+PostgreSQL estão ativos no desenvolvimento local, mas esses domínios só podem
+abandonar o navegador após inventário, migração assistida e homologação. OIDC e
+armazenamento corporativo dos arquivos binários do GED seguem obrigatórios para
+produção.

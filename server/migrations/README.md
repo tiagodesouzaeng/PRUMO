@@ -39,6 +39,15 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   app.migration_batches, app.migration_batch_records TO prumo_api;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   app.jobs, app.job_events, app.repository_transitions TO prumo_api;
+GRANT SELECT, INSERT ON app.audit_events TO prumo_api;
+GRANT SELECT, INSERT, UPDATE ON app.audit_policies TO prumo_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  app.documents, app.document_links, app.integrations TO prumo_api;
+GRANT SELECT, INSERT ON app.document_versions, app.integration_runs TO prumo_api;
+GRANT SELECT ON app.module_catalog_versions, app.module_capabilities,
+  app.module_dependencies TO prumo_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  app.tenant_product_profiles, app.tenant_module_contracts TO prumo_api;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app TO prumo_api;
 ```
 
@@ -62,3 +71,11 @@ pnpm db:migrate
 ```
 
 O executor mantém checksum e recusa alterações em migrações já aplicadas.
+
+## Backup e restauração
+
+A identidade da API não deve receber `BYPASSRLS` apenas para viabilizar cópias
+do banco. Use uma credencial operacional dedicada em
+`PRUMO_BACKUP_DATABASE_URL`, protegida fora do repositório, e valide a
+restauração somente em um banco descartável. O procedimento completo está em
+`docs/operacao/BACKUP_RESTAURACAO_POSTGRESQL.md`.

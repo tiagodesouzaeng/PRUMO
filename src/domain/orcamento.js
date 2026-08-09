@@ -715,6 +715,23 @@ export function totalItem(item) {
   return truncarMoeda(numeroSeguro(item.quantidade) * numeroSeguro(item.unitario));
 }
 
+export function decomporParcelasUnitarias(item = {}) {
+  const unitario = numeroSeguro(item.unitario);
+  const percentualMaoObra = numeroSeguro(item.percentualMaoObra);
+  const maoObra = item.custoMaoObra == null
+    ? unitario * percentualMaoObra
+    : numeroSeguro(item.custoMaoObra);
+  const material = item.custoMaterial == null
+    ? Math.max(0, unitario - maoObra)
+    : numeroSeguro(item.custoMaterial);
+  const totalParcelas = maoObra + material;
+  if (unitario > 0 && totalParcelas > 0 && Math.abs(totalParcelas - unitario) > 0.00000001) {
+    const fator = unitario / totalParcelas;
+    return { maoObra: maoObra * fator, material: material * fator };
+  }
+  return { maoObra, material };
+}
+
 export function totalGrupo(itens, codigoGrupo, descontos = new Map()) {
   const prefixo = `${codigoGrupo}.`;
   const centavos = itens

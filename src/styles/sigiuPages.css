@@ -2564,6 +2564,179 @@ button.sigiu-central-modulo-card:hover {
   font-weight: 700;
 }
 
+.sigiu-simple-form,
+.sigiu-simple-form label,
+.sigiu-product-profile {
+  display: grid;
+  gap: 10px;
+}
+
+.sigiu-simple-form input,
+.sigiu-product-profile select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+}
+
+.sigiu-document-list,
+.sigiu-product-modules {
+  display: grid;
+  gap: 10px;
+}
+
+.sigiu-document-row,
+.sigiu-product-modules article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.sigiu-document-row > div,
+.sigiu-product-modules article > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.sigiu-document-row span,
+.sigiu-product-modules article span {
+  color: var(--sigiu-text-muted);
+  font-size: 0.82rem;
+}
+
+.sigiu-product-states {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sigiu-toggle {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 999px;
+  background: #eef1f1;
+  color: var(--sigiu-text-muted);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sigiu-toggle.is-on {
+  border-color: #87b7aa;
+  background: #dff2ec;
+  color: var(--sigiu-verde-profundo);
+}
+
+@media (max-width: 720px) {
+  .sigiu-document-row,
+  .sigiu-product-modules article,
+  .sigiu-product-states {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.sigiu-audit-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sigiu-audit-summary article {
+  padding: 12px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 12px;
+  background: #f8fbfa;
+}
+
+.sigiu-audit-summary span,
+.sigiu-audit-summary strong {
+  display: block;
+}
+
+.sigiu-audit-summary span,
+.sigiu-audit-filters label span,
+.sigiu-audit-policy label span {
+  margin-bottom: 5px;
+  color: var(--sigiu-text-muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.sigiu-audit-summary strong {
+  color: var(--sigiu-verde-profundo);
+  font-size: 0.95rem;
+}
+
+.sigiu-audit-filters,
+.sigiu-audit-policy {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) auto auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.sigiu-audit-policy {
+  grid-template-columns: repeat(2, minmax(180px, 1fr)) auto;
+}
+
+.sigiu-audit-filters label,
+.sigiu-audit-policy label {
+  display: flex;
+  flex-direction: column;
+}
+
+.sigiu-audit-filters input,
+.sigiu-audit-filters select,
+.sigiu-audit-policy input,
+.sigiu-audit-policy select {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--sigiu-text);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.sigiu-admin-audit-list--corporate details {
+  margin-top: 8px;
+}
+
+.sigiu-admin-audit-list--corporate summary {
+  width: fit-content;
+  color: var(--sigiu-verde-medio);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.sigiu-admin-audit-list--corporate pre {
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 8px;
+  background: #102f2d;
+  color: #dceae7;
+  font-size: 0.68rem;
+  white-space: pre-wrap;
+}
+
+.sigiu-audit-hash {
+  color: #68827d !important;
+  font-family: monospace;
+}
+
 @media (max-width: 1180px) {
   .sigiu-admin-grid--overview,
   .sigiu-admin-split {
@@ -2595,6 +2768,12 @@ button.sigiu-central-modulo-card:hover {
 }
 
 @media (max-width: 820px) {
+  .sigiu-audit-summary,
+  .sigiu-audit-filters,
+  .sigiu-audit-policy {
+    grid-template-columns: 1fr;
+  }
+
   .sigiu-admin-tabs {
     margin-left: -2px;
     margin-right: -2px;

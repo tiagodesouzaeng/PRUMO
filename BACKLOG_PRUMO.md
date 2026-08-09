@@ -1,6 +1,6 @@
 # Backlog permanente do PRUMO
 
-Atualizado em: 30/07/2026
+Atualizado em: 08/08/2026
 
 Este arquivo é o registro permanente das melhorias que não devem interromper a
 sprint em execução. Novos itens devem receber um identificador, contexto,
@@ -267,6 +267,100 @@ critérios mínimos de aceite e manter o histórico de situação.
   - permanece pendente a regra completa de comparação entre publicações e a
     geração automática da revisão de atualização de preços.
 
+### BL-005 — Convergência modular do produto
+
+- **Situação:** Fundação concluída — v10.6.0
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Todos
+- **Necessidade:** operar PRUMO ERP e PRUMO Governança como edições comerciais
+  de um único produto, permitindo contratação e ativação de módulos avulsos sem
+  duplicar código, banco ou cadastros.
+- **Critérios mínimos para futura implementação:**
+  - distinguir módulo disponível, contratado, habilitado e permitido;
+  - manter capacidades, dependências e limites por empresa;
+  - aplicar o bloqueio no frontend, API, tarefas, relatórios e integrações;
+  - separar licença comercial de permissão de usuário e isolamento RLS;
+  - suportar pacotes comerciais e módulos avulsos;
+  - registrar ativações, suspensões e mudanças de pacote na auditoria;
+  - impedir que módulos planejados sejam apresentados como implementados.
+- **Implementado na v10.6.0:** catálogo versionado, capacidades, dependências,
+  contratos por empresa, perfis de organização, bloqueio no contexto da API e
+  no menu, auditoria das alterações e proteção de dependências no banco.
+- **Continuidade:** pacotes, limites e cobrança permanecem como evolução
+  comercial; módulos futuros continuam ocultos até atenderem ao critério de
+  passagem do roadmap.
+
+### BL-006 — Cadastro patrimonial canônico
+
+- **Situação:** Planejado — Sprint 11
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Patrimônio, Obras, Manutenção, Regularidade, Utilidades,
+  Documentos e Relatórios
+- **Necessidade:** estabelecer uma fonte corporativa única para a hierarquia
+  física `Cliente > Site > Prédio > Sala`.
+- **Critérios mínimos para futura implementação:**
+  - validar a sequência e impedir relacionamentos hierárquicos inválidos;
+  - permitir ativos e equipamentos vinculados à sala;
+  - manter identificação, áreas, endereço, responsáveis, ocupação e situação;
+  - preservar histórico de alterações, movimentações e desativações;
+  - separar a hierarquia patrimonial da EAP de orçamento ou projeto;
+  - aplicar RLS e permissões por empresa e equipe;
+  - permitir que todos os módulos referenciem os mesmos identificadores.
+
+### BL-007 — Suprimentos, contratações e contratos
+
+- **Situação:** Planejado — Sprints 13 e 14
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Planejamento, Orçamentos, Suprimentos, Contratos,
+  Medições, Financeiro, Documentos e Auditoria
+- **Necessidade:** completar o ciclo entre demanda, planejamento, seleção,
+  contratação, recebimento, fiscalização e encerramento.
+- **Critérios mínimos para futura implementação:**
+  - fluxos configuráveis para administração pública, federação e privado;
+  - planejamento da contratação, estudos, riscos e termo de referência;
+  - pesquisa e memória de preços, propostas e julgamento;
+  - pedidos, recebimentos e fornecedores compartilhados;
+  - contratos, atas, vigência, saldo, gestores e fiscais;
+  - aditivos, reajustes, garantias, ocorrências, sanções e encerramento;
+  - integração explícita com orçamento, medição, financeiro e documentos;
+  - trilha integral de aprovação e segregação de funções.
+
+### BL-008 — Financeiro-orçamentário modular
+
+- **Situação:** Planejado — Sprint 15
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Planejamento, Suprimentos, Contratos, Medições,
+  Convênios, Relatórios e Auditoria
+- **Necessidade:** controlar a execução gerencial e financeira dos investimentos,
+  contratos, compras e serviços sem obrigar o PRUMO a substituir inicialmente
+  os sistemas fiscais, contábeis e trabalhistas especializados.
+- **Critérios mínimos para futura implementação:**
+  - planejamento anual e plurianual, centros de custo e fontes de recurso;
+  - conceitos configuráveis de dotação, reserva, empenho, liquidação e pagamento;
+  - equivalentes empresariais para federações e organizações privadas;
+  - compromissos originados por pedidos, contratos e medições;
+  - retenções, glosas, saldos, CAPEX, OPEX e fluxo projetado;
+  - realizado contra previsto por empreendimento, contrato e organização;
+  - APIs de integração com sistemas contábeis, bancários e oficiais;
+  - conciliação e auditoria sem exposição de credenciais ou dados sensíveis.
+
+### BL-009 — Convênios, repasses e prestação de contas
+
+- **Situação:** Planejado — Sprint 18
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Planejamento, Patrimônio, Obras, Contratos, Financeiro,
+  Documentos, Relatórios e Auditoria
+- **Necessidade:** acompanhar instrumentos de repasse desde a celebração até a
+  comprovação do objeto e a prestação de contas.
+- **Critérios mínimos para futura implementação:**
+  - concedente, recebedor, vigência, plano de trabalho, metas e etapas;
+  - fontes, contrapartidas, parcelas e cronograma de desembolso;
+  - vínculo com contratos, obras, medições e execução financeira;
+  - evidências do cumprimento físico e financeiro;
+  - pendências, prazos, diligências e aprovações;
+  - prestação de contas e relatórios auditáveis;
+  - integração preparada para plataformas oficiais sem duplicação de registros.
+
 ## Histórico
 
 | Data | Item | Alteração |
@@ -280,3 +374,8 @@ critérios mínimos de aceite e manter o histórico de situação.
 | 30/07/2026 | BL-003 | Implantado o catálogo PostgreSQL de fontes, publicações, itens, preços por UF e composições. |
 | 30/07/2026 | BL-004 | Disponibilizada a persistência necessária para o futuro worker de atualização. |
 | 30/07/2026 | BL-004 | Implantados a fila, o worker inicial e a transição híbrida dos repositórios. |
+| 08/08/2026 | BL-005 | Planejada a convergência de PRUMO ERP e PRUMO Governança em um único produto modular. |
+| 08/08/2026 | BL-006 | Formalizada a hierarquia patrimonial Cliente, Site, Prédio e Sala. |
+| 08/08/2026 | BL-007 | Planejado o ciclo integrado de suprimentos, contratações e contratos. |
+| 08/08/2026 | BL-008 | Planejado o módulo financeiro-orçamentário com perfis público e empresarial. |
+| 08/08/2026 | BL-009 | Planejado o módulo de convênios, repasses e prestação de contas. |
