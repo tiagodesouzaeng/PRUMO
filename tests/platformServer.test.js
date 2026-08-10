@@ -13,6 +13,7 @@ test("catálogo corporativo mantém todos os módulos previstos no PRUMO", () =>
     "orcamentos",
     "bases-precos",
     "suprimentos",
+    "contratos",
     "medicoes",
     "manutencao",
     "ppci",

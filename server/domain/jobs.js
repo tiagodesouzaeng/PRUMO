@@ -2,6 +2,7 @@ export const TIPOS_TRABALHO = Object.freeze([
   "sistema.diagnostico",
   "catalogo.importar",
   "orcamento.recalcular",
+  "integracao.sincronizar",
 ]);
 
 export function validarSolicitacaoTrabalho(dados = {}) {
@@ -18,6 +19,9 @@ export function validarSolicitacaoTrabalho(dados = {}) {
   }
   if (dados.tipo === "orcamento.recalcular" && !dados.payload?.orcamentoId) {
     erros.push("Informe o orçamento que será recalculado.");
+  }
+  if (dados.tipo === "integracao.sincronizar" && !dados.payload?.integracaoId) {
+    erros.push("Informe a integração que será sincronizada.");
   }
   return { valido: erros.length === 0, erros };
 }

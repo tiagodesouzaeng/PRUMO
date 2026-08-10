@@ -1,0 +1,572 @@
+/* =========================================================
+   PRUMO DESIGN SYSTEM — CAMADA DE CONVERGENCIA VISUAL
+   REFERENCIA....: Modulo Orcamentos
+   OBJETIVO......: Uniformizar tipografia, cores e componentes
+========================================================= */
+
+/* A camada fica por ultimo no App.css para compatibilizar telas historicas. */
+body {
+  background: var(--sigiu-bg);
+  color: var(--sigiu-text);
+  font-family: var(--sigiu-font-family);
+  font-size: var(--sigiu-font-size-md);
+  line-height: 1.45;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.sigiu-content,
+.orc-page {
+  color: var(--sigiu-text);
+  font-family: var(--sigiu-font-family);
+  font-size: var(--sigiu-font-size-md);
+}
+
+.orc-page {
+  --orc-navy: var(--sigiu-azul);
+  --orc-teal: var(--sigiu-verde-institucional);
+  --orc-muted: var(--sigiu-text-muted);
+  --orc-border: var(--sigiu-border);
+  --orc-bg: var(--sigiu-bg);
+}
+
+/* Estrutura, cabecalho e hierarquia tipografica das paginas. */
+.sigiu-content {
+  width: min(100%, 1540px);
+  padding: 22px 24px 36px;
+}
+
+.sigiu-page,
+.sigiu-planning,
+.sigiu-procurement {
+  width: 100%;
+  max-width: 1540px;
+  margin-inline: auto;
+}
+
+.sigiu-page-heading,
+.sigiu-page-header {
+  min-height: 64px;
+  margin-bottom: 17px;
+  gap: 20px;
+}
+
+.sigiu-page-heading h1,
+.sigiu-page-header h1 {
+  margin: 3px 0 5px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: var(--sigiu-font-size-2xl);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+
+.sigiu-placeholder h1 {
+  margin: 3px 0 5px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: var(--sigiu-font-size-2xl);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+
+.sigiu-placeholder p,
+.sigiu-placeholder__notice {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-lg);
+}
+
+.sigiu-page-heading p,
+.sigiu-page-header p {
+  margin: 0;
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-lg);
+  line-height: 1.45;
+}
+
+.sigiu-page-eyebrow,
+.sigiu-eyebrow,
+.sigiu-planning-header span {
+  color: var(--sigiu-verde-institucional);
+  font-size: var(--sigiu-font-size-sm);
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.sigiu-page-heading-meta,
+.sigiu-page-heading__meta {
+  min-width: 154px;
+  padding: 10px 14px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface);
+  box-shadow: var(--sigiu-shadow-sm);
+}
+
+.sigiu-page-heading-meta span,
+.sigiu-page-heading-meta small,
+.sigiu-page-heading__meta span,
+.sigiu-page-heading__meta small {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sigiu-page-heading-meta strong,
+.sigiu-page-heading__meta strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.sigiu-section-title {
+  margin: 17px 0 12px;
+  gap: 12px;
+  color: var(--sigiu-azul);
+  font-size: var(--sigiu-font-size-xl);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sigiu-section-title::before {
+  display: none;
+}
+
+.sigiu-section-title h2,
+.sigiu-card-header-row h2,
+.sigiu-content article > header h2,
+.sigiu-content section > header h2 {
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: var(--sigiu-font-size-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.sigiu-section-title p,
+.sigiu-card-header-row p {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-md);
+}
+
+/* Superficies e indicadores. */
+.sigiu-card,
+.sigiu-module-kpi,
+.sigiu-planning-kpis article,
+.sigiu-procurement-kpis article,
+.sigiu-planning-cards > article,
+.sigiu-procurement-grid article,
+.sigiu-planning-table,
+.sigiu-procurement-table,
+.sigiu-admin-card,
+.sigiu-admin-panel,
+.sigiu-overview-card {
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface);
+  box-shadow: var(--sigiu-shadow-sm);
+}
+
+.sigiu-module-kpis,
+.sigiu-planning-kpis,
+.sigiu-procurement-kpis {
+  gap: 12px;
+  margin: 17px 0;
+}
+
+.sigiu-module-kpi,
+.sigiu-planning-kpis article,
+.sigiu-procurement-kpis article {
+  min-height: 94px;
+  padding: 15px 17px;
+}
+
+.sigiu-module-kpi span,
+.sigiu-planning-kpis span,
+.sigiu-procurement-kpis span {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sigiu-module-kpi strong,
+.sigiu-planning-kpis strong,
+.sigiu-procurement-kpis strong {
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.sigiu-module-kpi small,
+.sigiu-module-kpi em {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+/* Botoes e campos com a mesma altura, raio e foco. */
+.sigiu-btn,
+.sigiu-primary,
+.sigiu-secondary,
+.sigiu-page-heading button,
+.sigiu-page-header button,
+.sigiu-section-title button,
+.sigiu-modal footer button,
+.sigiu-detail-actions button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--sigiu-radius-sm);
+  font-size: var(--sigiu-font-size-md);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sigiu-primary {
+  padding: 0 14px !important;
+  border-radius: var(--sigiu-radius-sm) !important;
+}
+
+.sigiu-btn--primary,
+.sigiu-primary {
+  border-color: var(--sigiu-verde-institucional);
+  background: var(--sigiu-verde-institucional);
+  color: #fff;
+}
+
+.sigiu-btn--outline,
+.sigiu-secondary,
+.sigiu-section-title button,
+.sigiu-detail-actions button {
+  border-color: var(--sigiu-border-strong);
+  background: var(--sigiu-surface);
+  color: var(--sigiu-verde-institucional);
+}
+
+.sigiu-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.sigiu-content select,
+.sigiu-content textarea,
+.sigiu-input {
+  min-height: 36px;
+  padding: 8px 11px;
+  border: 1px solid var(--sigiu-border-strong);
+  border-radius: var(--sigiu-radius-sm);
+  background: var(--sigiu-surface);
+  color: var(--sigiu-text);
+  font-size: var(--sigiu-font-size-md);
+  line-height: 1.35;
+}
+
+.sigiu-content textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.sigiu-content input:focus,
+.sigiu-content select:focus,
+.sigiu-content textarea:focus,
+.sigiu-input:focus {
+  outline: none;
+  border-color: var(--sigiu-verde-institucional);
+  box-shadow: 0 0 0 3px rgba(8, 127, 115, 0.12);
+}
+
+.sigiu-content label {
+  color: #50616a;
+  font-size: var(--sigiu-font-size-md);
+}
+
+/* Abas no mesmo padrao horizontal do Orcamento. */
+.sigiu-tabs,
+.sigiu-admin-tabs,
+.sigiu-planning-tabs,
+.sigiu-procurement-tabs {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  margin-bottom: 16px;
+  padding: 0;
+  overflow-x: auto;
+  border: 0;
+  border-bottom: 1px solid var(--sigiu-border);
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: thin;
+}
+
+.sigiu-tab,
+.sigiu-admin-tabs button,
+.sigiu-planning-tabs button,
+.sigiu-procurement-tabs button {
+  flex: 0 0 auto;
+  min-height: 43px;
+  padding: 0 13px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-lg);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.sigiu-tab.is-active,
+.sigiu-admin-tabs button.is-active,
+.sigiu-admin-tabs button.active,
+.sigiu-planning-tabs button.active,
+.sigiu-procurement-tabs button.active {
+  border-bottom-color: var(--sigiu-verde-institucional);
+  background: transparent;
+  color: var(--sigiu-verde-institucional);
+  box-shadow: none;
+}
+
+/* Tabelas e listas operacionais. */
+.sigiu-content table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--sigiu-text);
+  font-size: 10px;
+}
+
+.sigiu-content th {
+  padding: 10px 12px;
+  background: var(--sigiu-surface-soft);
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.sigiu-content td {
+  padding: 11px 12px;
+  border-top: 1px solid #edf1f2;
+  color: var(--sigiu-text);
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.sigiu-content tbody tr:hover {
+  background: #f7fbfa;
+}
+
+.sigiu-chip,
+.sigiu-status,
+.sigiu-status-chip {
+  padding: 4px 8px;
+  border-radius: var(--sigiu-radius-pill);
+  font-size: var(--sigiu-font-size-xs);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+/* Modais e paineis laterais. */
+.sigiu-modal,
+.sigiu-planning-drawer,
+.sigiu-procurement-drawer,
+.sigiu-drawer {
+  border-radius: var(--sigiu-radius-lg);
+  background: var(--sigiu-surface);
+  color: var(--sigiu-text);
+  box-shadow: var(--sigiu-shadow-lg);
+}
+
+.sigiu-modal {
+  padding: 20px;
+}
+
+.sigiu-modal > header,
+.sigiu-planning-drawer > header,
+.sigiu-procurement-drawer > header {
+  margin-bottom: 16px;
+  padding-bottom: 13px;
+  border-bottom-color: var(--sigiu-border);
+}
+
+.sigiu-modal h2,
+.sigiu-planning-drawer h2,
+.sigiu-procurement-drawer h2 {
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.sigiu-form-grid {
+  gap: 12px;
+}
+
+.sigiu-contract-drawer {
+  width: min(760px, 96vw);
+}
+
+.sigiu-contract-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sigiu-contract-summary article,
+.sigiu-contract-detail-grid > div {
+  padding: 13px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface-soft);
+}
+
+.sigiu-contract-summary span,
+.sigiu-contract-detail-grid article span {
+  display: block;
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+.sigiu-contract-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 16px;
+}
+
+.sigiu-contract-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sigiu-contract-detail-grid h3 {
+  margin: 0 0 9px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 15px;
+}
+
+.sigiu-contract-detail-grid article {
+  padding: 8px 0;
+  border-top: 1px solid var(--sigiu-border);
+}
+
+.sigiu-contract-detail-grid article:first-of-type {
+  border-top: 0;
+}
+
+.status-vigente { background: var(--sigiu-success-soft); color: var(--sigiu-success); }
+.status-suspenso { background: var(--sigiu-warning-soft); color: #8a5b00; }
+.status-concluido { background: var(--sigiu-info-soft); color: var(--sigiu-info); }
+.status-encerrado { background: var(--sigiu-neutral-soft); color: var(--sigiu-neutral); }
+.status-rescindido,
+.status-cancelado { background: var(--sigiu-danger-soft); color: var(--sigiu-danger); }
+
+/* Navegacao principal tambem segue a escala compacta. */
+.sigiu-topbar-main {
+  gap: 18px;
+  padding: 12px 24px;
+}
+
+.sigiu-topbar-title h1 {
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.sigiu-topbar-title p {
+  color: var(--sigiu-text-muted);
+  font-size: 10px;
+}
+
+.sigiu-nav-item {
+  min-height: 40px;
+  gap: 10px;
+  padding-inline: 11px;
+  border-radius: 8px;
+  font-size: var(--sigiu-font-size-md);
+}
+
+.sigiu-select-button,
+.sigiu-date-button,
+.sigiu-icon-button,
+.sigiu-notification-button {
+  min-height: 36px;
+  border-radius: var(--sigiu-radius-sm);
+  color: var(--sigiu-text);
+  font-size: 10px;
+}
+
+@media (max-width: 900px) {
+  .sigiu-content {
+    padding: 18px 16px calc(var(--sigiu-mobile-bottom-nav-height) + 24px);
+  }
+
+  .sigiu-page-heading,
+  .sigiu-page-header,
+  .sigiu-planning-header,
+  .sigiu-procurement-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .sigiu-page-heading h1,
+  .sigiu-page-header h1 {
+    font-size: 23px;
+  }
+
+  .sigiu-module-kpis,
+  .sigiu-planning-kpis,
+  .sigiu-procurement-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sigiu-contract-summary,
+  .sigiu-contract-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .sigiu-content {
+    padding-inline: 12px;
+  }
+
+  .sigiu-module-kpis,
+  .sigiu-planning-kpis,
+  .sigiu-procurement-kpis,
+  .sigiu-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  .sigiu-contract-summary,
+  .sigiu-contract-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sigiu-form-grid .span-2 {
+    grid-column: auto;
+  }
+}

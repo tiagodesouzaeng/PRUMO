@@ -292,13 +292,13 @@ critérios mínimos de aceite e manter o histórico de situação.
 
 ### BL-006 — Cadastro patrimonial canônico
 
-- **Situação:** Planejado — Sprint 11
+- **Situação:** Concluído localmente — v11.0.0
 - **Prioridade sugerida:** Crítica
 - **Módulos afetados:** Patrimônio, Obras, Manutenção, Regularidade, Utilidades,
   Documentos e Relatórios
 - **Necessidade:** estabelecer uma fonte corporativa única para a hierarquia
   física `Cliente > Site > Prédio > Sala`.
-- **Critérios mínimos para futura implementação:**
+- **Critérios de implementação atendidos:**
   - validar a sequência e impedir relacionamentos hierárquicos inválidos;
   - permitir ativos e equipamentos vinculados à sala;
   - manter identificação, áreas, endereço, responsáveis, ocupação e situação;
@@ -306,15 +306,43 @@ critérios mínimos de aceite e manter o histórico de situação.
   - separar a hierarquia patrimonial da EAP de orçamento ou projeto;
   - aplicar RLS e permissões por empresa e equipe;
   - permitir que todos os módulos referenciem os mesmos identificadores.
+- **Implementado na v11.0.0:** módulo e interface próprios, árvore validada,
+  ativos, movimentações imutáveis, controle de versão, desativação protegida,
+  RLS por empresa/equipe, auditoria, vínculo com empreendimentos e GED, testes
+  reais de isolamento e recuperação PostgreSQL verificada.
+
+### BL-006A — Demandas e Carteira de Investimentos
+
+- **Situação:** Concluído localmente — v12.0.0
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Planejamento, Patrimônio, Obras, Orçamentos, Suprimentos,
+  Documentos, Relatórios e Auditoria
+- **Necessidade:** transformar necessidades identificadas no patrimônio em uma
+  carteira anual priorizada, aprovada, financeiramente controlada e rastreável.
+- **Implementado na v12.0.0:** programas, demandas vinculadas ao patrimônio,
+  pontuação ponderada, fluxo de decisões imutáveis, carteiras anuais, limite
+  financeiro, RLS por empresa/equipe, idempotência, controle de versão, API,
+  interface responsiva, auditoria e testes reais no PostgreSQL.
+- **Continuidade:** a Sprint 13 deverá consumir demandas incorporadas para iniciar
+  o planejamento das contratações e aquisições.
 
 ### BL-007 — Suprimentos, contratações e contratos
 
-- **Situação:** Planejado — Sprints 13 e 14
+- **Situação:** Concluído localmente nas Sprints 13 e 14
 - **Prioridade sugerida:** Crítica
 - **Módulos afetados:** Planejamento, Orçamentos, Suprimentos, Contratos,
   Medições, Financeiro, Documentos e Auditoria
 - **Necessidade:** completar o ciclo entre demanda, planejamento, seleção,
   contratação, recebimento, fiscalização e encerramento.
+- **Implementado na v13.0.0:** fornecedores compartilhados, processos originados
+  por demanda incorporada ou orçamento, estudos, riscos, termo de referência,
+  pesquisa de preços, julgamento, pedidos, recebimentos, RLS, auditoria,
+  idempotência, controle de versão, API e interface.
+- **Implementado na v14.0.0:** contratos e atas originados pelo fornecedor
+  vencedor, vigência, saldos, gestores, fiscais, aditivos, reajustes, garantias,
+  execução, ocorrências, sanções, encerramento, RLS, API e interface.
+- **Continuidade:** a Sprint 15 consumirá contratos e execuções no módulo
+  Financeiro-orçamentário.
 - **Critérios mínimos para futura implementação:**
   - fluxos configuráveis para administração pública, federação e privado;
   - planejamento da contratação, estudos, riscos e termo de referência;

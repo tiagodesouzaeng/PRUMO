@@ -56,7 +56,7 @@ export default function SigiuLayout({
         <main className="sigiu-content">{children}</main>
       </div>
 
-      <BottomNav paginaAtiva={paginaAtiva} setPaginaAtiva={setPaginaAtiva} />
+      <BottomNav paginaAtiva={paginaAtiva} setPaginaAtiva={setPaginaAtiva} modulosPermitidos={modulosPermitidos} />
     </div>
   );
 }

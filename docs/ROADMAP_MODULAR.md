@@ -35,6 +35,7 @@ Referências:
 | 10.6 | Produto modular | Licenças, capacidades, dependências, perfis de organização e bloqueio integral |
 | 11 | Cadastro patrimonial | Cliente, site, prédio, sala, ativos, áreas, responsáveis e histórico |
 | 12 | Demandas e investimentos | Solicitações, priorização, carteira, programas, plano anual e aprovações |
+| 12.1 | Consolidação administrativa | Governança real de módulos, perfis, integrações, operação e auditoria |
 | 13 | Suprimentos e contratações | Planejamento, estudos, riscos, pesquisa de preços, seleção, pedido e recebimento |
 | 14 | Contratos | Instrumentos, atas, saldos, vigência, fiscais, aditivos, garantias e encerramento |
 | 15 | Financeiro-orçamentário | Planejamento, fontes, compromissos, execução, retenções e pagamentos |
@@ -47,9 +48,10 @@ Referências:
 As Sprints 10.4 e 10.5 preservam o escopo já aprovado. A Sprint 10.6 formaliza
 a convergência comercial antes da criação dos novos domínios transacionais.
 
-As Sprints 10.4, 10.5 e 10.6 estão concluídas localmente na versão `10.6.0`.
-A próxima etapa executável é a Sprint 11, mantendo como hierarquia canônica
-`Cliente > Site > Prédio > Sala`.
+As Sprints 10.4, 10.5, 10.6, 11, 12, 12.1, 13 e 14 estão concluídas localmente
+na versão `14.0.0`. A próxima etapa executável é a Sprint 15 — Financeiro-
+orçamentário, após a homologação de Contratos. O backup atualizado já foi
+restaurado em teste.
 
 ## Sprint 10.4 — Auditoria e governança
 
@@ -85,6 +87,50 @@ A próxima etapa executável é a Sprint 11, mantendo como hierarquia canônica
 A Sprint 11 estabelece a fonte única da estrutura física. A Sprint 12 cria a
 entrada controlada de demandas e a carteira de investimentos. Nenhum módulo deve
 criar estruturas paralelas de cliente, site, prédio ou sala.
+
+### Sprint 11 — concluída localmente
+
+- árvore patrimonial validada no PostgreSQL;
+- ativos vinculados a salas e movimentações imutáveis;
+- áreas, endereços, responsáveis, ocupação, situação e controle de versão;
+- RLS por empresa e equipe, permissões, auditoria e dependência modular;
+- referência patrimonial disponível para empreendimentos e documentos;
+- interface operacional, testes, backup e restauração aprovados.
+
+### Sprint 12 — concluída localmente
+
+- demandas vinculadas à hierarquia patrimonial canônica;
+- priorização ponderada por urgência, impacto, risco e alinhamento;
+- programas estratégicos e carteiras anuais com limite financeiro;
+- fluxo de análise, priorização, aprovação, rejeição e incorporação;
+- decisões imutáveis, controle de versão, idempotência e auditoria;
+- RLS por empresa e equipe, API, interface e testes reais no PostgreSQL.
+
+### Sprint 12.1 — concluída localmente
+
+- Administração reduzida a sete áreas de governança com contratos reais;
+- visão operacional conectada à API e sem indicadores fictícios;
+- módulos, capacidades, dependências, perfis e permissões canônicos;
+- cadastros demonstrativos e ações sem implementação removidos da navegação;
+- fronteira explícita entre Administração e operação cotidiana dos módulos.
+
+### Sprint 13 — concluída localmente
+
+- fornecedores compartilhados e qualificados;
+- processos originados por demanda incorporada ou orçamento;
+- estudo técnico, riscos e termo de referência;
+- pesquisa de preços, propostas, julgamento e aprovação;
+- pedidos, recebimentos, aceite e conclusão;
+- RLS, permissões segregadas, idempotência e trilha imutável.
+
+### Sprint 14 — concluída localmente
+
+- instrumentos originados por processo aprovado e fornecedor vencedor;
+- contratos, atas, vigência, valores, execução e saldo;
+- gestores, fiscais, garantias, aditivos, reajustes e supressões;
+- ocorrências, sanções e histórico decisório imutável;
+- conclusão, rescisão e encerramento auditáveis;
+- RLS, permissões segregadas, API, interface e testes reais no PostgreSQL.
 
 ## Sprints 13 a 15 — Ciclo administrativo e financeiro
 

@@ -303,7 +303,52 @@ por empresa, com capacidades, dependências e perfis de organização. A navega�
 lateral agora possui rolagem própria e recolhimento para ícones, evitando que a
 Administração fique encoberta pela barra do sistema operacional.
 
+O fechamento integral da Sprint 10 adiciona vínculos de anexos técnicos,
+registro assistido de versões, sincronizações de integrações executadas pelo
+worker e personalização inicial de terminologia por organização. A migração 011
+elevou a validação para 100 testes aprovados no ambiente local.
+
+A versão `11.0.0` conclui o cadastro patrimonial canônico. O novo módulo
+Patrimônio mantém `Cliente > Site > Prédio > Sala`, ativos e movimentações no
+PostgreSQL com RLS por empresa/equipe, permissões, auditoria e controle de
+versão. Empreendimentos e documentos já podem referenciar os mesmos
+identificadores. O fechamento possui 109 testes aprovados e backup restaurado
+após 16 migrações. Consulte `docs/SPRINT_11.md`.
+
+A versão `12.0.0` conclui Demandas e Investimentos. Necessidades vinculadas ao
+patrimônio percorrem análise, priorização e aprovação auditáveis antes de
+integrarem programas e carteiras anuais com limite financeiro. O fechamento
+possui 120 testes aprovados e 19 migrações. Consulte `docs/SPRINT_12.md`.
+
+A versão `12.1.0` consolida a Administração como centro de governança. Abas e
+ações demonstrativas foram retiradas, o resumo passou a usar dados reais da API
+e módulos, capacidades, perfis, integrações, operação técnica e auditoria foram
+organizados em sete áreas produtivas. O fechamento possui 122 testes aprovados,
+sem nova migração. Consulte `docs/SPRINT_12_1.md`.
+
+A versão `13.0.0` conclui Suprimentos e Contratações. Demandas incorporadas e
+orçamentos originam processos com estudo técnico, riscos, termo de referência,
+pesquisa de preços, julgamento, pedidos e recebimentos. O fechamento possui 127
+testes aprovados e 20 migrações. Consulte `docs/SPRINT_13.md`.
+
+A versão `13.1.0` unifica a apresentação de toda a plataforma. Orçamentos passa
+a ser a referência de densidade visual, com paleta, tipografia, cabeçalhos,
+indicadores, cartões, botões, formulários, abas, tabelas e modais governados pelo
+mesmo design system. O fechamento possui 129 testes aprovados, sem nova
+migração. Consulte `docs/DESIGN_SYSTEM_PRUMO.md`.
+
+A versão `14.0.0` conclui Contratos e Atas. Processos aprovados originam
+instrumentos com vigência, valores, saldo, gestores, fiscais, garantias,
+aditivos, execução, ocorrências, sanções e encerramento. O fechamento possui
+134 testes aprovados e 21 migrações. Consulte `docs/SPRINT_14.md`.
+
 - plano da sprint: `docs/SPRINT_10.md`;
+- fechamento patrimonial: `docs/SPRINT_11.md`;
+- demandas e investimentos: `docs/SPRINT_12.md`;
+- consolidação administrativa: `docs/SPRINT_12_1.md`;
+- suprimentos e contratações: `docs/SPRINT_13.md`;
+- contratos e atas: `docs/SPRINT_14.md`;
+- padrão visual da plataforma: `docs/DESIGN_SYSTEM_PRUMO.md`;
 - backlog permanente: `BACKLOG_PRUMO.md`;
 - configuração da futura API: `VITE_PRUMO_API_URL`;
 - configuração do futuro provedor de identidade: `VITE_PRUMO_AUTH_URL`.

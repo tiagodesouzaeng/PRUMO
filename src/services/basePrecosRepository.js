@@ -212,6 +212,7 @@ export async function carregarItensComposicaoBase(baseId, composicaoCodigo, uf =
       percentuaisMaoObraPorUf: referencia?.percentuaisMaoObraPorUf || {},
       custoMaoObra: referencia?.custoMaoObra || 0,
       custoMaterial: referencia?.custoMaterial ?? referencia?.preco ?? 0,
+      precosPorUf: referencia?.precosPorUf || {},
       referenciaTipo: item.itemTipo,
       referenciaCodigo: item.itemCodigo,
       basePrecoId: baseId,

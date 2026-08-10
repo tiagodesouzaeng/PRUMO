@@ -30,23 +30,23 @@ hierarquia física canônica.
 
 ## Módulos funcionais
 
-| ID planejado | Módulo | Responsabilidade | Situação em v10.3.0 |
+| ID planejado | Módulo | Responsabilidade | Situação ao final da Sprint 12 |
 |---|---|---|---|
 | `visao-geral` | Visão Geral | Indicadores e visão consolidada | Existente |
-| `patrimonio` | Patrimônio Imobiliário | Sites, prédios, salas, áreas, ocupação e ativos | Planejado |
-| `planejamento` | Demandas e Investimentos | Demandas, prioridades, programas e carteira | Planejado |
+| `patrimonio` | Patrimônio Imobiliário | Sites, prédios, salas, áreas, ocupação e ativos | Fundação corporativa disponível |
+| `planejamento` | Demandas e Investimentos | Demandas, prioridades, programas e carteira | Fundação corporativa disponível |
 | `obras` | Obras e Reformas | Planejamento e execução dos empreendimentos | Parcial |
 | `orcamentos` | Orçamentos e Composições | EAP, custos, BDI, cronograma e revisões | Existente |
 | `bases-precos` | Bases de Preços | Fontes, publicações, insumos e composições | Existente |
-| `suprimentos` | Suprimentos e Contratações | Planejamento, pesquisa de preços, seleção e aquisição | Parcial |
-| `contratos` | Contratos | Instrumentos, saldos, vigência, aditivos e fiscalização | Planejado |
+| `suprimentos` | Suprimentos e Contratações | Planejamento, pesquisa de preços, seleção, pedidos e recebimentos | Operacional |
+| `contratos` | Contratos e Atas | Instrumentos, saldos, vigência, aditivos, fiscalização, sanções e encerramento | Operacional |
 | `financeiro` | Financeiro-Orçamentário | Orçamento, compromissos, execução e pagamentos | Planejado |
 | `medicoes` | Medições e Fiscalização | Boletins, evidências, glosas, aceite e evolução | Existente |
 | `manutencao` | Manutenção e Facilities | Chamados, planos, ordens de serviço, SLA e custos | Parcial |
 | `regularidade` | Regularidade e Compliance | PPCI, licenças, ART/RRT, riscos e vencimentos | Parcial em `ppci` |
 | `utilidades` | Consumos e Utilidades | Água, energia, gás, resíduos, metas e anomalias | Parcial |
 | `convenios` | Convênios e Repasses | Instrumentos, metas, repasses e prestação de contas | Planejado |
-| `documentos` | Documentos e GED | Arquivos, versões, protocolo, aprovação e assinatura | Fundação planejada |
+| `documentos` | Documentos e GED | Arquivos, versões, protocolo, aprovação e assinatura | Fundação corporativa disponível |
 | `relatorios` | BI, Relatórios e Transparência | Indicadores, análises e publicações autorizadas | Parcial |
 | `administracao` | Administração | Configuração, segurança, auditoria e integrações | Existente |
 
@@ -97,7 +97,7 @@ O acesso efetivo deve resultar de três verificações independentes:
 Desabilitar um item de menu não é controle de licença. Frontend, API, tarefas,
 relatórios, exportações e integrações devem aplicar as mesmas capacidades.
 
-Estruturas previstas para a Sprint 10.6:
+Estruturas implantadas na Sprint 10.6:
 
 - catálogo versionado de módulos e funcionalidades;
 - capacidades habilitadas por organização;

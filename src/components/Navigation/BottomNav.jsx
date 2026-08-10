@@ -9,7 +9,6 @@ import { useState } from "react";
 import { SIGIU_NAV_ITEMS } from "./navItems";
 
 const MOBILE_PRIMARY_ITEMS = ["visao-geral", "ppci", "orcamento", "obras"];
-const MOBILE_MORE_ITEMS = ["alertas", "hidrico", "bases-precos", "manutencao", "relatorios", "administracao"];
 
 function obterLabelMobile(item) {
   if (item.id === "visao-geral") return "Geral";
@@ -17,12 +16,15 @@ function obterLabelMobile(item) {
   return item.label;
 }
 
-export default function BottomNav({ paginaAtiva, setPaginaAtiva }) {
+export default function BottomNav({ paginaAtiva, setPaginaAtiva, modulosPermitidos }) {
   const [menuAberto, setMenuAberto] = useState(false);
 
-  const itensPrimarios = SIGIU_NAV_ITEMS.filter((item) => MOBILE_PRIMARY_ITEMS.includes(item.id));
-  const itensMais = SIGIU_NAV_ITEMS.filter((item) => MOBILE_MORE_ITEMS.includes(item.id));
-  const maisAtivo = MOBILE_MORE_ITEMS.includes(paginaAtiva);
+  const itensPermitidos = modulosPermitidos?.size
+    ? SIGIU_NAV_ITEMS.filter((item) => modulosPermitidos.has(item.moduleId))
+    : SIGIU_NAV_ITEMS;
+  const itensPrimarios = itensPermitidos.filter((item) => MOBILE_PRIMARY_ITEMS.includes(item.id));
+  const itensMais = itensPermitidos.filter((item) => !MOBILE_PRIMARY_ITEMS.includes(item.id));
+  const maisAtivo = itensMais.some((item) => item.id === paginaAtiva);
 
   function navegar(id) {
     setPaginaAtiva(id);
@@ -44,7 +46,7 @@ export default function BottomNav({ paginaAtiva, setPaginaAtiva }) {
         <div className="sigiu-mobile-more-sheet__handle" />
         <header>
           <strong>Mais módulos</strong>
-          <small>Acesse alertas, consumo hídrico, manutenção, relatórios e administração.</small>
+          <small>Acesse todos os demais módulos habilitados para sua organização.</small>
         </header>
         <div className="sigiu-mobile-more-sheet__grid">
           {itensMais.map((item) => (

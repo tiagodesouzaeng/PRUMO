@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   aplicarPrecoPorUf,
+  gerarRelatorioPrecosPorUf,
   mesclarReferenciasSinapi,
   resolverPrecoPorUf,
 } from "../src/domain/basesPrecos.js";
@@ -13,6 +14,18 @@ test("usa o preço do estado selecionado quando disponível", () => {
     ufPrecoEfetivo: "RS",
     precoSubstituidoSp: false,
   });
+});
+
+test("transforma os preços estaduais em relatório com situação e referência de SP", () => {
+  const relatorio = gerarRelatorioPrecosPorUf({ RS: 100, SP: 120 }, ["RS", "SC", "SP"]);
+  assert.equal(relatorio.publicados, 2);
+  assert.equal(relatorio.referenciasSp, 1);
+  assert.equal(relatorio.semPreco, 0);
+  assert.deepEqual(relatorio.linhas.map((linha) => [linha.uf, linha.situacao, linha.precoUtilizado]), [
+    ["RS", "publicado", 100],
+    ["SC", "referencia_sp", 120],
+    ["SP", "publicado", 120],
+  ]);
 });
 
 test("usa SP e sinaliza a substituição quando o estado não possui preço", () => {

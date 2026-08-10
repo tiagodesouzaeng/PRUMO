@@ -33,6 +33,31 @@ export function aplicarPrecoPorUf(referencia, ufPreferida = "RS") {
   };
 }
 
+export function gerarRelatorioPrecosPorUf(precosPorUf = {}, ufs = UFS_BRASIL) {
+  const precoSp = Number(precosPorUf.SP) || 0;
+  const linhas = ufs.map((uf) => {
+    const precoPublicado = Number(precosPorUf[uf]) || 0;
+    const usaReferenciaSp = precoPublicado <= 0 && precoSp > 0 && uf !== "SP";
+    return {
+      uf,
+      precoPublicado,
+      precoUtilizado: precoPublicado > 0 ? precoPublicado : (usaReferenciaSp ? precoSp : 0),
+      situacao: precoPublicado > 0 ? "publicado" : (usaReferenciaSp ? "referencia_sp" : "sem_preco"),
+      observacao: precoPublicado > 0
+        ? "Preço oficial publicado para o estado."
+        : usaReferenciaSp
+          ? "Preço de SP utilizado como referência por ausência de publicação estadual."
+          : "Nenhum preço disponível para o estado.",
+    };
+  });
+  return {
+    linhas,
+    publicados: linhas.filter((linha) => linha.situacao === "publicado").length,
+    referenciasSp: linhas.filter((linha) => linha.situacao === "referencia_sp").length,
+    semPreco: linhas.filter((linha) => linha.situacao === "sem_preco").length,
+  };
+}
+
 export function mesclarReferenciasSinapi(pacotes = []) {
   const catalogo = new Map();
   pacotes.forEach(({ base = {}, referencias = [] }) => {

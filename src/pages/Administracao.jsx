@@ -10,11 +10,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   SIGIU_ADMIN_AUDITORIA,
   SIGIU_ADMIN_CADASTROS_MESTRES,
-  SIGIU_ADMIN_CONFIG_GERAL,
   SIGIU_ADMIN_FONTES_DADOS,
   SIGIU_ADMIN_PARAMETROS_ALERTA,
-  SIGIU_ADMIN_PERFIS,
-  SIGIU_ADMIN_USUARIOS,
 } from "../config/adminConfig";
 import {
   baixarArquivoIntegracao,
@@ -31,10 +28,6 @@ import {
   verificarInfraestrutura,
 } from "../services/infraestruturaCorporativa";
 import {
-  PERFIS_ACESSO_PRUMO,
-  possuiPermissao,
-} from "../domain/acesso";
-import {
   DOMINIOS_CORPORATIVOS,
   EMPRESAS_DEMONSTRACAO,
   EQUIPES_DEMONSTRACAO,
@@ -46,20 +39,20 @@ import {
 } from "../services/migracaoCorporativa";
 import { carregarOrcamentos } from "../services/orcamentoRepository";
 import { listarComposicoesProprias } from "../services/composicoesPropriasRepository";
-import { MODULOS_PLATAFORMA } from "../../shared/platform";
+import {
+  MODULOS_PLATAFORMA,
+  PERMISSOES_PADRAO_POR_PERFIL,
+  PERMISSOES_PLATAFORMA,
+} from "../../shared/platform";
 
 const ABAS_ADMIN = [
-  { id: "geral", label: "Geral", badge: "8.0" },
-  { id: "infraestrutura", label: "Infraestrutura", badge: "10.3" },
-  { id: "organizacoes", label: "Empresas e equipes", badge: "10.3" },
-  { id: "fontes", label: "Fontes de dados", badge: "4" },
-  { id: "bases-precos", label: "Bases de preços", badge: "ADM" },
-  { id: "usuarios", label: "Usuários e acessos", badge: "10.2" },
-  { id: "cadastros", label: "Cadastros mestres", badge: "4" },
-  { id: "parametros", label: "Parâmetros", badge: "3" },
-  { id: "sync", label: "Integrações", badge: "10.5" },
-  { id: "produto", label: "Produto modular", badge: "10.6" },
-  { id: "auditoria", label: "Auditoria", badge: "log" },
+  { id: "geral", label: "Visão operacional" },
+  { id: "produto", label: "Módulos e produto" },
+  { id: "usuarios", label: "Perfis e permissões" },
+  { id: "sync", label: "Integrações" },
+  { id: "bases-precos", label: "Bases de preços" },
+  { id: "infraestrutura", label: "Operação técnica" },
+  { id: "auditoria", label: "Auditoria" },
 ];
 
 function StatusChip({ status }) {
@@ -81,26 +74,66 @@ function AdminTabButton({ aba, ativa, onClick }) {
       onClick={onClick}
     >
       <span>{aba.label}</span>
-      <strong>{aba.badge}</strong>
+      {aba.badge && <strong>{aba.badge}</strong>}
     </button>
   );
 }
 
 function ConfigResumo() {
+  const configuracao = useMemo(() => obterConfiguracaoInfraestrutura(), []);
+  const contexto = useMemo(() => obterContextoDesenvolvimento(), []);
+  const cliente = useMemo(() => (
+    configuracao.apiConfigurada && contexto
+      ? criarClientePrumo({ baseUrl: configuracao.apiUrl, obterContexto: () => contexto })
+      : null
+  ), [configuracao, contexto]);
+  const [estado, setEstado] = useState({ produto: null, contexto: null, integracoes: [], trabalhos: [], politica: null, erro: "" });
+
+  async function carregarResumo() {
+    if (!cliente) return;
+    try {
+      const [contextoAtual, produto, integracoes, trabalhos, politica] = await Promise.all([
+        cliente.obterContextoCorporativo(), cliente.obterProdutoModular(),
+        cliente.listarIntegracoes(), cliente.listarTrabalhos(), cliente.obterPoliticaAuditoria(),
+      ]);
+      setEstado({ produto, contexto: contextoAtual, integracoes, trabalhos, politica, erro: "" });
+    } catch (error) {
+      setEstado((atual) => ({ ...atual, erro: error.message }));
+    }
+  }
+
+  useEffect(() => { carregarResumo(); }, [cliente]);
+  const modulos = estado.produto?.modulos || [];
+  const habilitados = modulos.filter((item) => item.habilitado).length;
+  const capacidades = modulos.reduce((total, item) => total + (item.capacidades?.length || 0), 0);
+  const pendencias = [
+    !configuracao.autenticacaoConfigurada && "Provedor de identidade ainda não configurado",
+    !estado.integracoes.length && "Nenhuma integração corporativa cadastrada",
+    modulos.some((item) => !item.capacidades?.length) && "Há módulos legados sem capacidades catalogadas",
+  ].filter(Boolean);
+
   return (
-    <div className="sigiu-admin-grid sigiu-admin-grid--overview">
+    <div className="sigiu-admin-stack">
+      {estado.erro && <div className="sigiu-admin-base-notice" role="status">{estado.erro}</div>}
+      <section className="sigiu-admin-live-summary" aria-label="Situação administrativa atual">
+        <article><span>Módulos habilitados</span><strong>{modulos.length ? `${habilitados}/${modulos.length}` : "—"}</strong><small>catálogo contratado</small></article>
+        <article><span>Capacidades catalogadas</span><strong>{capacidades || "—"}</strong><small>funções governadas</small></article>
+        <article><span>Integrações</span><strong>{estado.integracoes.length}</strong><small>registradas no PostgreSQL</small></article>
+        <article><span>Fila técnica</span><strong>{estado.trabalhos.length}</strong><small>trabalhos rastreáveis</small></article>
+      </section>
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>
-            <h2>Governança do PRUMO</h2>
-            <p>Base administrativa para reduzir configurações fixas no código.</p>
+            <h2>Ambiente corporativo</h2>
+            <p>Informações carregadas da API e do PostgreSQL para a organização e equipe ativas.</p>
           </div>
+          <StatusChip status={cliente ? "Operacional" : "API não conectada"} />
         </header>
         <div className="sigiu-admin-definition-list">
-          <div><span>Versão base</span><strong>{SIGIU_ADMIN_CONFIG_GERAL.versaoBase}</strong></div>
-          <div><span>Ambiente</span><strong>{SIGIU_ADMIN_CONFIG_GERAL.ambiente}</strong></div>
-          <div><span>Autenticação</span><strong>{SIGIU_ADMIN_CONFIG_GERAL.autenticacao}</strong></div>
-          <div><span>Sincronização incremental</span><strong>{SIGIU_ADMIN_CONFIG_GERAL.sincronizacaoIncremental}</strong></div>
+          <div><span>Organização</span><strong>{estado.contexto?.tenantNome || "Aguardando API"}</strong></div>
+          <div><span>Equipe</span><strong>{estado.contexto?.teamId || "Sem equipe selecionada"}</strong></div>
+          <div><span>Perfil</span><strong>{estado.contexto?.perfilId || "—"}</strong></div>
+          <div><span>Recuperação</span><strong>{estado.politica?.ultimoTesteRestauracaoOk ? "Restauração verificada" : "Verificação pendente"}</strong></div>
         </div>
       </section>
 
@@ -110,30 +143,25 @@ function ConfigResumo() {
             <h2>Catálogo multimódulo</h2>
             <p>Todos os domínios reutilizam o mesmo núcleo de empresas, equipes, permissões, auditoria e integrações.</p>
           </div>
-          <StatusChip status={`${MODULOS_PLATAFORMA.length} módulos`} />
+          <StatusChip status={`${modulos.length || MODULOS_PLATAFORMA.length} módulos`} />
         </header>
         <div className="sigiu-platform-module-grid">
-          {MODULOS_PLATAFORMA.map((modulo) => (
+          {(modulos.length ? modulos : MODULOS_PLATAFORMA).map((modulo) => (
             <article key={modulo.id}>
               <span>{String(modulo.ordem).padStart(3, "0")}</span>
               <strong>{modulo.nome}</strong>
-              <small>{modulo.id}</small>
+              <small>{modulo.capacidades?.length || 0} capacidades · {modulo.habilitado === false ? "suspenso" : "habilitado"}</small>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="sigiu-card sigiu-admin-card sigiu-admin-card--notice">
-        <header>
-          <span>⚠</span>
-          <div>
-            <h2>Nota técnica</h2>
-            <p>
-              Usuários, senhas e permissões reais não devem ser armazenados em React, localStorage ou planilha.
-              Esta sprint cria a estrutura gerencial. A autenticação segura deve ser feita em backend/serviço próprio.
-            </p>
-          </div>
-        </header>
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row"><div><h2>Pendências administrativas reais</h2><p>Somente itens que ainda exigem implementação ou configuração.</p></div><StatusChip status={`${pendencias.length} pendência(s)`} /></header>
+        <div className="sigiu-admin-action-list">
+          {pendencias.map((item) => <article key={item}><span>!</span><strong>{item}</strong></article>)}
+          {!pendencias.length && <p className="sigiu-admin-empty">Nenhuma pendência administrativa identificada.</p>}
+        </div>
       </section>
     </div>
   );
@@ -761,53 +789,34 @@ function GerenciarBasesPrecos({ basesPrecos }) {
 }
 
 function UsuariosAcessos() {
-  const permissoesChave = [
-    ["orcamento.editar", "Editar orçamento"],
-    ["orcamento.aprovar", "Aprovar orçamento"],
-    ["medicao.registrar", "Registrar medição"],
-    ["medicao.aprovar", "Aprovar medição"],
-    ["bases.administrar", "Administrar bases"],
-    ["usuarios.administrar", "Administrar usuários"],
-  ];
+  const nomesPerfis = {
+    administrador: "Administrador", gestor: "Gestor de Engenharia", orcamentista: "Orçamentista",
+    fiscal: "Fiscal", aprovador: "Aprovador", consulta: "Consulta",
+  };
+  const perfis = Object.entries(PERMISSOES_PADRAO_POR_PERFIL).map(([id, permissoes]) => ({
+    id, nome: nomesPerfis[id] || id, permissoes,
+    modulos: new Set(PERMISSOES_PLATAFORMA.filter((item) => permissoes.includes(item.id)).map((item) => item.moduloId)).size,
+  }));
+  const modulos = MODULOS_PLATAFORMA.map((modulo) => ({
+    ...modulo,
+    permissoes: PERMISSOES_PLATAFORMA.filter((item) => item.moduloId === modulo.id),
+  })).filter((modulo) => modulo.permissoes.length);
   return (
     <div className="sigiu-admin-stack">
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>
-            <h2>Usuários</h2>
-            <p>Estrutura inicial de usuários e perfis de acesso para o futuro controle seguro.</p>
+            <h2>Perfis padrão da plataforma</h2>
+            <p>Matriz canônica usada pela API, incluindo Patrimônio, Demandas, GED e governança.</p>
           </div>
-          <button type="button" className="sigiu-btn sigiu-btn--outline">Novo usuário</button>
-        </header>
-        <div className="sigiu-admin-table sigiu-admin-table--usuarios">
-          {SIGIU_ADMIN_USUARIOS.map((usuario) => (
-            <article key={usuario.id}>
-              <div>
-                <strong>{usuario.nome}</strong>
-                <small>{usuario.email}</small>
-              </div>
-              <span>{usuario.perfil}</span>
-              <span>{usuario.unidade}</span>
-              <small>{usuario.modulos.join(", ")}</small>
-              <StatusChip status={usuario.status} />
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="sigiu-card sigiu-admin-card">
-        <header className="sigiu-card-header-row">
-          <div>
-            <h2>Perfis de acesso</h2>
-            <p>Níveis previstos para governança por módulo.</p>
-          </div>
+          <StatusChip status={`${perfis.length} perfis`} />
         </header>
         <div className="sigiu-admin-profile-grid">
-          {SIGIU_ADMIN_PERFIS.map((perfil) => (
+          {perfis.map((perfil) => (
             <article key={perfil.id}>
               <strong>{perfil.nome}</strong>
-              <small>{perfil.descricao}</small>
-              <span>Nível {perfil.nivel}</span>
+              <small>{perfil.permissoes.length} permissões efetivas</small>
+              <span>{perfil.modulos} módulos</span>
             </article>
           ))}
         </div>
@@ -816,34 +825,27 @@ function UsuariosAcessos() {
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>
-            <h2>Matriz de permissões</h2>
-            <p>Políticas da Sprint 10.2 preparadas para o futuro provedor de identidade.</p>
+            <h2>Permissões por módulo</h2>
+            <p>Uma única fonte para frontend, API e contratos administrativos.</p>
           </div>
-          <StatusChip status="Sessão em memória" />
         </header>
-        <div className="sigiu-access-matrix">
-          <div className="sigiu-access-matrix__header">
-            <strong>Perfil</strong>
-            {permissoesChave.map(([, nome]) => <span key={nome}>{nome}</span>)}
-          </div>
-          {PERFIS_ACESSO_PRUMO.map((perfil) => (
-            <div key={perfil.id}>
-              <span><strong>{perfil.nome}</strong><small>{perfil.descricao}</small></span>
-              {permissoesChave.map(([permissao]) => (
-                <b
-                  key={permissao}
-                  className={possuiPermissao(perfil, permissao) ? "is-allowed" : "is-denied"}
-                  aria-label={`${perfil.nome}: ${permissao}`}
-                >
-                  {possuiPermissao(perfil, permissao) ? "✓" : "—"}
-                </b>
-              ))}
-            </div>
+        <div className="sigiu-admin-permission-modules">
+          {modulos.map((modulo) => (
+            <article key={modulo.id}>
+              <header><div><strong>{modulo.nome}</strong><small>{modulo.permissoes.map((item) => item.id).join(" · ")}</small></div><StatusChip status={`${modulo.permissoes.length} ações`} /></header>
+              <div>
+                {perfis.map((perfil) => {
+                  const total = modulo.permissoes.filter((item) => perfil.permissoes.includes(item.id)).length;
+                  return <span key={perfil.id} className={total ? "is-allowed" : "is-denied"}>{perfil.nome}: {total}/{modulo.permissoes.length}</span>;
+                })}
+              </div>
+            </article>
           ))}
         </div>
-        <footer className="sigiu-admin-security-note">
-          Tokens permanecem somente em memória. Senhas e credenciais não são persistidas em localStorage, IndexedDB ou planilhas.
-        </footer>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card sigiu-admin-card--notice">
+        <header><span>i</span><div><h2>Cadastro de usuários não simulado</h2><p>Os antigos usuários fictícios foram retirados. Inclusão, bloqueio e vínculo com equipes somente serão liberados quando o provedor OIDC e as rotas administrativas de identidade estiverem implementados.</p></div></header>
       </section>
     </div>
   );
@@ -901,12 +903,42 @@ function ParametrosAlertas() {
 }
 
 function Sincronizacao({ basesPrecos }) {
+  const configuracaoCorporativa = useMemo(() => obterConfiguracaoInfraestrutura(), []);
+  const contextoCorporativo = useMemo(() => obterContextoDesenvolvimento(), []);
+  const clienteCorporativo = useMemo(() => (
+    configuracaoCorporativa.apiConfigurada && contextoCorporativo
+      ? criarClientePrumo({ baseUrl: configuracaoCorporativa.apiUrl, obterContexto: () => contextoCorporativo })
+      : null
+  ), [configuracaoCorporativa, contextoCorporativo]);
   const [integracoes, setIntegracoes] = useState(carregarIntegracoesBases);
+  const [integracoesCorporativas, setIntegracoesCorporativas] = useState([]);
   const [integracaoId, setIntegracaoId] = useState(integracoes[0]?.id || "sinapi");
   const [auditoria, setAuditoria] = useState(carregarAuditoriaIntegracoes);
   const [processando, setProcessando] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const integracao = integracoes.find((item) => item.id === integracaoId) || integracoes[0];
+
+  async function carregarIntegracoesCorporativas() {
+    if (!clienteCorporativo) return;
+    try { setIntegracoesCorporativas(await clienteCorporativo.listarIntegracoes()); }
+    catch (error) { setMensagem(error.message); }
+  }
+
+  useEffect(() => { carregarIntegracoesCorporativas(); }, []);
+
+  async function garantirIntegracaoCorporativa(item) {
+    if (!clienteCorporativo) return null;
+    const existente = integracoesCorporativas.find((registro) => registro.provedor === item.fonte);
+    if (existente) return existente;
+    const criado = await clienteCorporativo.criarIntegracao({
+      nome: item.nome,
+      provedor: item.fonte,
+      status: item.ativa ? "ativa" : "inativa",
+      configuracao: { referencia: item.referencia, uf: item.uf, regime: item.regime, periodicidade: item.periodicidade },
+    }, crypto.randomUUID());
+    setIntegracoesCorporativas((atuais) => [...atuais, criado]);
+    return criado;
+  }
 
   function atualizar(campo, valor) {
     setIntegracoes((atuais) => atuais.map((item) => (
@@ -914,15 +946,31 @@ function Sincronizacao({ basesPrecos }) {
     )));
   }
 
-  function salvarConfiguracao() {
+  async function salvarConfiguracao() {
     salvarIntegracoesBases(integracoes);
-    setMensagem("Configuração da integração salva neste navegador.");
+    try {
+      const corporativa = await garantirIntegracaoCorporativa(integracao);
+      setMensagem(corporativa
+        ? "Configuração local preservada e integração registrada no servidor."
+        : "Configuração da integração salva neste navegador.");
+    } catch (error) { setMensagem(error.message); }
+  }
+
+  async function agendarSincronizacao(item) {
+    if (!clienteCorporativo) return;
+    try {
+      await clienteCorporativo.criarTrabalho({ tipo: "integracao.sincronizar", prioridade: 40, maxTentativas: 3, payload: { integracaoId: item.id, direcao: "entrada" } }, crypto.randomUUID());
+      setMensagem(`Teste técnico de ${item.nome} enviado ao worker. Nenhum arquivo foi importado por esta ação.`);
+      globalThis.setTimeout(carregarIntegracoesCorporativas, 250);
+    } catch (error) { setMensagem(error.message); }
   }
 
   async function importarPublicacao() {
     setProcessando(true);
     setMensagem("");
+    let corporativa = null;
     try {
+      corporativa = await garantirIntegracaoCorporativa(integracao);
       const arquivo = await baixarArquivoIntegracao(integracao);
       const resultado = await basesPrecos.importar(arquivo, {
         fonte: integracao.fonte,
@@ -943,6 +991,7 @@ function Sincronizacao({ basesPrecos }) {
         status: "Sucesso",
         detalhe: `${arquivo.name} · ${resultado.base.total.toLocaleString("pt-BR")} referências`,
       }));
+      if (corporativa) await clienteCorporativo.registrarExecucaoIntegracao(corporativa.id, { status: "concluida", direcao: "entrada", contagens: { importados: resultado.base.total } });
       setMensagem(`Publicação importada: ${resultado.base.titulo}.`);
     } catch (error) {
       setAuditoria(registrarAuditoriaIntegracao({
@@ -950,6 +999,7 @@ function Sincronizacao({ basesPrecos }) {
         status: "Falha",
         detalhe: error.message,
       }));
+      if (corporativa) await clienteCorporativo.registrarExecucaoIntegracao(corporativa.id, { status: "falhou", direcao: "entrada", erroSanitizado: error.message }).catch(() => {});
       setMensagem(error.message);
     } finally {
       setProcessando(false);
@@ -961,11 +1011,21 @@ function Sincronizacao({ basesPrecos }) {
       {mensagem && <div className="sigiu-admin-base-notice" role="status">{mensagem}</div>}
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
+          <div><h2>Conectores corporativos</h2><p>Configurações persistidas no PostgreSQL. O teste do worker apenas valida a fila; a importação efetiva é executada pelo fluxo assistido abaixo.</p></div>
+          <StatusChip status={clienteCorporativo ? `${integracoesCorporativas.length} registradas` : "API não conectada"} />
+        </header>
+        <div className="sigiu-product-modules">
+          {integracoesCorporativas.map((item) => <article key={item.id}><div><strong>{item.nome}</strong><span>{item.provedor} · {item.status} · {item.execucoes?.length || 0} testes/execuções</span></div><button type="button" className="sigiu-btn sigiu-btn--outline" onClick={() => agendarSincronizacao(item)}>Testar worker</button></article>)}
+          {clienteCorporativo && !integracoesCorporativas.length && <p className="sigiu-admin-empty">Salve uma configuração abaixo para registrá-la no servidor.</p>}
+        </div>
+      </section>
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
           <div>
             <h2>Integrações de bases de preços</h2>
             <p>Conecte uma URL direta de publicação e reutilize o importador versionado do PRUMO.</p>
           </div>
-          <StatusChip status="v9.6 · execução assistida" />
+          <StatusChip status="Execução assistida" />
         </header>
         <div className="sigiu-integration-layout">
           <nav className="sigiu-integration-source-list" aria-label="Fontes integráveis">
@@ -1070,7 +1130,8 @@ function Sincronizacao({ basesPrecos }) {
             <p>
               A CAIXA publica relatórios mensais em ZIP/XLSX, mas ainda não oferece uma API pública estável para o SINAPI.
               Por isso, esta etapa aceita o endereço direto do arquivo oficial, preserva o hash e usa o mesmo fluxo auditável
-              de importação manual. Um agendador de servidor poderá executar estas configurações quando o backend estiver disponível.
+              de importação manual. O worker corporativo já pode executar e auditar as rotinas registradas; adaptadores oficiais
+              específicos poderão substituir o download assistido sem alterar o contrato do módulo.
             </p>
           </div>
         </header>
@@ -1078,7 +1139,7 @@ function Sincronizacao({ basesPrecos }) {
 
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
-          <div><h2>Auditoria das integrações</h2><p>Últimas tentativas de download e importação realizadas neste navegador.</p></div>
+          <div><h2>Auditoria local complementar</h2><p>Últimas tentativas assistidas neste navegador; as execuções corporativas permanecem no PostgreSQL.</p></div>
           <StatusChip status={`${auditoria.length} eventos`} />
         </header>
         <div className="sigiu-admin-audit-list">
@@ -1256,6 +1317,19 @@ function ProdutoModular() {
       setProduto((atual) => ({ ...atual, perfil }));
     } catch (error) { setMensagem(error.message); }
   }
+  function alterarPersonalizacao(grupo, campo, valor) {
+    setProduto((atual) => ({
+      ...atual,
+      perfil: { ...atual.perfil, [grupo]: { ...(atual.perfil[grupo] || {}), [campo]: valor } },
+    }));
+  }
+  async function salvarPersonalizacao() {
+    try {
+      const perfil = await cliente.atualizarPerfilProduto({ perfil: produto.perfil.perfil, terminologia: produto.perfil.terminologia || {}, templates: produto.perfil.templates || {} });
+      setProduto((atual) => ({ ...atual, perfil }));
+      setMensagem("Terminologia e modelos iniciais atualizados.");
+    } catch (error) { setMensagem(error.message); }
+  }
   async function alternarModulo(modulo) {
     try {
       const contrato = await cliente.atualizarContratoModulo(modulo.id, { habilitado: !modulo.habilitado });
@@ -1266,13 +1340,28 @@ function ProdutoModular() {
     <div className="sigiu-admin-grid">
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row"><div><h2>Perfil da organização</h2><p>Ajusta terminologia e modelos sem separar o PRUMO em produtos diferentes.</p></div><StatusChip status={`Catálogo v${produto?.versaoCatalogo || 1}`} /></header>
-        <label className="sigiu-product-profile"><span>Perfil operacional</span><select value={produto?.perfil?.perfil || "publico"} onChange={mudarPerfil} disabled={!produto}><option value="publico">Órgão público</option><option value="federacao">Federação</option><option value="privado">Empresa privada</option><option value="escritorio">Escritório de engenharia/arquitetura</option><option value="facilities">Facilities</option></select></label>
+        <div className="sigiu-simple-form">
+          <label className="sigiu-product-profile"><span>Perfil operacional</span><select value={produto?.perfil?.perfil || "publico"} onChange={mudarPerfil} disabled={!produto}><option value="publico">Órgão público</option><option value="federacao">Federação</option><option value="privado">Empresa privada</option><option value="escritorio">Escritório de engenharia/arquitetura</option><option value="facilities">Facilities</option></select></label>
+          <label><span>Termo para Site</span><input value={produto?.perfil?.terminologia?.site ?? "Site"} onChange={(event) => alterarPersonalizacao("terminologia", "site", event.target.value)} disabled={!produto} /></label>
+          <label><span>Termo para Prédio</span><input value={produto?.perfil?.terminologia?.predio ?? "Prédio"} onChange={(event) => alterarPersonalizacao("terminologia", "predio", event.target.value)} disabled={!produto} /></label>
+          <label><span>Modelo documental inicial</span><input value={produto?.perfil?.templates?.documentoTecnico ?? "Documento técnico padrão"} onChange={(event) => alterarPersonalizacao("templates", "documentoTecnico", event.target.value)} disabled={!produto} /></label>
+          <button type="button" className="sigiu-btn sigiu-btn--primary" onClick={salvarPersonalizacao} disabled={!produto}>Salvar personalização</button>
+        </div>
         {mensagem && <p className="sigiu-empty-inline">{mensagem}</p>}
       </section>
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row"><div><h2>Módulos comercializáveis</h2><p>Disponível, contratado, habilitado e permitido são controles independentes e auditáveis.</p></div></header>
         <div className="sigiu-product-modules">
-          {produto?.modulos?.map((modulo) => <article key={modulo.id}><div><strong>{modulo.nome}</strong><span>{modulo.pacote} · {modulo.capacidades?.length || 0} capacidades</span></div><div className="sigiu-product-states"><StatusChip status={modulo.contratado ? "Contratado" : "Não contratado"} /><button type="button" className={`sigiu-toggle ${modulo.habilitado ? "is-on" : ""}`} onClick={() => alternarModulo(modulo)} disabled={!modulo.contratado || modulo.id === "visao-geral"} aria-pressed={modulo.habilitado}>{modulo.habilitado ? "Habilitado" : "Suspenso"}</button></div></article>)}
+          {produto?.modulos?.map((modulo) => (
+            <article key={modulo.id}>
+              <div>
+                <strong>{modulo.nome}</strong>
+                <span>{modulo.pacote} · {(modulo.capacidades || []).map((item) => item.nome || item.capabilityId).join(" · ") || "capacidades ainda não catalogadas"}</span>
+                {!!modulo.dependencias?.length && <small>Depende de: {modulo.dependencias.map((item) => item.nome || item.moduleId || item.dependsOnModuleId).join(", ")}</small>}
+              </div>
+              <div className="sigiu-product-states"><StatusChip status={modulo.contratado ? "Contratado" : "Não contratado"} /><button type="button" className={`sigiu-toggle ${modulo.habilitado ? "is-on" : ""}`} onClick={() => alternarModulo(modulo)} disabled={!modulo.contratado || modulo.id === "visao-geral"} aria-pressed={modulo.habilitado}>{modulo.habilitado ? "Habilitado" : "Suspenso"}</button></div>
+            </article>
+          ))}
         </div>
       </section>
     </div>
@@ -1283,18 +1372,10 @@ function renderizarAba(abaAtiva, basesPrecos) {
   switch (abaAtiva) {
     case "infraestrutura":
       return <InfraestruturaCorporativa basesPrecos={basesPrecos} />;
-    case "organizacoes":
-      return <OrganizacoesCorporativas />;
     case "bases-precos":
       return <GerenciarBasesPrecos basesPrecos={basesPrecos} />;
-    case "fontes":
-      return <FontesDados />;
     case "usuarios":
       return <UsuariosAcessos />;
-    case "cadastros":
-      return <CadastrosMestres />;
-    case "parametros":
-      return <ParametrosAlertas />;
     case "sync":
       return <Sincronizacao basesPrecos={basesPrecos} />;
     case "produto":
@@ -1317,41 +1398,14 @@ export default function Administracao({ basesPrecos }) {
           <span className="sigiu-page-eyebrow">Módulo gerencial</span>
           <h1>Administração</h1>
           <p>
-            Governança do PRUMO: usuários, níveis de acesso, fontes de dados, cadastros mestres,
-            parâmetros de alerta, sincronização e auditoria.
+            Centro de governança da plataforma: módulos, perfis, integrações,
+            dados corporativos, operação técnica e auditoria.
           </p>
         </div>
         <div className="sigiu-page-heading__meta sigiu-page-heading__meta--admin">
-          <strong>10.6</strong>
-          <span>produto modular</span>
+          <strong>14.0</strong>
+          <span>contratos e atas</span>
         </div>
-      </div>
-
-      <div className="sigiu-module-kpis sigiu-admin-kpis">
-        <article className="sigiu-module-kpi sigiu-module-kpi--primary">
-          <span>⚙</span>
-          <small>Fontes de dados</small>
-          <strong>{SIGIU_ADMIN_FONTES_DADOS.length}</strong>
-          <em>módulos mapeados</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--info">
-          <span>👤</span>
-          <small>Usuários</small>
-          <strong>{SIGIU_ADMIN_USUARIOS.length}</strong>
-          <em>estrutura inicial</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--warning">
-          <span>↻</span>
-          <small>Sincronização</small>
-          <strong>Inc.</strong>
-          <em>incremental prevista</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--success">
-          <span>✓</span>
-          <small>Plataforma</small>
-          <strong>10.6</strong>
-          <em>GED e módulos contratáveis</em>
-        </article>
       </div>
 
       <nav className="sigiu-admin-tabs" aria-label="Abas da Administração PRUMO">

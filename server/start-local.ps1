@@ -27,7 +27,7 @@ $env:PRUMO_DATABASE_URL = [Environment]::GetEnvironmentVariable(
 )
 $env:PRUMO_API_STORAGE = "postgres"
 $env:PRUMO_DEV_IDENTITY = "true"
-$env:PRUMO_CORS_ORIGINS = "http://127.0.0.1:4173,http://localhost:4173"
+$env:PRUMO_CORS_ORIGINS = "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4173,http://localhost:4173"
 
 Set-Location -LiteralPath $projectDirectory
 & $NodePath "server/index.js"

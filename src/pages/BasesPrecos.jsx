@@ -161,26 +161,6 @@ function ModalComposicaoPropria({ fechar, basesPrecos, avisar }) {
   );
 }
 
-function ModalValoresEstados({ item, ufSelecionada, fechar, abrirComposicao }) {
-  const precos = item.precosPorUf || {};
-  return (
-    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
-      <section className="orc-modal orc-modal-wide state-prices-modal" role="dialog" aria-modal="true" aria-labelledby="state-prices-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><span>PREÇOS POR ESTADO</span><h3 id="state-prices-title">{item.codigo} · {item.descricao}</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
-        <div className="state-prices-summary"><span>Unidade <strong>{item.unidade || "—"}</strong></span><span>Base <strong>{item.baseTitulo || "Base selecionada"}</strong></span><span>UF em uso <strong>{ufSelecionada}</strong></span></div>
-        {item.precosPorUf ? <div className="state-prices-grid">{UFS_SINAPI.map((uf) => {
-          const original = Number(precos[uf]) || 0;
-          const sp = Number(precos.SP) || 0;
-          const fallback = original <= 0 && sp > 0 && uf !== "SP";
-          return <article key={uf} className={`${uf === ufSelecionada ? "is-selected" : ""} ${fallback ? "is-fallback" : ""}`}><strong>{uf}</strong><span>{original > 0 ? moeda(original) : fallback ? `${moeda(sp)} *` : "Sem preço"}</span></article>;
-        })}</div> : <div className="orc-empty-base"><strong>Base sem variação estadual</strong><span>{item.semPreco ? "Preço não informado." : moeda(item.preco)}</span></div>}
-        {item.precosPorUf && <p className="state-prices-legend">* Valor de SP apresentado porque não há preço publicado para o estado.</p>}
-        <footer>{item.tipo === "composicao" && <button type="button" className="orc-btn orc-btn-ghost" onClick={abrirComposicao}>Abrir composição analítica →</button>}<button type="button" className="orc-btn orc-btn-primary" onClick={fechar}>Fechar</button></footer>
-      </section>
-    </div>
-  );
-}
-
 export default function BasesPrecos({ basesPrecos }) {
   const [modal, setModal] = useState("");
   const [aviso, setAviso] = useState("");
@@ -188,7 +168,6 @@ export default function BasesPrecos({ basesPrecos }) {
   const [tipo, setTipo] = useState("todos");
   const [filtrosAbertos, setFiltrosAbertos] = useState(true);
   const [detalhe, setDetalhe] = useState(null);
-  const [itemEstados, setItemEstados] = useState(null);
   const [ufSelecionada, setUfSelecionada] = useState("RS");
   const [mesSelecionado, setMesSelecionado] = useState("");
   const [pagina, setPagina] = useState(1);
@@ -301,7 +280,6 @@ export default function BasesPrecos({ basesPrecos }) {
       {modal === "importar" && <ModalImportar fechar={() => setModal("")} basesPrecos={basesPrecos} avisar={avisar} />}
       {modal === "composicao" && <ModalComposicaoPropria fechar={() => setModal("")} basesPrecos={basesPrecos} avisar={avisar} />}
       {detalhe && <ModalComposicaoRastreavel referencia={detalhe} basesPrecos={basesPrecos} fechar={() => setDetalhe(null)} tituloContexto="Rastreabilidade da base" ufSelecionada={ufSelecionada} />}
-      {itemEstados && <ModalValoresEstados item={itemEstados} ufSelecionada={ufSelecionada} fechar={() => setItemEstados(null)} abrirComposicao={() => { setDetalhe(itemEstados); setItemEstados(null); }} />}
       <section className="base-monitor-header">
         <div><span>BASES MONITORADAS</span><strong>{basesLogicas} {basesLogicas === 1 ? "base cadastrada" : "bases cadastradas"} · {publicacoesConsulta.length} {publicacoesConsulta.length === 1 ? "publicação disponível" : "publicações disponíveis"}</strong></div>
         <div className="base-monitor-pills">
@@ -335,7 +313,7 @@ export default function BasesPrecos({ basesPrecos }) {
         <header><div><span>CATÁLOGO</span><h3>{baseAtiva?.titulo || "Selecione uma base"}</h3></div><div className="base-catalog-header-actions"><label>Itens por página <select disabled={mostrarTodos} value={porPagina} onChange={(event) => setPorPagina(Number(event.target.value))}><option value="200">200</option><option value="500">500</option><option value="1000">1.000</option></select></label><button type="button" onClick={() => setMostrarTodos((valor) => !valor)}>{mostrarTodos ? "Usar paginação" : `Exibir todos (${referenciasFiltradas.length.toLocaleString("pt-BR")})`}</button></div></header>
         <div className="base-catalog-results">
           {referencias.map((item) => (
-            <article key={`${item.basePrecoId || baseAtiva?.id}-${item.tipo}-${item.codigo}`} className="is-clickable" onClick={() => setItemEstados({ ...item, basePrecoId: item.basePrecoId || baseAtiva?.id, baseTitulo: item.baseTitulo || baseAtiva?.titulo })}>
+            <article key={`${item.basePrecoId || baseAtiva?.id}-${item.tipo}-${item.codigo}`} className="is-clickable" onClick={() => setDetalhe({ ...item, basePrecoId: item.basePrecoId || baseAtiva?.id, baseTitulo: item.baseTitulo || baseAtiva?.titulo })}>
               <span><strong>{item.codigo}</strong><small>{item.tipo}</small></span>
               <p>{item.descricao}</p>
               <span className="base-item-unit"><small>UNIDADE</small><strong>{item.unidade || "—"}</strong></span>

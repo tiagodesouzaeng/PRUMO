@@ -220,7 +220,7 @@ export const SIGIU_ADMIN_AUDITORIA = [
 ];
 
 export const SIGIU_ADMIN_CONFIG_GERAL = {
-  versaoBase: "PRUMO v10.6.0",
+  versaoBase: "PRUMO v14.0.0",
   ambiente: "Desenvolvimento",
   autenticacao: "Perfis e sessão em memória / pendente provedor",
   cacheNavegador: "Compatibilidade durante migração",

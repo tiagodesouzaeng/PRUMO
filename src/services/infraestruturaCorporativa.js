@@ -52,26 +52,26 @@ export function diagnosticarInfraestrutura(configuracao = obterConfiguracaoInfra
     {
       id: "orcamentos",
       titulo: "Orçamentos e revisões",
-      status: configuracao.apiConfigurada ? "Migração pendente" : "Persistência local",
-      detalhe: "Dados atuais preservados no navegador até a migração assistida.",
+      status: configuracao.apiConfigurada ? "Transição assistida" : "Persistência local",
+      detalhe: "API e PostgreSQL disponíveis; dados locais permanecem preservados até a homologação de cada lote.",
     },
     {
       id: "bases",
       titulo: "Bases de preços",
-      status: configuracao.apiConfigurada ? "Migração pendente" : "IndexedDB local",
-      detalhe: "Catálogos, composições analíticas e arquivos-fonte precisam de armazenamento corporativo.",
+      status: configuracao.apiConfigurada ? "Catálogo corporativo disponível" : "IndexedDB local",
+      detalhe: "PostgreSQL disponível com migração assistida; o IndexedDB permanece como origem temporária homologável.",
     },
     {
       id: "auditoria",
       titulo: "Auditoria",
-      status: "Estrutura preparada",
-      detalhe: "A trilha imutável será ativada quando identidade e API estiverem disponíveis.",
+      status: configuracao.apiConfigurada ? "Ativa" : "Estrutura preparada",
+      detalhe: configuracao.apiConfigurada ? "Trilha imutável, exportação, retenção e recuperação registradas." : "A trilha será ativada quando identidade e API estiverem disponíveis.",
     },
     {
       id: "multiempresa",
       titulo: "Isolamento multiempresa",
-      status: "Contrato preparado",
-      detalhe: "Empresa, equipe e propriedade dos registros definidos para validação obrigatória no backend e no banco.",
+      status: configuracao.apiConfigurada ? "Validado" : "Contrato preparado",
+      detalhe: configuracao.apiConfigurada ? "RLS real e tentativas de invasão entre empresas e equipes validadas." : "Empresa, equipe e propriedade dos registros preparados para validação no backend.",
     },
   ];
 }
@@ -120,7 +120,10 @@ export function criarClientePrumo({
         if (resposta.status === 409 || resposta.status === 412) {
           throw new Error("O registro foi alterado por outro usuário. Atualize os dados antes de tentar novamente.");
         }
-        throw new Error(`A API do PRUMO respondeu com o código ${resposta.status}.`);
+        const corpo = typeof resposta.json === "function"
+          ? await resposta.json().catch(() => null)
+          : null;
+        throw new Error(corpo?.erro?.mensagem || `A API do PRUMO respondeu com o código ${resposta.status}.`);
       }
       if (resposta.status === 204) return null;
       return tipoResposta === "text" ? resposta.text() : resposta.json();
@@ -138,6 +141,74 @@ export function criarClientePrumo({
     verificarSaude: () => requisitar("health"),
     obterContextoCorporativo: () => requisitar("v1/context"),
     listarModulos: () => requisitar("v1/modules"),
+    listarUnidadesPatrimoniais: (filtros = {}) => requisitar(
+      `v1/patrimonio/unidades?${new URLSearchParams(filtros)}`,
+    ),
+    obterUnidadePatrimonial: (id) => requisitar(`v1/patrimonio/unidades/${encodeURIComponent(id)}`),
+    criarUnidadePatrimonial: (dados, idempotencyKey) => requisitar("v1/patrimonio/unidades", {
+      method: "POST", body: JSON.stringify(dados), idempotencyKey,
+    }),
+    atualizarUnidadePatrimonial: (id, dados, versao) => requisitar(
+      `v1/patrimonio/unidades/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(dados), versao },
+    ),
+    excluirUnidadePatrimonial: (id, versao) => requisitar(
+      `v1/patrimonio/unidades/${encodeURIComponent(id)}`,
+      { method: "DELETE", versao },
+    ),
+    listarAtivosPatrimoniais: (filtros = {}) => requisitar(
+      `v1/patrimonio/ativos?${new URLSearchParams(filtros)}`,
+    ),
+    criarAtivoPatrimonial: (dados, idempotencyKey) => requisitar("v1/patrimonio/ativos", {
+      method: "POST", body: JSON.stringify(dados), idempotencyKey,
+    }),
+    atualizarAtivoPatrimonial: (id, dados, versao) => requisitar(
+      `v1/patrimonio/ativos/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(dados), versao },
+    ),
+    listarMovimentacoesPatrimoniais: (id) => requisitar(
+      `v1/patrimonio/ativos/${encodeURIComponent(id)}/movimentacoes`,
+    ),
+    movimentarAtivoPatrimonial: (id, dados, idempotencyKey) => requisitar(
+      `v1/patrimonio/ativos/${encodeURIComponent(id)}/movimentacoes`,
+      { method: "POST", body: JSON.stringify(dados), idempotencyKey },
+    ),
+    listarProgramasInvestimento: () => requisitar("v1/planejamento/programas"),
+    criarProgramaInvestimento: (dados, idempotencyKey) => requisitar("v1/planejamento/programas", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    atualizarProgramaInvestimento: (id, dados, versao) => requisitar(`v1/planejamento/programas/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(dados), versao }),
+    listarCarteirasInvestimento: () => requisitar("v1/planejamento/carteiras"),
+    criarCarteiraInvestimento: (dados, idempotencyKey) => requisitar("v1/planejamento/carteiras", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    atualizarCarteiraInvestimento: (id, dados, versao) => requisitar(`v1/planejamento/carteiras/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(dados), versao }),
+    incorporarDemandaCarteira: (carteiraId, dados, versao, idempotencyKey) => requisitar(`v1/planejamento/carteiras/${encodeURIComponent(carteiraId)}/demandas`, { method: "POST", body: JSON.stringify(dados), versao, idempotencyKey }),
+    listarDemandasInvestimento: (filtros = {}) => requisitar(`v1/planejamento/demandas?${new URLSearchParams(filtros)}`),
+    obterDemandaInvestimento: (id) => requisitar(`v1/planejamento/demandas/${encodeURIComponent(id)}`),
+    criarDemandaInvestimento: (dados, idempotencyKey) => requisitar("v1/planejamento/demandas", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    atualizarDemandaInvestimento: (id, dados, versao) => requisitar(`v1/planejamento/demandas/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(dados), versao }),
+    listarDecisoesDemanda: (id) => requisitar(`v1/planejamento/demandas/${encodeURIComponent(id)}/decisoes`),
+    decidirDemandaInvestimento: (id, dados, versao, idempotencyKey) => requisitar(`v1/planejamento/demandas/${encodeURIComponent(id)}/decisoes`, { method: "POST", body: JSON.stringify(dados), versao, idempotencyKey }),
+    listarFornecedores: (filtros = {}) => requisitar(`v1/suprimentos/fornecedores?${new URLSearchParams(filtros)}`),
+    criarFornecedor: (dados, idempotencyKey) => requisitar("v1/suprimentos/fornecedores", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    atualizarFornecedor: (id, dados, versao) => requisitar(`v1/suprimentos/fornecedores/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(dados), versao }),
+    listarProcessosContratacao: (filtros = {}) => requisitar(`v1/suprimentos/processos?${new URLSearchParams(filtros)}`),
+    obterProcessoContratacao: (id) => requisitar(`v1/suprimentos/processos/${encodeURIComponent(id)}`),
+    criarProcessoContratacao: (dados, idempotencyKey) => requisitar("v1/suprimentos/processos", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    atualizarProcessoContratacao: (id, dados, versao) => requisitar(`v1/suprimentos/processos/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(dados), versao }),
+    registrarCotacao: (id, dados, idempotencyKey) => requisitar(`v1/suprimentos/processos/${encodeURIComponent(id)}/cotacoes`, { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    decidirProcessoContratacao: (id, dados, versao, idempotencyKey) => requisitar(`v1/suprimentos/processos/${encodeURIComponent(id)}/decisoes`, { method: "POST", body: JSON.stringify(dados), versao, idempotencyKey }),
+    emitirPedidoCompra: (id, dados, versao, idempotencyKey) => requisitar(`v1/suprimentos/processos/${encodeURIComponent(id)}/pedidos`, { method: "POST", body: JSON.stringify(dados), versao, idempotencyKey }),
+    listarPedidosCompra: (filtros = {}) => requisitar(`v1/suprimentos/pedidos?${new URLSearchParams(filtros)}`),
+    registrarRecebimentoPedido: (id, dados, idempotencyKey) => requisitar(`v1/suprimentos/pedidos/${encodeURIComponent(id)}/recebimentos`, { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    listarContratos: (filtros = {}) => requisitar(`v1/contratos?${new URLSearchParams(filtros)}`),
+    obterContrato: (id) => requisitar(`v1/contratos/${encodeURIComponent(id)}`),
+    criarContrato: (dados, idempotencyKey) => requisitar("v1/contratos", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    atualizarContrato: (id, dados, versao) => requisitar(`v1/contratos/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(dados), versao }),
+    decidirContrato: (id, dados, versao, idempotencyKey) => requisitar(`v1/contratos/${encodeURIComponent(id)}/decisoes`, { method: "POST", body: JSON.stringify(dados), versao, idempotencyKey }),
+    adicionarResponsavelContrato: (id, dados, idempotencyKey) => requisitar(`v1/contratos/${encodeURIComponent(id)}/responsaveis`, { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    registrarAditivoContrato: (id, dados, versao, idempotencyKey) => requisitar(`v1/contratos/${encodeURIComponent(id)}/aditivos`, { method: "POST", body: JSON.stringify(dados), versao, idempotencyKey }),
+    registrarGarantiaContrato: (id, dados, idempotencyKey) => requisitar(`v1/contratos/${encodeURIComponent(id)}/garantias`, { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    registrarOcorrenciaContrato: (id, dados, idempotencyKey) => requisitar(`v1/contratos/${encodeURIComponent(id)}/ocorrencias`, { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    aplicarSancaoContrato: (id, dados, idempotencyKey) => requisitar(`v1/contratos/${encodeURIComponent(id)}/sancoes`, { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
+    registrarExecucaoContrato: (id, dados, idempotencyKey) => requisitar(`v1/contratos/${encodeURIComponent(id)}/execucoes`, { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
     listarEmpreendimentos: () => requisitar("v1/empreendimentos"),
     criarEmpreendimento: (dados, idempotencyKey) => requisitar("v1/empreendimentos", {
       method: "POST",
@@ -240,6 +311,7 @@ export function criarClientePrumo({
     listarDocumentos: () => requisitar("v1/documentos"),
     criarDocumento: (dados, idempotencyKey) => requisitar("v1/documentos", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
     adicionarVersaoDocumento: (id, dados) => requisitar(`v1/documentos/${encodeURIComponent(id)}/versoes`, { method: "POST", body: JSON.stringify(dados) }),
+    vincularDocumento: (id, dados) => requisitar(`v1/documentos/${encodeURIComponent(id)}/vinculos`, { method: "POST", body: JSON.stringify(dados) }),
     listarIntegracoes: () => requisitar("v1/integracoes"),
     criarIntegracao: (dados, idempotencyKey) => requisitar("v1/integracoes", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
     registrarExecucaoIntegracao: (id, dados) => requisitar(`v1/integracoes/${encodeURIComponent(id)}/execucoes`, { method: "POST", body: JSON.stringify(dados) }),

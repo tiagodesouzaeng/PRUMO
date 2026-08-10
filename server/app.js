@@ -20,6 +20,7 @@ const esquemaEmpreendimento = {
   additionalProperties: false,
   properties: {
     unidadeId: { type: "string" },
+    patrimonioUnidadeId: { type: "string" },
     codigo: { type: "string", maxLength: 80 },
     nome: { type: "string", minLength: 2, maxLength: 240 },
     tipo: { type: "string", maxLength: 60 },
@@ -134,7 +135,7 @@ const esquemaTrabalho = {
   additionalProperties: false,
   properties: {
     tipo: {
-      enum: ["sistema.diagnostico", "catalogo.importar", "orcamento.recalcular"],
+      enum: ["sistema.diagnostico", "catalogo.importar", "orcamento.recalcular", "integracao.sincronizar"],
     },
     prioridade: { type: "integer", minimum: 1, maximum: 100 },
     maxTentativas: { type: "integer", minimum: 1, maximum: 10 },
@@ -150,6 +151,183 @@ const esquemaTransicaoRepositorio = {
     modo: { enum: ["local", "hibrido", "corporativo"] },
   },
 };
+
+const esquemaUnidadePatrimonial = {
+  type: "object",
+  required: ["nivel", "codigo", "nome"],
+  additionalProperties: false,
+  properties: {
+    parentId: { type: "string" },
+    nivel: { enum: ["cliente", "site", "predio", "sala"] },
+    codigo: { type: "string", minLength: 1, maxLength: 80 },
+    nome: { type: "string", minLength: 2, maxLength: 240 },
+    status: { enum: ["ativo", "inativo"] },
+    endereco: { type: "object", additionalProperties: true },
+    areaM2: { type: ["number", "null"], minimum: 0 },
+    responsavel: { type: "string", maxLength: 240 },
+    ocupacao: { type: "string", maxLength: 240 },
+    dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaAtivoPatrimonial = {
+  type: "object",
+  required: ["salaId", "codigo", "nome"],
+  additionalProperties: false,
+  properties: {
+    salaId: { type: "string", minLength: 1 },
+    codigo: { type: "string", minLength: 1, maxLength: 80 },
+    nome: { type: "string", minLength: 2, maxLength: 240 },
+    categoria: { type: "string", maxLength: 120 },
+    numeroPatrimonio: { type: "string", maxLength: 120 },
+    fabricante: { type: "string", maxLength: 160 },
+    modelo: { type: "string", maxLength: 160 },
+    numeroSerie: { type: "string", maxLength: 160 },
+    status: { enum: ["ativo", "em_manutencao", "inativo", "baixado"] },
+    dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaMovimentacaoPatrimonial = {
+  type: "object",
+  required: ["destinoSalaId", "motivo"],
+  additionalProperties: false,
+  properties: {
+    destinoSalaId: { type: "string", minLength: 1 },
+    motivo: { type: "string", minLength: 3, maxLength: 1000 },
+  },
+};
+
+const esquemaProgramaInvestimento = {
+  type: "object", required: ["codigo", "nome"], additionalProperties: false,
+  properties: {
+    codigo: { type: "string", minLength: 1, maxLength: 80 },
+    nome: { type: "string", minLength: 2, maxLength: 240 },
+    objetivo: { type: "string", maxLength: 4000 },
+    anoInicio: { type: ["integer", "null"], minimum: 2000, maximum: 2200 },
+    anoFim: { type: ["integer", "null"], minimum: 2000, maximum: 2200 },
+    limiteFinanceiro: { type: "number", minimum: 0 },
+    status: { enum: ["ativo", "inativo", "encerrado"] },
+    dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaCarteiraInvestimento = {
+  type: "object", required: ["codigo", "nome", "ano"], additionalProperties: false,
+  properties: {
+    codigo: { type: "string", minLength: 1, maxLength: 80 },
+    nome: { type: "string", minLength: 2, maxLength: 240 },
+    ano: { type: "integer", minimum: 2000, maximum: 2200 },
+    limiteFinanceiro: { type: "number", minimum: 0 },
+    status: { enum: ["elaboracao", "em_aprovacao", "aprovada", "encerrada"] },
+    dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaDemandaInvestimento = {
+  type: "object", required: ["patrimonioUnidadeId", "codigo", "titulo"], additionalProperties: false,
+  properties: {
+    patrimonioUnidadeId: { type: "string", minLength: 1 }, programaId: { type: "string" },
+    codigo: { type: "string", minLength: 1, maxLength: 80 }, titulo: { type: "string", minLength: 2, maxLength: 240 },
+    descricao: { type: "string", maxLength: 8000 }, solicitante: { type: "string", maxLength: 240 },
+    categoria: { enum: ["obra_reforma", "manutencao", "regularidade", "eficiencia", "acessibilidade", "tecnologia", "outro"] },
+    valorEstimado: { type: "number", minimum: 0 }, dataDesejada: { type: "string", format: "date" },
+    urgencia: { type: "integer", minimum: 1, maximum: 5 }, impacto: { type: "integer", minimum: 1, maximum: 5 },
+    risco: { type: "integer", minimum: 1, maximum: 5 }, alinhamento: { type: "integer", minimum: 1, maximum: 5 },
+    dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaDecisaoDemanda = {
+  type: "object", required: ["acao"], additionalProperties: false,
+  properties: {
+    acao: { enum: ["enviar_analise", "priorizar", "aprovar", "rejeitar", "reabrir"] },
+    justificativa: { type: "string", maxLength: 4000 },
+  },
+};
+
+const esquemaItemCarteiraInvestimento = {
+  type: "object", required: ["demandId", "ordem", "valorPlanejado"], additionalProperties: false,
+  properties: {
+    demandId: { type: "string", minLength: 1 }, ordem: { type: "integer", minimum: 1 },
+    valorPlanejado: { type: "number", minimum: 0 }, observacao: { type: "string", maxLength: 4000 },
+  },
+};
+
+const esquemaFornecedor = {
+  type: "object", required: ["codigo", "razaoSocial"], additionalProperties: false,
+  properties: {
+    codigo: { type: "string", minLength: 1, maxLength: 80 }, razaoSocial: { type: "string", minLength: 2, maxLength: 240 },
+    nomeFantasia: { type: "string", maxLength: 240 }, documento: { type: "string", maxLength: 40 },
+    email: { type: "string", maxLength: 240 }, telefone: { type: "string", maxLength: 80 },
+    status: { enum: ["ativo", "suspenso", "inativo"] }, qualificacao: { enum: ["pendente", "qualificado", "restrito"] },
+    dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaProcessoContratacao = {
+  type: "object", required: ["codigo", "titulo", "objeto"], additionalProperties: false,
+  properties: {
+    demandId: { type: "string" }, orcamentoId: { type: "string" }, codigo: { type: "string", minLength: 1, maxLength: 80 },
+    titulo: { type: "string", minLength: 2, maxLength: 240 }, objeto: { type: "string", minLength: 3, maxLength: 8000 },
+    tipo: { enum: ["material", "servico", "obra", "solucao_integrada"] }, regime: { enum: ["publico", "federacao", "privado"] },
+    criterioJulgamento: { enum: ["menor_preco", "maior_desconto", "tecnica_preco", "melhor_tecnica"] },
+    valorEstimado: { type: "number", minimum: 0 }, estudoTecnico: { type: "object", additionalProperties: true },
+    riscos: { type: "array", items: { type: "object", additionalProperties: true } }, termoReferencia: { type: "object", additionalProperties: true },
+    dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaCotacao = {
+  type: "object", required: ["supplierId", "valorTotal"], additionalProperties: false,
+  properties: {
+    supplierId: { type: "string", minLength: 1 }, dataProposta: { type: "string", format: "date" },
+    validadeDias: { type: "integer", minimum: 0 }, prazoEntregaDias: { type: "integer", minimum: 0 },
+    valorTotal: { type: "number", exclusiveMinimum: 0 }, status: { enum: ["recebida", "classificada", "desclassificada", "vencedora"] },
+    justificativa: { type: "string", maxLength: 4000 }, proposta: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaDecisaoContratacao = {
+  type: "object", required: ["acao"], additionalProperties: false,
+  properties: {
+    acao: { enum: ["iniciar_planejamento", "abrir_pesquisa", "iniciar_selecao", "aprovar", "devolver", "cancelar"] },
+    justificativa: { type: "string", maxLength: 4000 }, dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaPedidoCompra = {
+  type: "object", required: ["supplierId", "codigo", "valorTotal"], additionalProperties: false,
+  properties: {
+    supplierId: { type: "string", minLength: 1 }, quoteId: { type: "string" }, codigo: { type: "string", minLength: 1, maxLength: 80 },
+    valorTotal: { type: "number", exclusiveMinimum: 0 }, dataEmissao: { type: "string", format: "date" }, dataPrevista: { type: "string", format: "date" },
+    dados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaRecebimentoPedido = {
+  type: "object", required: ["valorRecebido"], additionalProperties: false,
+  properties: {
+    dataRecebimento: { type: "string", format: "date" }, valorRecebido: { type: "number", exclusiveMinimum: 0 },
+    aceite: { enum: ["aceito", "aceito_com_ressalva", "rejeitado"] }, observacao: { type: "string", maxLength: 4000 },
+  },
+};
+
+const esquemaContrato = {
+  type: "object", required: ["processId","supplierId","codigo","numero","titulo","objeto","dataInicio","dataFim","valorInicial"], additionalProperties: false,
+  properties: {
+    processId:{type:"string",minLength:1}, supplierId:{type:"string",minLength:1}, codigo:{type:"string",minLength:1,maxLength:80}, numero:{type:"string",minLength:1,maxLength:120},
+    titulo:{type:"string",minLength:2,maxLength:240}, objeto:{type:"string",minLength:3,maxLength:8000}, tipoInstrumento:{enum:["contrato","ata_registro_precos","ordem_servico","termo","instrumento_equivalente"]}, regime:{enum:["publico","federacao","privado"]},
+    dataAssinatura:{type:"string",format:"date"}, dataInicio:{type:"string",format:"date"}, dataFim:{type:"string",format:"date"}, valorInicial:{type:"number",exclusiveMinimum:0}, dados:{type:"object",additionalProperties:true},
+  },
+};
+const esquemaDecisaoContrato = { type:"object",required:["acao"],additionalProperties:false,properties:{ acao:{enum:["ativar","suspender","reativar","concluir","rescindir","encerrar","cancelar"]},justificativa:{type:"string",maxLength:4000},dados:{type:"object",additionalProperties:true} } };
+const esquemaResponsavelContrato = { type:"object",required:["papel","nome","dataInicio"],additionalProperties:false,properties:{ papel:{enum:["gestor","fiscal_tecnico","fiscal_administrativo","substituto"]},nome:{type:"string",minLength:2,maxLength:240},documento:{type:"string",maxLength:80},email:{type:"string",maxLength:240},dataInicio:{type:"string",format:"date"},dataFim:{type:"string",format:"date"},atoDesignacao:{type:"string",maxLength:500} } };
+const esquemaAditivoContrato = { type:"object",required:["numero","tipo","justificativa"],additionalProperties:false,properties:{ numero:{type:"string",minLength:1,maxLength:120},tipo:{enum:["valor","prazo","prazo_valor","supressao","reajuste"]},justificativa:{type:"string",minLength:3,maxLength:4000},valor:{type:"number",minimum:0},novaDataFim:{type:"string",format:"date"},dados:{type:"object",additionalProperties:true} } };
+const esquemaGarantiaContrato = { type:"object",required:["tipo"],additionalProperties:false,properties:{ tipo:{enum:["caucao","seguro_garantia","fianca_bancaria","retencao","dispensada"]},numero:{type:"string",maxLength:120},instituicao:{type:"string",maxLength:240},valor:{type:"number",minimum:0},dataInicio:{type:"string",format:"date"},dataFim:{type:"string",format:"date"},status:{enum:["ativa","liberada","executada","vencida","dispensada"]},dados:{type:"object",additionalProperties:true} } };
+const esquemaOcorrenciaContrato = { type:"object",required:["descricao"],additionalProperties:false,properties:{ dataOcorrencia:{type:"string",format:"date"},tipo:{type:"string",maxLength:120},severidade:{enum:["baixa","media","alta","critica"]},descricao:{type:"string",minLength:3,maxLength:8000},providencia:{type:"string",maxLength:8000},status:{enum:["aberta","em_tratamento","resolvida"]} } };
+const esquemaSancaoContrato = { type:"object",required:["tipo","fundamento"],additionalProperties:false,properties:{ occurrenceId:{type:"string"},tipo:{enum:["advertencia","multa","suspensao","impedimento","declaracao_inidoneidade"]},fundamento:{type:"string",minLength:3,maxLength:8000},valor:{type:"number",minimum:0},dataAplicacao:{type:"string",format:"date"},dataFim:{type:"string",format:"date"} } };
+const esquemaExecucaoContrato = { type:"object",required:["valor"],additionalProperties:false,properties:{ origem:{enum:["manual","medicao","recebimento","financeiro"]},referenciaId:{type:"string",maxLength:240},dataExecucao:{type:"string",format:"date"},valor:{type:"number",exclusiveMinimum:0},descricao:{type:"string",maxLength:4000} } };
 
 const esquemaPoliticaAuditoria = {
   type: "object",
@@ -225,6 +403,15 @@ const esquemaContratoModulo = {
   },
 };
 
+const esquemaVinculoDocumento = {
+  type: "object", required: ["moduleId", "entidadeTipo", "entidadeId"], additionalProperties: false,
+  properties: {
+    moduleId: { type: "string", minLength: 1, maxLength: 80 },
+    entidadeTipo: { type: "string", minLength: 1, maxLength: 120 },
+    entidadeId: { type: "string", minLength: 1, maxLength: 240 },
+  },
+};
+
 function contextoDaRequisicao(request, identity) {
   const tenantId = String(request.headers["x-prumo-tenant-id"] || "").trim();
   const teamId = String(request.headers["x-prumo-team-id"] || "").trim();
@@ -238,7 +425,7 @@ function versaoIfMatch(request) {
   const valor = String(request.headers["if-match"] || "").replace(/^W\//, "").replaceAll('"', "");
   const versao = Number(valor);
   if (!Number.isInteger(versao) || versao <= 0) {
-    throw new ApiError(428, "VERSAO_AUSENTE", "Informe a versão conhecida do orçamento em If-Match.");
+    throw new ApiError(428, "VERSAO_AUSENTE", "Informe a versão conhecida do registro em If-Match.");
   }
   return versao;
 }
@@ -315,7 +502,7 @@ export async function criarAplicacaoApi({
     return {
       ok: true,
       servico: "PRUMO API",
-      versao: "10.6.0",
+      versao: "14.0.0",
       armazenamento: repository.tipo,
       banco,
     };
@@ -336,6 +523,187 @@ export async function criarAplicacaoApi({
     );
     return contexto.modulos;
   });
+
+  app.get("/v1/patrimonio/unidades", async (request) => (
+    repository.listarUnidadesPatrimoniais(
+      contextoDaRequisicao(request, request.identity),
+      request.query || {},
+    )
+  ));
+
+  app.get("/v1/patrimonio/unidades/:id", async (request, reply) => {
+    const item = await repository.obterUnidadePatrimonial(
+      contextoDaRequisicao(request, request.identity), request.params.id,
+    );
+    reply.header("ETag", `"${item.versao}"`);
+    return item;
+  });
+
+  app.post("/v1/patrimonio/unidades", {
+    schema: { body: esquemaUnidadePatrimonial },
+  }, async (request, reply) => {
+    const item = await repository.criarUnidadePatrimonial(
+      contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request),
+    );
+    reply.code(201).header("ETag", `"${item.versao}"`);
+    return item;
+  });
+
+  app.put("/v1/patrimonio/unidades/:id", {
+    schema: { body: esquemaUnidadePatrimonial },
+  }, async (request, reply) => {
+    const item = await repository.atualizarUnidadePatrimonial(
+      contextoDaRequisicao(request, request.identity), request.params.id,
+      request.body, versaoIfMatch(request),
+    );
+    reply.header("ETag", `"${item.versao}"`);
+    return item;
+  });
+
+  app.delete("/v1/patrimonio/unidades/:id", async (request, reply) => {
+    await repository.excluirUnidadePatrimonial(
+      contextoDaRequisicao(request, request.identity), request.params.id,
+      versaoIfMatch(request),
+    );
+    return reply.code(204).send();
+  });
+
+  app.get("/v1/patrimonio/ativos", async (request) => (
+    repository.listarAtivosPatrimoniais(
+      contextoDaRequisicao(request, request.identity), request.query || {},
+    )
+  ));
+
+  app.post("/v1/patrimonio/ativos", {
+    schema: { body: esquemaAtivoPatrimonial },
+  }, async (request, reply) => {
+    const item = await repository.criarAtivoPatrimonial(
+      contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request),
+    );
+    reply.code(201).header("ETag", `"${item.versao}"`);
+    return item;
+  });
+
+  app.put("/v1/patrimonio/ativos/:id", {
+    schema: { body: esquemaAtivoPatrimonial },
+  }, async (request, reply) => {
+    const item = await repository.atualizarAtivoPatrimonial(
+      contextoDaRequisicao(request, request.identity), request.params.id,
+      request.body, versaoIfMatch(request),
+    );
+    reply.header("ETag", `"${item.versao}"`);
+    return item;
+  });
+
+  app.get("/v1/patrimonio/ativos/:id/movimentacoes", async (request) => (
+    repository.listarMovimentacoesPatrimoniais(
+      contextoDaRequisicao(request, request.identity), request.params.id,
+    )
+  ));
+
+  app.post("/v1/patrimonio/ativos/:id/movimentacoes", {
+    schema: { body: esquemaMovimentacaoPatrimonial },
+  }, async (request, reply) => {
+    const item = await repository.movimentarAtivoPatrimonial(
+      contextoDaRequisicao(request, request.identity), request.params.id,
+      request.body, chaveIdempotencia(request),
+    );
+    reply.code(201);
+    return item;
+  });
+
+  app.get("/v1/planejamento/programas", async (request) => repository.listarProgramasInvestimento(contextoDaRequisicao(request, request.identity)));
+  app.post("/v1/planejamento/programas", { schema: { body: esquemaProgramaInvestimento } }, async (request, reply) => {
+    const item = await repository.criarProgramaInvestimento(contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request));
+    reply.code(201).header("ETag", `"${item.versao}"`); return item;
+  });
+  app.put("/v1/planejamento/programas/:id", { schema: { body: esquemaProgramaInvestimento } }, async (request, reply) => {
+    const item = await repository.atualizarProgramaInvestimento(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request));
+    reply.header("ETag", `"${item.versao}"`); return item;
+  });
+  app.get("/v1/planejamento/carteiras", async (request) => repository.listarCarteirasInvestimento(contextoDaRequisicao(request, request.identity)));
+  app.post("/v1/planejamento/carteiras", { schema: { body: esquemaCarteiraInvestimento } }, async (request, reply) => {
+    const item = await repository.criarCarteiraInvestimento(contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request));
+    reply.code(201).header("ETag", `"${item.versao}"`); return item;
+  });
+  app.put("/v1/planejamento/carteiras/:id", { schema: { body: esquemaCarteiraInvestimento } }, async (request, reply) => {
+    const item = await repository.atualizarCarteiraInvestimento(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request));
+    reply.header("ETag", `"${item.versao}"`); return item;
+  });
+  app.post("/v1/planejamento/carteiras/:id/demandas", { schema: { body: esquemaItemCarteiraInvestimento } }, async (request, reply) => {
+    const item = await repository.incorporarDemandaCarteira(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request), chaveIdempotencia(request));
+    reply.code(201).header("ETag", `"${item.demanda.versao}"`); return item;
+  });
+  app.get("/v1/planejamento/demandas", async (request) => repository.listarDemandasInvestimento(contextoDaRequisicao(request, request.identity), request.query || {}));
+  app.get("/v1/planejamento/demandas/:id", async (request, reply) => {
+    const item = await repository.obterDemandaInvestimento(contextoDaRequisicao(request, request.identity), request.params.id);
+    reply.header("ETag", `"${item.versao}"`); return item;
+  });
+  app.post("/v1/planejamento/demandas", { schema: { body: esquemaDemandaInvestimento } }, async (request, reply) => {
+    const item = await repository.criarDemandaInvestimento(contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request));
+    reply.code(201).header("ETag", `"${item.versao}"`); return item;
+  });
+  app.put("/v1/planejamento/demandas/:id", { schema: { body: esquemaDemandaInvestimento } }, async (request, reply) => {
+    const item = await repository.atualizarDemandaInvestimento(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request));
+    reply.header("ETag", `"${item.versao}"`); return item;
+  });
+  app.get("/v1/planejamento/demandas/:id/decisoes", async (request) => repository.listarDecisoesDemanda(contextoDaRequisicao(request, request.identity), request.params.id));
+  app.post("/v1/planejamento/demandas/:id/decisoes", { schema: { body: esquemaDecisaoDemanda } }, async (request, reply) => {
+    const item = await repository.decidirDemandaInvestimento(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request), chaveIdempotencia(request));
+    reply.code(201).header("ETag", `"${item.demanda.versao}"`); return item;
+  });
+
+  app.get("/v1/suprimentos/fornecedores", async (request) => repository.listarFornecedores(contextoDaRequisicao(request, request.identity), request.query || {}));
+  app.post("/v1/suprimentos/fornecedores", { schema: { body: esquemaFornecedor } }, async (request, reply) => {
+    const item = await repository.criarFornecedor(contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request));
+    reply.code(201).header("ETag", `"${item.versao}"`); return item;
+  });
+  app.put("/v1/suprimentos/fornecedores/:id", { schema: { body: esquemaFornecedor } }, async (request, reply) => {
+    const item = await repository.atualizarFornecedor(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request));
+    reply.header("ETag", `"${item.versao}"`); return item;
+  });
+  app.get("/v1/suprimentos/processos", async (request) => repository.listarProcessosContratacao(contextoDaRequisicao(request, request.identity), request.query || {}));
+  app.get("/v1/suprimentos/processos/:id", async (request, reply) => {
+    const item = await repository.obterProcessoContratacao(contextoDaRequisicao(request, request.identity), request.params.id);
+    reply.header("ETag", `"${item.versao}"`); return item;
+  });
+  app.post("/v1/suprimentos/processos", { schema: { body: esquemaProcessoContratacao } }, async (request, reply) => {
+    const item = await repository.criarProcessoContratacao(contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request));
+    reply.code(201).header("ETag", `"${item.versao}"`); return item;
+  });
+  app.put("/v1/suprimentos/processos/:id", { schema: { body: esquemaProcessoContratacao } }, async (request, reply) => {
+    const item = await repository.atualizarProcessoContratacao(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request));
+    reply.header("ETag", `"${item.versao}"`); return item;
+  });
+  app.post("/v1/suprimentos/processos/:id/cotacoes", { schema: { body: esquemaCotacao } }, async (request, reply) => {
+    const item = await repository.registrarCotacao(contextoDaRequisicao(request, request.identity), request.params.id, request.body, chaveIdempotencia(request));
+    reply.code(201); return item;
+  });
+  app.post("/v1/suprimentos/processos/:id/decisoes", { schema: { body: esquemaDecisaoContratacao } }, async (request, reply) => {
+    const item = await repository.decidirProcessoContratacao(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request), chaveIdempotencia(request));
+    reply.code(201).header("ETag", `"${item.processo.versao}"`); return item;
+  });
+  app.post("/v1/suprimentos/processos/:id/pedidos", { schema: { body: esquemaPedidoCompra } }, async (request, reply) => {
+    const item = await repository.emitirPedidoCompra(contextoDaRequisicao(request, request.identity), request.params.id, request.body, versaoIfMatch(request), chaveIdempotencia(request));
+    reply.code(201); return item;
+  });
+  app.get("/v1/suprimentos/pedidos", async (request) => repository.listarPedidosCompra(contextoDaRequisicao(request, request.identity), request.query || {}));
+  app.post("/v1/suprimentos/pedidos/:id/recebimentos", { schema: { body: esquemaRecebimentoPedido } }, async (request, reply) => {
+    const item = await repository.registrarRecebimentoPedido(contextoDaRequisicao(request, request.identity), request.params.id, request.body, chaveIdempotencia(request));
+    reply.code(201); return item;
+  });
+
+  app.get("/v1/contratos", async (request) => repository.listarContratos(contextoDaRequisicao(request, request.identity),request.query||{}));
+  app.get("/v1/contratos/:id", async (request,reply) => { const item=await repository.obterContrato(contextoDaRequisicao(request,request.identity),request.params.id); reply.header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/contratos", {schema:{body:esquemaContrato}}, async (request,reply) => { const item=await repository.criarContrato(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.put("/v1/contratos/:id", {schema:{body:esquemaContrato}}, async (request,reply) => { const item=await repository.atualizarContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request)); reply.header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/contratos/:id/decisoes", {schema:{body:esquemaDecisaoContrato}}, async (request,reply) => { const item=await repository.decidirContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.contrato.versao}"`); return item; });
+  app.post("/v1/contratos/:id/responsaveis", {schema:{body:esquemaResponsavelContrato}}, async (request,reply) => { const item=await repository.adicionarResponsavelContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
+  app.post("/v1/contratos/:id/aditivos", {schema:{body:esquemaAditivoContrato}}, async (request,reply) => { const item=await repository.registrarAditivoContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.contrato.versao}"`); return item; });
+  app.post("/v1/contratos/:id/garantias", {schema:{body:esquemaGarantiaContrato}}, async (request,reply) => { const item=await repository.registrarGarantiaContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
+  app.post("/v1/contratos/:id/ocorrencias", {schema:{body:esquemaOcorrenciaContrato}}, async (request,reply) => { const item=await repository.registrarOcorrenciaContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
+  app.post("/v1/contratos/:id/sancoes", {schema:{body:esquemaSancaoContrato}}, async (request,reply) => { const item=await repository.aplicarSancaoContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
+  app.post("/v1/contratos/:id/execucoes", {schema:{body:esquemaExecucaoContrato}}, async (request,reply) => { const item=await repository.registrarExecucaoContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.contrato.versao}"`); return item; });
 
   app.get("/v1/empreendimentos", async (request) => (
     repository.listarEmpreendimentos(contextoDaRequisicao(request, request.identity))
@@ -611,6 +979,9 @@ export async function criarAplicacaoApi({
   });
   app.post("/v1/documentos/:id/versoes", { schema: { body: esquemaVersaoDocumento } }, async (request) => (
     repository.adicionarVersaoDocumento(contextoDaRequisicao(request, request.identity), request.params.id, request.body)
+  ));
+  app.post("/v1/documentos/:id/vinculos", { schema: { body: esquemaVinculoDocumento } }, async (request) => (
+    repository.vincularDocumento(contextoDaRequisicao(request, request.identity), request.params.id, request.body)
   ));
 
   app.get("/v1/integracoes", async (request) => (

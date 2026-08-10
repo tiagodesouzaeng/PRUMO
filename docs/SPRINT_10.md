@@ -285,6 +285,24 @@ nos incrementos seguintes.
   78 px, exibindo somente ícones e preservando a preferência local;
 - build de produção concluído e 99 testes aprovados, sem falhas ou saltos.
 
+#### Fechamento integral para homologação — concluído localmente
+
+- vínculo de documentos exposto pela API e pela interface para medições,
+  obras, orçamentos, manutenção e PPCI;
+- registro assistido de versões, hash SHA-256 e referência segura disponível
+  no módulo GED;
+- tipo `integracao.sincronizar` incorporado à fila durável;
+- integrações podem ser registradas no PostgreSQL e executadas pelo worker com
+  resultado e auditoria corporativos;
+- terminologia e modelo documental inicial configuráveis na Administração;
+- diagnóstico administrativo atualizado para refletir catálogo, auditoria,
+  RLS e transição assistida efetivamente disponíveis;
+- migração `011_fechamento_sprint_10.sql` aplicada com checksum;
+- backup posterior à migração 011 gerado, verificado e restaurado;
+- 100 testes aprovados, inclusive PostgreSQL real, e build concluído;
+- homologação visual do GED, Integrações, Produto modular e menu lateral sem
+  erros de console.
+
 ## Continuidade após a Sprint 10
 
 O desenvolvimento seguirá o roadmap modular:

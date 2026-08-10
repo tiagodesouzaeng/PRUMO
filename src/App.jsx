@@ -23,6 +23,10 @@ import Orcamento from "./pages/Orcamento";
 import BasesPrecos from "./pages/BasesPrecos";
 import useBasesPrecos from "./hooks/useBasesPrecos";
 import Documentos from "./pages/Documentos";
+import Patrimonio from "./pages/Patrimonio";
+import Planejamento from "./pages/Planejamento";
+import Suprimentos from "./pages/Suprimentos";
+import Contratos from "./pages/Contratos";
 import { criarClientePrumo, obterConfiguracaoInfraestrutura, obterContextoDesenvolvimento } from "./services/infraestruturaCorporativa";
 
 function App() {
@@ -70,6 +74,18 @@ function App() {
 
       case "obras":
         return <Obras />;
+
+      case "patrimonio":
+        return <Patrimonio />;
+
+      case "planejamento":
+        return <Planejamento />;
+
+      case "suprimentos":
+        return <Suprimentos />;
+
+      case "contratos":
+        return <Contratos />;
 
       case "orcamento":
         return <Orcamento basesPrecos={basesPrecos} />;

@@ -30,6 +30,22 @@ export function criarWorkerTrabalhos({ repository, logger = console } = {}) {
           trabalho.payload.orcamentoId,
         );
         resultado = resumirRecalculoOrcamento(orcamento);
+      } else if (trabalho.tipo === "integracao.sincronizar") {
+        const execucao = await repository.registrarExecucaoIntegracao(
+          contexto,
+          trabalho.payload.integracaoId,
+          {
+            status: "concluida",
+            direcao: trabalho.payload.direcao || "entrada",
+            contagens: { solicitacoes: 1, modo: "worker" },
+          },
+        );
+        resultado = {
+          integracaoId: trabalho.payload.integracaoId,
+          execucaoId: execucao.id,
+          status: execucao.status,
+          processadoEm: new Date().toISOString(),
+        };
       } else {
         throw new Error(`Trabalho ${trabalho.tipo} sem executor.`);
       }

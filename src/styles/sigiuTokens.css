@@ -9,30 +9,30 @@
   /* -----------------------------------------------------
      Cores institucionais PRUMO
   ----------------------------------------------------- */
-  --sigiu-bordo: #471923;
-  --sigiu-azul: #222d45;
-  --sigiu-cinza: #a39b84;
-  --sigiu-bege: #f3f1e5;
+  --sigiu-bordo: #8f3540;
+  --sigiu-azul: #123247;
+  --sigiu-cinza: #72828a;
+  --sigiu-bege: #f4f7f8;
 
   --sigiu-dourado-claro: #f5ce99;
   --sigiu-dourado: #cca269;
   --sigiu-marrom: #66563d;
-  --sigiu-verde-profundo: #0d3634;
-  --sigiu-verde-institucional: #045a52;
-  --sigiu-verde-suave: #91baa3;
+  --sigiu-verde-profundo: #123247;
+  --sigiu-verde-institucional: #087f73;
+  --sigiu-verde-suave: #8ebdb7;
 
   /* -----------------------------------------------------
      Cores funcionais do produto
   ----------------------------------------------------- */
-  --sigiu-bg: #f4f6f8;
+  --sigiu-bg: #f4f7f8;
   --sigiu-surface: #ffffff;
-  --sigiu-surface-soft: #f8faf9;
-  --sigiu-border: rgba(13, 54, 52, 0.12);
-  --sigiu-border-strong: rgba(13, 54, 52, 0.22);
+  --sigiu-surface-soft: #f7fafb;
+  --sigiu-border: #dfe6e8;
+  --sigiu-border-strong: #cbd7da;
 
-  --sigiu-text: #222d45;
-  --sigiu-text-muted: #6a6a6a;
-  --sigiu-text-soft: #8a9099;
+  --sigiu-text: #263a45;
+  --sigiu-text-muted: #72828a;
+  --sigiu-text-soft: #8b989e;
   --sigiu-text-invert: #ffffff;
 
   /* -----------------------------------------------------
@@ -52,21 +52,22 @@
   /* -----------------------------------------------------
      Gradientes institucionais
   ----------------------------------------------------- */
-  --sigiu-gradient-primary: linear-gradient(90deg, var(--sigiu-verde-profundo), var(--sigiu-verde-institucional));
-  --sigiu-gradient-deep: linear-gradient(180deg, #073431 0%, #045a52 100%);
+  --sigiu-gradient-primary: linear-gradient(90deg, var(--sigiu-azul), var(--sigiu-verde-institucional));
+  --sigiu-gradient-deep: linear-gradient(180deg, #123247 0%, #0b4f55 100%);
   --sigiu-gradient-gold: linear-gradient(135deg, var(--sigiu-dourado-claro), var(--sigiu-dourado));
 
   /* -----------------------------------------------------
      Tipografia
   ----------------------------------------------------- */
   --sigiu-font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  --sigiu-font-family-display: Georgia, "Times New Roman", serif;
 
-  --sigiu-font-size-xs: 0.75rem;
-  --sigiu-font-size-sm: 0.875rem;
-  --sigiu-font-size-md: 1rem;
-  --sigiu-font-size-lg: 1.125rem;
-  --sigiu-font-size-xl: 1.5rem;
-  --sigiu-font-size-2xl: 2rem;
+  --sigiu-font-size-xs: 8px;
+  --sigiu-font-size-sm: 9px;
+  --sigiu-font-size-md: 11px;
+  --sigiu-font-size-lg: 12px;
+  --sigiu-font-size-xl: 17px;
+  --sigiu-font-size-2xl: 27px;
 
   --sigiu-font-weight-regular: 400;
   --sigiu-font-weight-medium: 500;
@@ -89,21 +90,21 @@
   /* -----------------------------------------------------
      Raios e sombras
   ----------------------------------------------------- */
-  --sigiu-radius-sm: 8px;
-  --sigiu-radius-md: 12px;
-  --sigiu-radius-lg: 16px;
-  --sigiu-radius-xl: 20px;
+  --sigiu-radius-sm: 7px;
+  --sigiu-radius-md: 10px;
+  --sigiu-radius-lg: 12px;
+  --sigiu-radius-xl: 16px;
   --sigiu-radius-pill: 999px;
 
-  --sigiu-shadow-sm: 0 2px 8px rgba(13, 54, 52, 0.06);
-  --sigiu-shadow-md: 0 6px 20px rgba(13, 54, 52, 0.10);
-  --sigiu-shadow-lg: 0 14px 40px rgba(13, 54, 52, 0.16);
+  --sigiu-shadow-sm: 0 3px 10px rgba(18, 50, 71, 0.05);
+  --sigiu-shadow-md: 0 8px 24px rgba(18, 50, 71, 0.09);
+  --sigiu-shadow-lg: 0 18px 50px rgba(18, 50, 71, 0.16);
 
   /* -----------------------------------------------------
      Layout base
   ----------------------------------------------------- */
   --sigiu-sidebar-width: 220px;
-  --sigiu-topbar-height: 76px;
+  --sigiu-topbar-height: 66px;
   --sigiu-mobile-bottom-nav-height: 72px;
 }
 
