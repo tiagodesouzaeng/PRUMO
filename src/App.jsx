@@ -6,34 +6,39 @@
                     Manutenção, Relatórios e Administração.
 ===================================================== */
 
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 import usePPCI from "./hooks/usePPCI";
 import SigiuLayout from "./layouts/SigiuLayout";
-import VisaoGeral from "./pages/VisaoGeral";
-import PPCI from "./pages/PPCI";
-import CentralAlertas from "./pages/CentralAlertas";
-import ConsumoHidrico from "./pages/ConsumoHidrico";
-import Obras from "./pages/Obras";
-import Manutencao from "./pages/Manutencao";
-import Relatorios from "./pages/Relatorios";
-import Administracao from "./pages/Administracao";
-import Orcamento from "./pages/Orcamento";
-import BasesPrecos from "./pages/BasesPrecos";
 import useBasesPrecos from "./hooks/useBasesPrecos";
-import Documentos from "./pages/Documentos";
-import Patrimonio from "./pages/Patrimonio";
-import Planejamento from "./pages/Planejamento";
-import Suprimentos from "./pages/Suprimentos";
-import Contratos from "./pages/Contratos";
 import { criarClientePrumo, obterConfiguracaoInfraestrutura, obterContextoDesenvolvimento } from "./services/infraestruturaCorporativa";
+
+const VisaoGeral = lazy(() => import("./pages/VisaoGeral"));
+const PPCI = lazy(() => import("./pages/PPCI"));
+const CentralAlertas = lazy(() => import("./pages/CentralAlertas"));
+const ConsumoHidrico = lazy(() => import("./pages/ConsumoHidrico"));
+const Obras = lazy(() => import("./pages/Obras"));
+const Manutencao = lazy(() => import("./pages/Manutencao"));
+const Relatorios = lazy(() => import("./pages/Relatorios"));
+const Administracao = lazy(() => import("./pages/Administracao"));
+const Orcamento = lazy(() => import("./pages/Orcamento"));
+const BasesPrecos = lazy(() => import("./pages/BasesPrecos"));
+const Documentos = lazy(() => import("./pages/Documentos"));
+const Patrimonio = lazy(() => import("./pages/Patrimonio"));
+const Planejamento = lazy(() => import("./pages/Planejamento"));
+const Suprimentos = lazy(() => import("./pages/Suprimentos"));
+const Contratos = lazy(() => import("./pages/Contratos"));
+const Financeiro = lazy(() => import("./pages/Financeiro"));
+const Convenios = lazy(() => import("./pages/Convenios"));
+const Regularidade = lazy(() => import("./pages/Regularidade"));
 
 function App() {
   const [paginaAtiva, setPaginaAtiva] = useState("visao-geral");
   const dadosPPCI = usePPCI();
   const basesPrecos = useBasesPrecos();
   const [modulosPermitidos, setModulosPermitidos] = useState(null);
+  const [catalogoCarregado, setCatalogoCarregado] = useState(false);
   const cliente = useMemo(() => {
     const config = obterConfiguracaoInfraestrutura();
     return config.apiConfigurada
@@ -42,11 +47,17 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!cliente) return;
+    if (!cliente) {
+      setCatalogoCarregado(true);
+      return;
+    }
     cliente.listarModulos()
       .then((modulos) => setModulosPermitidos(new Set(modulos.map((item) => item.id))))
-      .catch(() => setModulosPermitidos(null));
+      .catch(() => setModulosPermitidos(new Set()))
+      .finally(() => setCatalogoCarregado(true));
   }, [cliente]);
+
+  const modulosNavegacao = cliente && !catalogoCarregado ? new Set() : modulosPermitidos;
 
   function renderizarPagina() {
     switch (paginaAtiva) {
@@ -87,6 +98,15 @@ function App() {
       case "contratos":
         return <Contratos />;
 
+      case "financeiro":
+        return <Financeiro />;
+
+      case "convenios":
+        return <Convenios />;
+
+      case "regularidade":
+        return <Regularidade />;
+
       case "orcamento":
         return <Orcamento basesPrecos={basesPrecos} />;
 
@@ -120,9 +140,11 @@ function App() {
       paginaAtiva={paginaAtiva}
       setPaginaAtiva={setPaginaAtiva}
       ultimaAtualizacao={dadosPPCI.ultimaAtualizacao}
-      modulosPermitidos={modulosPermitidos}
+      modulosPermitidos={modulosNavegacao}
     >
-      {renderizarPagina()}
+      <Suspense fallback={<div className="sigiu-empty">Carregando módulo…</div>}>
+        {renderizarPagina()}
+      </Suspense>
     </SigiuLayout>
   );
 }

@@ -486,6 +486,16 @@ textarea {
   padding: 12px 24px;
 }
 
+.sigiu-context-scope-notice {
+  margin: -4px 0 14px;
+  padding: 8px 12px;
+  border: 1px solid rgba(4, 90, 82, .16);
+  border-radius: 9px;
+  background: rgba(4, 90, 82, .06);
+  color: var(--sigiu-verde-profundo);
+  font-size: .78rem;
+}
+
 .sigiu-topbar-title h1 {
   color: var(--sigiu-azul);
   font-family: var(--sigiu-font-family-display);
@@ -569,4 +579,225 @@ textarea {
   .sigiu-form-grid .span-2 {
     grid-column: auto;
   }
+}
+
+/* Roadmap gerencial centralizado na Auditoria. */
+.sigiu-roadmap-card {
+  overflow: hidden;
+}
+
+.sigiu-roadmap-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.sigiu-roadmap-summary article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface-soft);
+}
+
+.sigiu-roadmap-summary span {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+.sigiu-roadmap-summary strong {
+  color: var(--sigiu-azul);
+  font-size: 22px;
+}
+
+.sigiu-roadmap-progress {
+  height: 8px;
+  margin: 14px 0 24px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--sigiu-neutral-soft);
+}
+
+.sigiu-roadmap-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--sigiu-verde-institucional), #2ba99d);
+}
+
+.sigiu-roadmap-phases {
+  display: grid;
+  gap: 24px;
+}
+
+.sigiu-roadmap-phase > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--sigiu-border);
+}
+
+.sigiu-roadmap-phase > header h3 {
+  margin: 0;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 17px;
+}
+
+.sigiu-roadmap-phase > header span {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+.sigiu-roadmap-timeline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  padding-top: 14px;
+}
+
+.sigiu-roadmap-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.sigiu-roadmap-marker {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.sigiu-roadmap-marker::after {
+  position: absolute;
+  top: 15px;
+  bottom: -18px;
+  width: 2px;
+  background: var(--sigiu-border);
+  content: "";
+}
+
+.sigiu-roadmap-item:last-child .sigiu-roadmap-marker::after {
+  display: none;
+}
+
+.sigiu-roadmap-marker i {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  margin-top: 5px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--sigiu-neutral);
+  box-shadow: 0 0 0 2px var(--sigiu-border);
+}
+
+.sigiu-roadmap-item.is-complete .sigiu-roadmap-marker i {
+  background: var(--sigiu-verde-institucional);
+  box-shadow: 0 0 0 2px rgba(8, 127, 115, 0.25);
+}
+
+.sigiu-roadmap-item.is-current .sigiu-roadmap-marker i {
+  background: var(--sigiu-warning);
+  box-shadow: 0 0 0 3px var(--sigiu-warning-soft);
+}
+
+.sigiu-roadmap-content {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: #fff;
+}
+
+.sigiu-roadmap-item.is-current .sigiu-roadmap-content {
+  border-color: rgba(184, 138, 34, 0.42);
+  background: var(--sigiu-warning-soft);
+}
+
+.sigiu-roadmap-content > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sigiu-roadmap-content > header span,
+.sigiu-roadmap-content > header em {
+  font-size: var(--sigiu-font-size-xs);
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sigiu-roadmap-content > header span {
+  color: var(--sigiu-verde-institucional);
+}
+
+.sigiu-roadmap-content > header em {
+  color: var(--sigiu-text-muted);
+}
+
+.sigiu-roadmap-content h4 {
+  margin: 7px 0 4px;
+  color: var(--sigiu-azul);
+  font-size: var(--sigiu-font-size-lg);
+}
+
+.sigiu-roadmap-content p {
+  margin: 0;
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+  line-height: 1.45;
+}
+
+.sigiu-roadmap-content > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.sigiu-roadmap-content small {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--sigiu-surface-soft);
+  color: var(--sigiu-text);
+  font-size: 10px;
+}
+
+@media (max-width: 900px) {
+  .sigiu-roadmap-summary,
+  .sigiu-roadmap-timeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .sigiu-roadmap-summary,
+  .sigiu-roadmap-timeline {
+    grid-template-columns: 1fr;
+  }
+}
+.sigiu-document-versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.sigiu-document-versions .sigiu-btn {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

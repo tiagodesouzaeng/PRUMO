@@ -30,24 +30,24 @@ hierarquia física canônica.
 
 ## Módulos funcionais
 
-| ID planejado | Módulo | Responsabilidade | Situação ao final da Sprint 12 |
+| ID | Módulo | Responsabilidade | Situação na versão 20.0 |
 |---|---|---|---|
 | `visao-geral` | Visão Geral | Indicadores e visão consolidada | Existente |
 | `patrimonio` | Patrimônio Imobiliário | Sites, prédios, salas, áreas, ocupação e ativos | Fundação corporativa disponível |
 | `planejamento` | Demandas e Investimentos | Demandas, prioridades, programas e carteira | Fundação corporativa disponível |
-| `obras` | Obras e Reformas | Planejamento e execução dos empreendimentos | Parcial |
+| `obras` | Obras e Reformas | Planejamento e execução dos empreendimentos | Operacional |
 | `orcamentos` | Orçamentos e Composições | EAP, custos, BDI, cronograma e revisões | Existente |
 | `bases-precos` | Bases de Preços | Fontes, publicações, insumos e composições | Existente |
 | `suprimentos` | Suprimentos e Contratações | Planejamento, pesquisa de preços, seleção, pedidos e recebimentos | Operacional |
 | `contratos` | Contratos e Atas | Instrumentos, saldos, vigência, aditivos, fiscalização, sanções e encerramento | Operacional |
-| `financeiro` | Financeiro-Orçamentário | Orçamento, compromissos, execução e pagamentos | Planejado |
-| `medicoes` | Medições e Fiscalização | Boletins, evidências, glosas, aceite e evolução | Existente |
-| `manutencao` | Manutenção e Facilities | Chamados, planos, ordens de serviço, SLA e custos | Parcial |
-| `regularidade` | Regularidade e Compliance | PPCI, licenças, ART/RRT, riscos e vencimentos | Parcial em `ppci` |
+| `financeiro` | Financeiro-Orçamentário | Orçamento, compromissos, execução, deduções, pagamentos e conciliação | Operacional |
+| `medicoes` | Medições e Fiscalização | Boletins, evidências, glosas, aceite e evolução | Operacional |
+| `manutencao` | Manutenção e Facilities | Chamados, planos, ordens de serviço, SLA e custos | Operacional |
+| `regularidade` | Regularidade e Compliance | PPCI, licenças, ART/RRT, riscos e vencimentos | Operacional |
 | `utilidades` | Consumos e Utilidades | Água, energia, gás, resíduos, metas e anomalias | Parcial |
-| `convenios` | Convênios e Repasses | Instrumentos, metas, repasses e prestação de contas | Planejado |
+| `convenios` | Convênios e Repasses | Instrumentos, metas, repasses e prestação de contas | Operacional |
 | `documentos` | Documentos e GED | Arquivos, versões, protocolo, aprovação e assinatura | Fundação corporativa disponível |
-| `relatorios` | BI, Relatórios e Transparência | Indicadores, análises e publicações autorizadas | Parcial |
+| `relatorios` | BI, Relatórios e Transparência | Indicadores, análises e publicações autorizadas | Operacional |
 | `administracao` | Administração | Configuração, segurança, auditoria e integrações | Existente |
 
 Os IDs planejados somente devem entrar no catálogo executável quando o módulo

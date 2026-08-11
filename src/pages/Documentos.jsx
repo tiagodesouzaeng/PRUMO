@@ -12,7 +12,8 @@ export default function Documentos() {
   const [documentos, setDocumentos] = useState([]);
   const [titulo, setTitulo] = useState("");
   const [documentoId, setDocumentoId] = useState("");
-  const [versao, setVersao] = useState({ nomeArquivo: "", sha256: "", storageKey: "" });
+  const [arquivo, setArquivo] = useState(null);
+  const [enviando, setEnviando] = useState(false);
   const [vinculo, setVinculo] = useState({ moduleId: "medicoes", entidadeTipo: "medicao", entidadeId: "" });
   const [mensagem, setMensagem] = useState(cliente ? "Carregando documentos…" : "Conecte a API corporativa para usar o GED.");
 
@@ -30,14 +31,48 @@ export default function Documentos() {
 
   async function adicionarVersao(event) {
     event.preventDefault();
+    if (!cliente || !documentoId || !arquivo) return;
+    const formulario = event.currentTarget;
+    setEnviando(true);
+    try {
+      const hashBuffer = await crypto.subtle.digest("SHA-256", await arquivo.arrayBuffer());
+      const sha256 = [...new Uint8Array(hashBuffer)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      const upload = await cliente.solicitarUploadDocumento(documentoId, {
+        nomeArquivo: arquivo.name,
+        tipoMime: arquivo.type || "application/octet-stream",
+        tamanhoBytes: arquivo.size,
+        sha256,
+      });
+      const respostaUpload = await fetch(upload.url, {
+        method: upload.metodo || "PUT",
+        headers: upload.headers || {},
+        body: arquivo,
+      });
+      if (!respostaUpload.ok) throw new Error("O armazenamento não confirmou o envio do arquivo.");
+      await cliente.adicionarVersaoDocumento(documentoId, {
+        nomeArquivo: arquivo.name,
+        tipoMime: arquivo.type || "application/octet-stream",
+        tamanhoBytes: arquivo.size,
+        sha256,
+        storageKey: upload.storageKey,
+        metadados: { origem: "upload-corporativo" },
+      });
+      setArquivo(null);
+      formulario.reset();
+      setMensagem("Arquivo enviado e versão registrada com integridade SHA-256.");
+      await carregar();
+    } catch (error) { setMensagem(error.message); }
+    finally { setEnviando(false); }
+  }
+
+  async function baixarVersao(numero) {
     if (!cliente || !documentoId) return;
     try {
-      await cliente.adicionarVersaoDocumento(documentoId, {
-        ...versao, tipoMime: "application/octet-stream", tamanhoBytes: 0,
-        metadados: { origem: "registro-assistido" },
-      });
-      setVersao({ nomeArquivo: "", sha256: "", storageKey: "" });
-      await carregar();
+      const download = await cliente.solicitarDownloadDocumento(documentoId, numero);
+      const link = document.createElement("a");
+      link.href = download.url;
+      link.rel = "noopener";
+      link.click();
     } catch (error) { setMensagem(error.message); }
   }
 
@@ -69,7 +104,7 @@ export default function Documentos() {
     <section className="sigiu-page sigiu-page-modulo">
       <div className="sigiu-page-heading sigiu-page-heading--modulo">
         <div><span className="sigiu-page-eyebrow">Gestão documental</span><h1>Documentos e GED</h1><p>Documentos técnicos com versões, hash de integridade, responsável e vínculos aos módulos.</p></div>
-        <div className="sigiu-page-heading__meta"><strong>10.5</strong><span>fundação corporativa</span></div>
+        <div className="sigiu-page-heading__meta"><strong>GED</strong><span>gestão documental</span></div>
       </div>
       <div className="sigiu-module-kpis">
         <article className="sigiu-module-kpi sigiu-module-kpi--primary"><span>▣</span><small>Documentos</small><strong>{documentos.length}</strong><em>no acervo</em></article>
@@ -95,14 +130,22 @@ export default function Documentos() {
       </div>
       <div className="sigiu-module-grid sigiu-module-grid--main-side">
         <section className="sigiu-card sigiu-admin-card">
-          <header className="sigiu-card-header-row"><div><h2>Registrar versão</h2><p>Informe a referência criada pelo armazenamento corporativo e o hash calculado sobre o arquivo.</p></div></header>
+          <header className="sigiu-card-header-row"><div><h2>Enviar nova versão</h2><p>O PRUMO calcula o hash, envia o arquivo ao storage seguro e registra a versão automaticamente.</p></div></header>
           <form className="sigiu-simple-form" onSubmit={adicionarVersao}>
             <label><span>Documento</span><select value={documentoId} onChange={(e) => setDocumentoId(e.target.value)}>{documentos.map((item) => <option key={item.id} value={item.id}>{item.titulo}</option>)}</select></label>
-            <label><span>Nome do arquivo</span><input value={versao.nomeArquivo} onChange={(e) => setVersao((atual) => ({ ...atual, nomeArquivo: e.target.value }))} placeholder="projeto-executivo.pdf" /></label>
-            <label><span>SHA-256</span><input value={versao.sha256} onChange={(e) => setVersao((atual) => ({ ...atual, sha256: e.target.value.toLowerCase() }))} maxLength={64} placeholder="64 caracteres hexadecimais" /></label>
-            <label><span>Referência segura</span><input value={versao.storageKey} onChange={(e) => setVersao((atual) => ({ ...atual, storageKey: e.target.value }))} placeholder="tenant/documentos/arquivo.pdf" /></label>
-            <button className="sigiu-btn sigiu-btn--primary" type="submit" disabled={!documentoId || !versao.nomeArquivo || !/^[0-9a-f]{64}$/.test(versao.sha256) || !versao.storageKey}>Registrar versão</button>
+            <label><span>Arquivo</span><input type="file" onChange={(e) => setArquivo(e.target.files?.[0] || null)} /></label>
+            {arquivo && <small>{arquivo.name} · {(arquivo.size / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} KB</small>}
+            <button className="sigiu-btn sigiu-btn--primary" type="submit" disabled={!documentoId || !arquivo || enviando}>{enviando ? "Enviando..." : "Enviar e registrar versão"}</button>
           </form>
+          {!!documentos.find((item) => item.id === documentoId)?.versoes?.length && (
+            <div className="sigiu-document-versions">
+              {documentos.find((item) => item.id === documentoId).versoes.map((item) => (
+                <button type="button" className="sigiu-btn sigiu-btn--outline" key={item.numero} onClick={() => baixarVersao(item.numero)}>
+                  Baixar v{item.numero} · {item.nomeArquivo}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
         <section className="sigiu-card sigiu-admin-card">
           <header className="sigiu-card-header-row"><div><h2>Vincular anexo</h2><p>Associe o documento a uma medição ou a outra entidade técnica sem duplicar o arquivo.</p></div></header>

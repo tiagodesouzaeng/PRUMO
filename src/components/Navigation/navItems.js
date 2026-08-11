@@ -1,6 +1,7 @@
 export const SIGIU_NAV_ITEMS = [
   { id: "visao-geral", moduleId: "visao-geral", label: "Visão Geral", icon: "⌂", grupo: "principal" },
   { id: "ppci", moduleId: "ppci", label: "PPCI", icon: "🛡", grupo: "principal" },
+  { id: "regularidade", moduleId: "regularidade", label: "Regularidade", icon: "✓", grupo: "principal" },
   { id: "alertas", moduleId: "visao-geral", label: "Alertas", icon: "⚠", grupo: "principal" },
   { id: "hidrico", moduleId: "utilidades", label: "Consumo Hídrico", icon: "💧", grupo: "infraestrutura" },
   { id: "patrimonio", moduleId: "patrimonio", label: "Patrimônio", icon: "▦", grupo: "infraestrutura" },
@@ -10,8 +11,10 @@ export const SIGIU_NAV_ITEMS = [
   { id: "bases-precos", moduleId: "bases-precos", label: "Bases de Preços", icon: "◫", grupo: "infraestrutura" },
   { id: "suprimentos", moduleId: "suprimentos", label: "Suprimentos", icon: "◇", grupo: "gestao" },
   { id: "contratos", moduleId: "contratos", label: "Contratos", icon: "▤", grupo: "gestao" },
+  { id: "financeiro", moduleId: "financeiro", label: "Financeiro", icon: "$", grupo: "gestao" },
   { id: "manutencao", moduleId: "manutencao", label: "Manutenção", icon: "🔧", grupo: "infraestrutura" },
   { id: "documentos", moduleId: "documentos", label: "Documentos", icon: "▣", grupo: "gestao" },
+  { id: "convenios", moduleId: "convenios", label: "Convênios", icon: "⇄", grupo: "gestao" },
   { id: "relatorios", moduleId: "relatorios", label: "Relatórios", icon: "▥", grupo: "gestao" },
   { id: "administracao", moduleId: "administracao", label: "Administração", icon: "⚙", grupo: "gestao" },
 ];

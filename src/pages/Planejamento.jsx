@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { criarClientePrumo, obterConfiguracaoInfraestrutura, obterContextoDesenvolvimento } from "../services/infraestruturaCorporativa";
+import { useContextoPatrimonial } from "../contexts/ContextoPatrimonialContext";
 
 const STATUS = { rascunho: "Rascunho", em_analise: "Em análise", priorizada: "Priorizada", aprovada: "Aprovada", rejeitada: "Rejeitada", incorporada: "Na carteira" };
 const CATEGORIAS = { obra_reforma: "Obras e reformas", manutencao: "Manutenção", regularidade: "Regularidade", eficiencia: "Eficiência", acessibilidade: "Acessibilidade", tecnologia: "Tecnologia", outro: "Outro" };
@@ -23,6 +24,7 @@ function prepararDemanda(item) {
 }
 
 export default function Planejamento() {
+  const contextoPatrimonial = useContextoPatrimonial();
   const cliente = useMemo(() => { const config = obterConfiguracaoInfraestrutura(); return config.apiConfigurada ? criarClientePrumo({ baseUrl: config.apiUrl, obterContexto: () => obterContextoDesenvolvimento() }) : null; }, []);
   const [dados, setDados] = useState({ demandas: [], programas: [], carteiras: [], unidades: [] });
   const [aba, setAba] = useState("demandas"); const [filtro, setFiltro] = useState(""); const [status, setStatus] = useState("");
@@ -38,8 +40,9 @@ export default function Planejamento() {
   }
   useEffect(() => { carregar(); }, []);
 
-  const demandas = useMemo(() => dados.demandas.filter((item) => !status || item.status === status).filter((item) => !filtro || `${item.codigo} ${item.titulo} ${item.solicitante}`.toLocaleLowerCase("pt-BR").includes(filtro.toLocaleLowerCase("pt-BR"))), [dados.demandas, filtro, status]);
-  const totais = useMemo(() => ({ total: dados.demandas.length, analise: dados.demandas.filter((item) => ["em_analise", "priorizada"].includes(item.status)).length, aprovadas: dados.demandas.filter((item) => ["aprovada", "incorporada"].includes(item.status)).length, valor: dados.demandas.filter((item) => item.status === "incorporada").reduce((soma, item) => soma + Number(item.valorEstimado || 0), 0) }), [dados.demandas]);
+  const demandasEscopo = useMemo(() => dados.demandas.filter((item) => contextoPatrimonial.estaNoEscopo(item.patrimonioUnidadeId)), [dados.demandas, contextoPatrimonial.idsEscopo]);
+  const demandas = useMemo(() => demandasEscopo.filter((item) => !status || item.status === status).filter((item) => !filtro || `${item.codigo} ${item.titulo} ${item.solicitante}`.toLocaleLowerCase("pt-BR").includes(filtro.toLocaleLowerCase("pt-BR"))), [demandasEscopo, filtro, status]);
+  const totais = useMemo(() => ({ total: demandasEscopo.length, analise: demandasEscopo.filter((item) => ["em_analise", "priorizada"].includes(item.status)).length, aprovadas: demandasEscopo.filter((item) => ["aprovada", "incorporada"].includes(item.status)).length, valor: demandasEscopo.filter((item) => item.status === "incorporada").reduce((soma, item) => soma + Number(item.valorEstimado || 0), 0) }), [demandasEscopo]);
 
   function abrirDemanda(item = null) { setForm(item ? { ...item } : { ...vazioDemanda, codigo: proximoCodigo("D", dados.demandas) }); setModal("demanda"); }
   async function salvarDemanda(evento) {
@@ -71,8 +74,9 @@ export default function Planejamento() {
   }
 
   return <div className="sigiu-page sigiu-planning">
-    <header className="sigiu-page-heading sigiu-page-heading--modulo sigiu-planning-header"><div><span className="sigiu-page-eyebrow">SPRINT 12 · PLANEJAMENTO</span><h1>Demandas e investimentos</h1><p>Da necessidade identificada no patrimônio à carteira anual aprovada.</p></div><button className="sigiu-primary" onClick={() => abrirDemanda()}>+ Nova demanda</button></header>
+    <header className="sigiu-page-heading sigiu-page-heading--modulo sigiu-planning-header"><div><span className="sigiu-page-eyebrow">Planejamento estratégico</span><h1>Demandas e investimentos</h1><p>Da necessidade identificada no patrimônio à carteira anual aprovada.</p></div><button className="sigiu-primary" onClick={() => abrirDemanda()}>+ Nova demanda</button></header>
     {mensagem && <div className="sigiu-feedback">{mensagem}</div>}
+    {contextoPatrimonial.unidadeAtiva && <div className="sigiu-context-scope-notice">Exibindo o contexto: <strong>{contextoPatrimonial.unidadeAtiva.nome}</strong></div>}
     <section className="sigiu-planning-kpis">
       <article><span>Demandas</span><strong>{totais.total}</strong></article><article><span>Em avaliação</span><strong>{totais.analise}</strong></article><article><span>Aprovadas</span><strong>{totais.aprovadas}</strong></article><article><span>Carteira incorporada</span><strong>{moeda(totais.valor)}</strong></article>
     </section>

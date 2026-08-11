@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import { ApiError, asApiError } from "./errors.js";
 import { criarWorkerTrabalhos } from "./workers/jobWorker.js";
 import { exportarAuditoriaCsv } from "./domain/audit.js";
+import { criarArmazenamentoDesabilitado } from "./storage/objectStorage.js";
 
 const esquemaOrcamento = {
   type: "object",
@@ -328,6 +329,39 @@ const esquemaGarantiaContrato = { type:"object",required:["tipo"],additionalProp
 const esquemaOcorrenciaContrato = { type:"object",required:["descricao"],additionalProperties:false,properties:{ dataOcorrencia:{type:"string",format:"date"},tipo:{type:"string",maxLength:120},severidade:{enum:["baixa","media","alta","critica"]},descricao:{type:"string",minLength:3,maxLength:8000},providencia:{type:"string",maxLength:8000},status:{enum:["aberta","em_tratamento","resolvida"]} } };
 const esquemaSancaoContrato = { type:"object",required:["tipo","fundamento"],additionalProperties:false,properties:{ occurrenceId:{type:"string"},tipo:{enum:["advertencia","multa","suspensao","impedimento","declaracao_inidoneidade"]},fundamento:{type:"string",minLength:3,maxLength:8000},valor:{type:"number",minimum:0},dataAplicacao:{type:"string",format:"date"},dataFim:{type:"string",format:"date"} } };
 const esquemaExecucaoContrato = { type:"object",required:["valor"],additionalProperties:false,properties:{ origem:{enum:["manual","medicao","recebimento","financeiro"]},referenciaId:{type:"string",maxLength:240},dataExecucao:{type:"string",format:"date"},valor:{type:"number",exclusiveMinimum:0},descricao:{type:"string",maxLength:4000} } };
+const esquemaCentroCustoFinanceiro = { type:"object",required:["codigo","nome"],additionalProperties:false,properties:{ codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},responsavel:{type:"string",maxLength:240},status:{enum:["ativo","inativo"]},dados:{type:"object",additionalProperties:true} } };
+const esquemaFonteFinanceira = { type:"object",required:["codigo","nome"],additionalProperties:false,properties:{ codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},tipo:{enum:["tesouro","transferencia","convenio","propria","financiamento","outra"]},status:{enum:["ativa","inativa"]},dados:{type:"object",additionalProperties:true} } };
+const esquemaOrcamentoFinanceiro = { type:"object",required:["costCenterId","fundingSourceId","codigo","descricao","ano","classificacao","valorInicial"],additionalProperties:false,properties:{ costCenterId:{type:"string",minLength:1},fundingSourceId:{type:"string",minLength:1},codigo:{type:"string",minLength:1,maxLength:80},descricao:{type:"string",minLength:2,maxLength:500},ano:{type:"integer",minimum:2000,maximum:2200},classificacao:{enum:["capex","opex"]},valorInicial:{type:"number",minimum:0},ajustes:{type:"number"},status:{enum:["ativo","bloqueado","encerrado"]},dados:{type:"object",additionalProperties:true} } };
+const esquemaCompromissoFinanceiro = { type:"object",required:["budgetId","codigo","descricao","competencia","valorTotal"],additionalProperties:false,properties:{ budgetId:{type:"string",minLength:1},codigo:{type:"string",minLength:1,maxLength:80},descricao:{type:"string",minLength:2,maxLength:1000},origemTipo:{enum:["manual","pedido","contrato","medicao"]},origemId:{type:"string",maxLength:240},beneficiario:{type:"string",maxLength:240},competencia:{type:"string",format:"date"},dataVencimento:{type:"string",format:"date"},valorTotal:{type:"number",exclusiveMinimum:0},referenciaExterna:{type:"string",maxLength:240},dados:{type:"object",additionalProperties:true} } };
+const esquemaMovimentoFinanceiro = { type:"object",required:["tipo"],additionalProperties:false,properties:{ tipo:{enum:["reserva","compromisso","liquidacao","pagamento","cancelamento"]},dataMovimento:{type:"string",format:"date"},valor:{type:"number",minimum:0},retencoes:{type:"number",minimum:0},glosas:{type:"number",minimum:0},documento:{type:"string",maxLength:240},referenciaExterna:{type:"string",maxLength:240},justificativa:{type:"string",maxLength:4000},dados:{type:"object",additionalProperties:true} } };
+const esquemaObraCorporativa = { type:"object",required:["patrimonioUnidadeId","codigo","nome","dataInicio","dataFimPrevista","valorPrevisto"],additionalProperties:false,properties:{ patrimonioUnidadeId:{type:"string",minLength:1},contractId:{type:"string"},orcamentoId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},responsavel:{type:"string",maxLength:240},dataInicio:{type:"string",format:"date"},dataFimPrevista:{type:"string",format:"date"},valorPrevisto:{type:"number",minimum:0},progressoFisico:{type:"number",minimum:0,maximum:100},dados:{type:"object",additionalProperties:true} } };
+const esquemaDecisaoObra = { type:"object",required:["acao"],additionalProperties:false,properties:{ acao:{enum:["iniciar","suspender","retomar","concluir","cancelar"]},justificativa:{type:"string",maxLength:4000} } };
+const esquemaCronogramaObra = { type:"object",required:["codigo","titulo","dataInicio","dataFim"],additionalProperties:false,properties:{ codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},dataInicio:{type:"string",format:"date"},dataFim:{type:"string",format:"date"},peso:{type:"number",minimum:0,maximum:100},progresso:{type:"number",minimum:0,maximum:100},valorPrevisto:{type:"number",minimum:0},status:{enum:["planejado","em_andamento","concluido","atrasado","cancelado"]},dados:{type:"object",additionalProperties:true} } };
+const esquemaDiarioObra = { type:"object",required:["dataRegistro","atividades"],additionalProperties:false,properties:{ dataRegistro:{type:"string",format:"date"},clima:{type:"string",maxLength:120},efetivo:{type:"integer",minimum:0},atividades:{type:"string",minLength:3,maxLength:8000},ocorrencias:{type:"string",maxLength:8000},evidencias:{type:"array",maxItems:50,items:{type:"object",additionalProperties:true}} } };
+const esquemaMedicaoObra = { type:"object",required:["numero","periodoInicio","periodoFim","valorBruto"],additionalProperties:false,properties:{ numero:{type:"integer",minimum:1},periodoInicio:{type:"string",format:"date"},periodoFim:{type:"string",format:"date"},valorBruto:{type:"number",exclusiveMinimum:0},retencoes:{type:"number",minimum:0},glosas:{type:"number",minimum:0},multas:{type:"number",minimum:0},itens:{type:"array",maxItems:1000,items:{type:"object",additionalProperties:true}},dados:{type:"object",additionalProperties:true} } };
+const esquemaDecisaoMedicao = { type:"object",required:["acao"],additionalProperties:false,properties:{ acao:{enum:["enviar","aprovar","glosar","devolver","aceitar","cancelar"]},justificativa:{type:"string",maxLength:4000} } };
+const esquemaPlanoManutencao = { type:"object",required:["codigo","nome","periodicidadeDias","proximaExecucao"],additionalProperties:false,properties:{ patrimonioUnidadeId:{type:"string"},ativoId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},especialidade:{type:"string",maxLength:120},periodicidadeDias:{type:"integer",minimum:1,maximum:3650},proximaExecucao:{type:"string",format:"date"},responsavel:{type:"string",maxLength:240},status:{enum:["ativo","suspenso","encerrado"]},dados:{type:"object",additionalProperties:true} } };
+const esquemaChamadoManutencao = { type:"object",required:["patrimonioUnidadeId","codigo","titulo","descricao","prioridade"],additionalProperties:false,properties:{ patrimonioUnidadeId:{type:"string",minLength:1},ativoId:{type:"string"},planoId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",minLength:3,maxLength:8000},tipo:{enum:["corretiva","preventiva","inspecao","melhoria"]},prioridade:{enum:["critica","alta","media","baixa"]},solicitante:{type:"string",maxLength:240},responsavel:{type:"string",maxLength:240},dados:{type:"object",additionalProperties:true} } };
+const esquemaDecisaoManutencao = { type:"object",required:["acao"],additionalProperties:false,properties:{ acao:{enum:["triar","programar","iniciar","resolver","reabrir","fechar","cancelar"]},justificativa:{type:"string",maxLength:4000},responsavel:{type:"string",maxLength:240} } };
+const esquemaOrdemManutencao = { type:"object",required:["codigo"],additionalProperties:false,properties:{ codigo:{type:"string",minLength:1,maxLength:80},equipe:{type:"string",maxLength:240},fornecedorId:{type:"string"},dataProgramada:{type:"string",format:"date"},diagnostico:{type:"string",maxLength:8000},dados:{type:"object",additionalProperties:true} } };
+const esquemaRecursoManutencao = { type:"object",required:["tipo","descricao","quantidade"],additionalProperties:false,properties:{ tipo:{enum:["material","mao_obra","equipamento","servico"]},descricao:{type:"string",minLength:2,maxLength:500},unidade:{type:"string",maxLength:40},quantidade:{type:"number",exclusiveMinimum:0},valorUnitario:{type:"number",minimum:0} } };
+const esquemaConciliacaoFinanceira = { type:"object",required:["referenciaExterna","status"],additionalProperties:false,properties:{ referenciaExterna:{type:"string",minLength:1,maxLength:240},dataConciliacao:{type:"string",format:"date"},status:{enum:["conciliado","divergente","pendente"]},diferenca:{type:"number"},observacao:{type:"string",maxLength:4000} } };
+const esquemaConvenio = {type:"object",required:["codigo","titulo","concedente","convenente","objeto","dataInicio","dataFim"],additionalProperties:false,properties:{codigo:{type:"string",minLength:1,maxLength:80},numero:{type:"string",maxLength:120},titulo:{type:"string",minLength:2,maxLength:240},programa:{type:"string",maxLength:240},concedente:{type:"string",minLength:2,maxLength:240},convenente:{type:"string",minLength:2,maxLength:240},objeto:{type:"string",minLength:3,maxLength:8000},dataInicio:{type:"string",format:"date"},dataFim:{type:"string",format:"date"},valorRepasse:{type:"number",minimum:0},valorContrapartida:{type:"number",minimum:0},dados:{type:"object",additionalProperties:true}}};
+const esquemaDecisaoConvenio={type:"object",required:["acao"],additionalProperties:false,properties:{acao:{enum:["ativar","cancelar","iniciar_execucao","prestar_contas","encerrar","reabrir_execucao"]},justificativa:{type:"string",maxLength:4000}}};
+const esquemaMetaConvenio={type:"object",required:["codigo","descricao"],additionalProperties:false,properties:{codigo:{type:"string",minLength:1,maxLength:80},descricao:{type:"string",minLength:2,maxLength:2000},unidade:{type:"string",maxLength:40},quantidadePrevista:{type:"number",minimum:0},valorPrevisto:{type:"number",minimum:0},inicioPrevisto:{type:"string",format:"date"},fimPrevisto:{type:"string",format:"date"},status:{enum:["planejada","em_execucao","concluida","cancelada"]},dados:{type:"object",additionalProperties:true}}};
+const esquemaRepasseConvenio={type:"object",required:["tipo","valor"],additionalProperties:false,properties:{tipo:{enum:["repasse","contrapartida","rendimento","devolucao"]},parcela:{type:"string",maxLength:120},dataPrevista:{type:"string",format:"date"},dataRealizada:{type:"string",format:"date"},valor:{type:"number",exclusiveMinimum:0},status:{enum:["previsto","recebido","devolvido","cancelado"]},referencia:{type:"string",maxLength:240},dados:{type:"object",additionalProperties:true}}};
+const esquemaExecucaoConvenio={type:"object",required:["dataExecucao","descricao"],additionalProperties:false,properties:{goalId:{type:"string"},dataExecucao:{type:"string",format:"date"},descricao:{type:"string",minLength:2,maxLength:4000},quantidadeExecutada:{type:"number",minimum:0},valorExecutado:{type:"number",minimum:0},evidenciaDocumentoId:{type:"string"},referencia:{type:"string",maxLength:240},dados:{type:"object",additionalProperties:true}}};
+const esquemaPrestacaoConvenio={type:"object",required:["periodoInicio","periodoFim"],additionalProperties:false,properties:{tipo:{enum:["parcial","final"]},periodoInicio:{type:"string",format:"date"},periodoFim:{type:"string",format:"date"},valorInformado:{type:"number",minimum:0},protocolo:{type:"string",maxLength:240},parecer:{type:"string",maxLength:8000},dados:{type:"object",additionalProperties:true}}};
+const esquemaDecisaoPrestacao={type:"object",required:["acao"],additionalProperties:false,properties:{acao:{enum:["submeter","analisar","aprovar","rejeitar"]},protocolo:{type:"string",maxLength:240},parecer:{type:"string",maxLength:8000}}};
+const esquemaDiligenciaConvenio={type:"object",required:["titulo","descricao","prazo"],additionalProperties:false,properties:{accountabilityId:{type:"string"},titulo:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",minLength:3,maxLength:8000},prazo:{type:"string",format:"date"},dados:{type:"object",additionalProperties:true}}};
+const esquemaRequisitoCompliance={type:"object",required:["patrimonioUnidadeId","codigo","tipo","titulo"],additionalProperties:false,properties:{patrimonioUnidadeId:{type:"string",minLength:1},codigo:{type:"string",minLength:1,maxLength:80},tipo:{type:"string",minLength:2,maxLength:120},titulo:{type:"string",minLength:2,maxLength:240},orgaoEmissor:{type:"string",maxLength:240},numeroDocumento:{type:"string",maxLength:240},dataEmissao:{type:"string",format:"date"},dataValidade:{type:"string",format:"date"},responsavel:{type:"string",maxLength:240},status:{enum:["pendente","regular","a_vencer","vencido","dispensado","cancelado"]},criticidade:{enum:["baixa","media","alta","critica"]},documentoId:{type:"string"},dados:{type:"object",additionalProperties:true}}};
+const esquemaRiscoCompliance={type:"object",required:["codigo","titulo","descricao","probabilidade","impacto"],additionalProperties:false,properties:{requirementId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",minLength:3,maxLength:4000},probabilidade:{type:"integer",minimum:1,maximum:5},impacto:{type:"integer",minimum:1,maximum:5},controle:{type:"string",maxLength:4000},responsavel:{type:"string",maxLength:240},status:{enum:["aberto","mitigando","aceito","encerrado"]},dados:{type:"object",additionalProperties:true}}};
+const esquemaAcaoCompliance={type:"object",required:["titulo","descricao","responsavel","prazo"],additionalProperties:false,properties:{titulo:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",minLength:3,maxLength:4000},responsavel:{type:"string",minLength:2,maxLength:240},prazo:{type:"string",format:"date"},percentual:{type:"number",minimum:0,maximum:100},status:{enum:["aberta","em_andamento","concluida","cancelada"]},evidenciaDocumentoId:{type:"string"},dados:{type:"object",additionalProperties:true}}};
+const esquemaAuditoriaCompliance={type:"object",required:["codigo","titulo","escopo","dataAuditoria","auditor","conclusao"],additionalProperties:false,properties:{codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},escopo:{type:"string",minLength:3,maxLength:4000},dataAuditoria:{type:"string",format:"date"},auditor:{type:"string",minLength:2,maxLength:240},conclusao:{type:"string",minLength:3,maxLength:8000},classificacao:{enum:["conforme","ressalva","nao_conforme"]},evidencias:{type:"array",items:{type:"object",additionalProperties:true}},dados:{type:"object",additionalProperties:true}}};
+const esquemaPublicacaoTransparencia={type:"object",required:["codigo","titulo","categoria","descricaoPublica"],additionalProperties:false,properties:{codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},categoria:{type:"string",minLength:2,maxLength:120},descricaoPublica:{type:"string",minLength:3,maxLength:4000},periodoReferencia:{type:"string",maxLength:120},conteudo:{type:"object",additionalProperties:true},dadosInternos:{type:"object",additionalProperties:true}}};
+const esquemaDefinicaoRelatorio={type:"object",required:["codigo","nome"],additionalProperties:false,properties:{codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",maxLength:1000},modulos:{type:"array",items:{type:"string"}},configuracao:{type:"object",additionalProperties:true},compartilhado:{type:"boolean"}}};
+const esquemaAcessoPortal={type:"object",required:["tipo","nome","email","expiraEm"],additionalProperties:false,properties:{tipo:{enum:["cliente","fornecedor","fiscalizacao"]},nome:{type:"string",minLength:2,maxLength:240},email:{type:"string",minLength:3,maxLength:240},escopo:{type:"object",additionalProperties:true},expiraEm:{type:"string",format:"date-time"}}};
+const esquemaCanalIntegracao={type:"object",required:["codigo","nome","tipo"],additionalProperties:false,properties:{codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},tipo:{enum:["contabil","bancaria","oficial","webhook","arquivo"]},direcao:{enum:["entrada","saida","bidirecional"]},configuracaoPublica:{type:"object",additionalProperties:true},segredoReferencia:{type:"string",maxLength:500}}};
 
 const esquemaPoliticaAuditoria = {
   type: "object",
@@ -362,6 +396,16 @@ const esquemaVersaoDocumento = {
     sha256: { type: "string", pattern: "^[0-9a-f]{64}$" },
     storageKey: { type: "string", minLength: 1, maxLength: 1000 },
     metadados: { type: "object", additionalProperties: true },
+  },
+};
+
+const esquemaUploadDocumento = {
+  type: "object", required: ["nomeArquivo", "tipoMime", "tamanhoBytes", "sha256"], additionalProperties: false,
+  properties: {
+    nomeArquivo: { type: "string", minLength: 1, maxLength: 500 },
+    tipoMime: { type: "string", minLength: 1, maxLength: 160 },
+    tamanhoBytes: { type: "integer", minimum: 1, maximum: 1073741824 },
+    sha256: { type: "string", pattern: "^[0-9a-f]{64}$" },
   },
 };
 
@@ -445,12 +489,17 @@ function chaveIdempotencia(request) {
 export async function criarAplicacaoApi({
   repository,
   authenticate,
+  objectStorage = criarArmazenamentoDesabilitado(),
+  storageRequired = false,
   corsOrigins = [],
   logger = false,
   jobWorker,
 } = {}) {
   if (!repository) throw new Error("O repositório da API é obrigatório.");
   if (typeof authenticate !== "function") throw new Error("O autenticador da API é obrigatório.");
+  if (!objectStorage || typeof objectStorage.health !== "function") {
+    throw new Error("O provedor de armazenamento de objetos é inválido.");
+  }
 
   const app = Fastify({ logger });
   const worker = jobWorker || criarWorkerTrabalhos({
@@ -462,6 +511,7 @@ export async function criarAplicacaoApi({
       if (!origem || corsOrigins.includes(origem)) callback(null, true);
       else callback(new ApiError(403, "ORIGEM_NAO_AUTORIZADA", "Origem não autorizada."));
     },
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Authorization",
       "Content-Type",
@@ -472,6 +522,15 @@ export async function criarAplicacaoApi({
       "X-Prumo-Dev-User",
     ],
     exposedHeaders: ["ETag"],
+  });
+
+  app.addHook("onSend", async (request, reply, payload) => {
+    reply.header("X-Request-Id", request.id);
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("X-Frame-Options", "DENY");
+    reply.header("Referrer-Policy", "no-referrer");
+    reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    return payload;
   });
 
   app.setErrorHandler((erro, request, reply) => {
@@ -502,10 +561,31 @@ export async function criarAplicacaoApi({
     return {
       ok: true,
       servico: "PRUMO API",
-      versao: "14.0.0",
+      versao: "23.0.0",
       armazenamento: repository.tipo,
       banco,
     };
+  });
+
+  app.get("/ready", async (_request, reply) => {
+    const [banco, storage] = await Promise.all([
+      repository.health(),
+      objectStorage.health(),
+    ]);
+    const ok = Boolean(banco?.ok) && (!storageRequired || Boolean(storage?.ok));
+    return reply.code(ok ? 200 : 503).send({
+      ok,
+      servico: "PRUMO API",
+      versao: "23.0.0",
+      componentes: {
+        banco: { ok: Boolean(banco?.ok), tipo: repository.tipo },
+        storage: {
+          ok: Boolean(storage?.ok),
+          tipo: objectStorage.tipo,
+          obrigatorio: Boolean(storageRequired),
+        },
+      },
+    });
   });
 
   app.addHook("preHandler", async (request) => {
@@ -704,6 +784,94 @@ export async function criarAplicacaoApi({
   app.post("/v1/contratos/:id/ocorrencias", {schema:{body:esquemaOcorrenciaContrato}}, async (request,reply) => { const item=await repository.registrarOcorrenciaContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
   app.post("/v1/contratos/:id/sancoes", {schema:{body:esquemaSancaoContrato}}, async (request,reply) => { const item=await repository.aplicarSancaoContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
   app.post("/v1/contratos/:id/execucoes", {schema:{body:esquemaExecucaoContrato}}, async (request,reply) => { const item=await repository.registrarExecucaoContrato(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.contrato.versao}"`); return item; });
+
+  app.get("/v1/financeiro/centros-custo", async (request) => repository.listarCentrosCustoFinanceiros(contextoDaRequisicao(request,request.identity)));
+  app.post("/v1/financeiro/centros-custo", {schema:{body:esquemaCentroCustoFinanceiro}}, async (request,reply) => { const item=await repository.criarCentroCustoFinanceiro(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.get("/v1/financeiro/fontes", async (request) => repository.listarFontesFinanceiras(contextoDaRequisicao(request,request.identity)));
+  app.post("/v1/financeiro/fontes", {schema:{body:esquemaFonteFinanceira}}, async (request,reply) => { const item=await repository.criarFonteFinanceira(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.get("/v1/financeiro/orcamentos", async (request) => repository.listarOrcamentosFinanceiros(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.post("/v1/financeiro/orcamentos", {schema:{body:esquemaOrcamentoFinanceiro}}, async (request,reply) => { const item=await repository.criarOrcamentoFinanceiro(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.get("/v1/financeiro/compromissos", async (request) => repository.listarCompromissosFinanceiros(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.get("/v1/financeiro/compromissos/:id", async (request,reply) => { const item=await repository.obterCompromissoFinanceiro(contextoDaRequisicao(request,request.identity),request.params.id); reply.header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/financeiro/compromissos", {schema:{body:esquemaCompromissoFinanceiro}}, async (request,reply) => { const item=await repository.criarCompromissoFinanceiro(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/financeiro/compromissos/:id/movimentos", {schema:{body:esquemaMovimentoFinanceiro}}, async (request,reply) => { const item=await repository.registrarMovimentoFinanceiro(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.compromisso.versao}"`); return item; });
+  app.post("/v1/financeiro/movimentos/:id/conciliacoes", {schema:{body:esquemaConciliacaoFinanceira}}, async (request,reply) => { const item=await repository.conciliarMovimentoFinanceiro(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
+  app.get("/v1/financeiro/resumo", async (request) => repository.obterResumoFinanceiro(contextoDaRequisicao(request,request.identity),request.query||{}));
+
+  app.get("/v1/obras", async (request) => repository.listarObrasCorporativas(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.get("/v1/obras/resumo", async (request) => repository.obterResumoObras(contextoDaRequisicao(request,request.identity)));
+  app.get("/v1/obras/:id", async (request,reply) => { const item=await repository.obterObraCorporativa(contextoDaRequisicao(request,request.identity),request.params.id); reply.header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/obras", {schema:{body:esquemaObraCorporativa}}, async (request,reply) => { const item=await repository.criarObraCorporativa(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.put("/v1/obras/:id", {schema:{body:esquemaObraCorporativa}}, async (request,reply) => { const item=await repository.atualizarObraCorporativa(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request)); reply.header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/obras/:id/decisoes", {schema:{body:esquemaDecisaoObra}}, async (request,reply) => { const item=await repository.decidirObraCorporativa(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.obra.versao}"`); return item; });
+  app.post("/v1/obras/:id/cronograma", {schema:{body:esquemaCronogramaObra}}, async (request,reply) => { const item=await repository.adicionarItemCronogramaObra(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
+  app.post("/v1/obras/:id/diario", {schema:{body:esquemaDiarioObra}}, async (request,reply) => { const item=await repository.registrarDiarioObra(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
+  app.get("/v1/obras/:id/medicoes", async (request) => repository.listarMedicoesObra(contextoDaRequisicao(request,request.identity),request.params.id));
+  app.post("/v1/obras/:id/medicoes", {schema:{body:esquemaMedicaoObra}}, async (request,reply) => { const item=await repository.criarMedicaoObra(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/medicoes/:id/decisoes", {schema:{body:esquemaDecisaoMedicao}}, async (request,reply) => { const item=await repository.decidirMedicaoObra(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.medicao.versao}"`); return item; });
+
+  app.get("/v1/manutencao/planos", async (request) => repository.listarPlanosManutencao(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.post("/v1/manutencao/planos", {schema:{body:esquemaPlanoManutencao}}, async (request,reply) => { const item=await repository.criarPlanoManutencao(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.get("/v1/manutencao/chamados", async (request) => repository.listarChamadosManutencao(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.get("/v1/manutencao/chamados/:id", async (request,reply) => { const item=await repository.obterChamadoManutencao(contextoDaRequisicao(request,request.identity),request.params.id); reply.header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/manutencao/chamados", {schema:{body:esquemaChamadoManutencao}}, async (request,reply) => { const item=await repository.criarChamadoManutencao(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/manutencao/chamados/:id/decisoes", {schema:{body:esquemaDecisaoManutencao}}, async (request,reply) => { const item=await repository.decidirChamadoManutencao(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.chamado.versao}"`); return item; });
+  app.post("/v1/manutencao/chamados/:id/ordens", {schema:{body:esquemaOrdemManutencao}}, async (request,reply) => { const item=await repository.criarOrdemManutencao(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/manutencao/ordens/:id/recursos", {schema:{body:esquemaRecursoManutencao}}, async (request,reply) => { const item=await repository.adicionarRecursoOrdemManutencao(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
+  app.get("/v1/manutencao/resumo", async (request) => repository.obterResumoManutencao(contextoDaRequisicao(request,request.identity)));
+
+  app.get("/v1/convenios",async(request)=>repository.listarConvenios(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.get("/v1/convenios/resumo",async(request)=>repository.obterResumoConvenios(contextoDaRequisicao(request,request.identity)));
+  app.get("/v1/convenios/:id",async(request,reply)=>{const item=await repository.obterConvenio(contextoDaRequisicao(request,request.identity),request.params.id);reply.header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/convenios",{schema:{body:esquemaConvenio}},async(request,reply)=>{const item=await repository.criarConvenio(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/convenios/:id/decisoes",{schema:{body:esquemaDecisaoConvenio}},async(request,reply)=>{const item=await repository.decidirConvenio(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request));reply.header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/convenios/:id/metas",{schema:{body:esquemaMetaConvenio}},async(request,reply)=>{const item=await repository.adicionarMetaConvenio(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201);return item;});
+  app.post("/v1/convenios/:id/repasses",{schema:{body:esquemaRepasseConvenio}},async(request,reply)=>{const item=await repository.registrarRepasseConvenio(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201);return item;});
+  app.post("/v1/convenios/:id/execucoes",{schema:{body:esquemaExecucaoConvenio}},async(request,reply)=>{const item=await repository.registrarExecucaoConvenio(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201);return item;});
+  app.post("/v1/convenios/:id/prestacoes",{schema:{body:esquemaPrestacaoConvenio}},async(request,reply)=>{const item=await repository.criarPrestacaoConvenio(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/convenios/prestacoes/:id/decisoes",{schema:{body:esquemaDecisaoPrestacao}},async(request,reply)=>{const item=await repository.decidirPrestacaoConvenio(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request));reply.header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/convenios/:id/diligencias",{schema:{body:esquemaDiligenciaConvenio}},async(request,reply)=>{const item=await repository.criarDiligenciaConvenio(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201);return item;});
+
+  app.get("/v1/regularidade/requisitos",async(request)=>repository.listarRequisitosCompliance(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.post("/v1/regularidade/requisitos",{schema:{body:esquemaRequisitoCompliance}},async(request,reply)=>{const item=await repository.criarRequisitoCompliance(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.get("/v1/regularidade/riscos",async(request)=>repository.listarRiscosCompliance(contextoDaRequisicao(request,request.identity)));
+  app.post("/v1/regularidade/riscos",{schema:{body:esquemaRiscoCompliance}},async(request,reply)=>{const item=await repository.criarRiscoCompliance(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/regularidade/riscos/:id/acoes",{schema:{body:esquemaAcaoCompliance}},async(request,reply)=>{const item=await repository.criarAcaoCompliance(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201);return item;});
+  app.post("/v1/regularidade/auditorias",{schema:{body:esquemaAuditoriaCompliance}},async(request,reply)=>{const item=await repository.registrarAuditoriaCompliance(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201);return item;});
+  app.get("/v1/regularidade/transparencia",async(request)=>repository.listarPublicacoesTransparencia(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.post("/v1/regularidade/transparencia",{schema:{body:esquemaPublicacaoTransparencia}},async(request,reply)=>{const item=await repository.criarPublicacaoTransparencia(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/regularidade/transparencia/:id/publicacao",async(request,reply)=>{const item=await repository.publicarTransparencia(contextoDaRequisicao(request,request.identity),request.params.id,versaoIfMatch(request));reply.header("ETag",`"${item.versao}"`);return item;});
+  app.get("/v1/regularidade/resumo",async(request)=>repository.obterResumoCompliance(contextoDaRequisicao(request,request.identity)));
+
+  app.get("/v1/bi/executivo",async(request)=>repository.obterPainelExecutivo(contextoDaRequisicao(request,request.identity)));
+  app.get("/v1/relatorios/definicoes",async(request)=>repository.listarDefinicoesRelatorios(contextoDaRequisicao(request,request.identity)));
+  app.post("/v1/relatorios/definicoes",{schema:{body:esquemaDefinicaoRelatorio}},async(request,reply)=>{const item=await repository.criarDefinicaoRelatorio(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201);return item;});
+  app.get("/v1/portais/acessos",async(request)=>repository.listarAcessosPortais(contextoDaRequisicao(request,request.identity)));
+  app.post("/v1/portais/acessos",{schema:{body:esquemaAcessoPortal}},async(request,reply)=>{const item=await repository.criarAcessoPortal(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("Cache-Control","no-store");return item;});
+  app.post("/v1/portais/acessos/:id/revogacao",async(request)=>repository.revogarAcessoPortal(contextoDaRequisicao(request,request.identity),request.params.id,versaoIfMatch(request)));
+  app.get("/v1/integracoes/canais",async(request)=>repository.listarCanaisIntegracao(contextoDaRequisicao(request,request.identity)));
+  app.post("/v1/integracoes/canais",{schema:{body:esquemaCanalIntegracao}},async(request,reply)=>{const item=await repository.criarCanalIntegracao(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201);return item;});
+  app.get("/v1/operacao/observabilidade",async(request)=>repository.obterObservabilidade(contextoDaRequisicao(request,request.identity)));
+  app.get("/v1/operacao/prontidao",async(request)=>{
+    const contexto=contextoDaRequisicao(request,request.identity);
+    const [operacao,banco,storage]=await Promise.all([
+      repository.obterObservabilidade(contexto),
+      repository.health(),
+      objectStorage.health(),
+    ]);
+    const ok=Boolean(banco?.ok)&&(!storageRequired||Boolean(storage?.ok));
+    return {
+      ok,
+      versao:"23.0.0",
+      operacao,
+      componentes:{
+        banco:{ok:Boolean(banco?.ok),tipo:repository.tipo,latenciaMs:banco?.latenciaMs},
+        storage:{ok:Boolean(storage?.ok),tipo:objectStorage.tipo,obrigatorio:Boolean(storageRequired)},
+        identidade:{ok:true,tipo:"OIDC/JWT ou identidade local controlada"},
+      },
+      verificadoEm:new Date().toISOString(),
+    };
+  });
 
   app.get("/v1/empreendimentos", async (request) => (
     repository.listarEmpreendimentos(contextoDaRequisicao(request, request.identity))
@@ -980,6 +1148,30 @@ export async function criarAplicacaoApi({
   app.post("/v1/documentos/:id/versoes", { schema: { body: esquemaVersaoDocumento } }, async (request) => (
     repository.adicionarVersaoDocumento(contextoDaRequisicao(request, request.identity), request.params.id, request.body)
   ));
+  app.post("/v1/documentos/:id/uploads", { schema: { body: esquemaUploadDocumento } }, async (request, reply) => {
+    const contexto = contextoDaRequisicao(request, request.identity);
+    await repository.prepararUploadDocumento(contexto, request.params.id);
+    const upload = await objectStorage.criarUpload({
+      tenantId: contexto.tenantId,
+      documentoId: request.params.id,
+      ...request.body,
+    });
+    reply.header("Cache-Control", "no-store");
+    return upload;
+  });
+  app.get("/v1/documentos/:id/versoes/:numero/download", async (request, reply) => {
+    const contexto = contextoDaRequisicao(request, request.identity);
+    const versao = await repository.obterVersaoDocumento(
+      contexto, request.params.id, Number(request.params.numero),
+    );
+    const download = await objectStorage.criarDownload({
+      tenantId: contexto.tenantId,
+      storageKey: versao.storageKey,
+      nomeArquivo: versao.nomeArquivo,
+    });
+    reply.header("Cache-Control", "no-store");
+    return download;
+  });
   app.post("/v1/documentos/:id/vinculos", { schema: { body: esquemaVinculoDocumento } }, async (request) => (
     repository.vincularDocumento(contextoDaRequisicao(request, request.identity), request.params.id, request.body)
   ));
@@ -1008,6 +1200,7 @@ export async function criarAplicacaoApi({
 
   app.addHook("onClose", async () => {
     await worker.fechar();
+    await objectStorage.fechar();
     await repository.fechar();
   });
   return app;

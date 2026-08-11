@@ -19,7 +19,7 @@ function obterLabelMobile(item) {
 export default function BottomNav({ paginaAtiva, setPaginaAtiva, modulosPermitidos }) {
   const [menuAberto, setMenuAberto] = useState(false);
 
-  const itensPermitidos = modulosPermitidos?.size
+  const itensPermitidos = modulosPermitidos instanceof Set
     ? SIGIU_NAV_ITEMS.filter((item) => modulosPermitidos.has(item.moduleId))
     : SIGIU_NAV_ITEMS;
   const itensPrimarios = itensPermitidos.filter((item) => MOBILE_PRIMARY_ITEMS.includes(item.id));

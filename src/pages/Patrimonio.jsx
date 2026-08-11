@@ -1,10 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  criarClientePrumo,
-  obterConfiguracaoInfraestrutura,
-  obterContextoDesenvolvimento,
-} from "../services/infraestruturaCorporativa";
+import { useEffect, useState } from "react";
 import { sugerirCodigoPatrimonial } from "../services/codigosPatrimonio";
+import { useContextoPatrimonial } from "../contexts/ContextoPatrimonialContext";
 
 const NIVEIS = ["cliente", "site", "predio", "sala"];
 const ROTULOS = { cliente: "Cliente", site: "Site", predio: "Prédio", sala: "Sala" };
@@ -23,15 +19,6 @@ const NOVO_ATIVO = {
   numeroPatrimonio: "", fabricante: "", modelo: "", numeroSerie: "",
   status: "ativo", dados: {},
 };
-
-function criarCliente() {
-  const config = obterConfiguracaoInfraestrutura();
-  if (!config.apiConfigurada) return null;
-  return criarClientePrumo({
-    baseUrl: config.apiUrl,
-    obterContexto: () => obterContextoDesenvolvimento(),
-  });
-}
 
 function caminhoTexto(unidade) {
   return (unidade?.caminho || []).map((item) => item.nome).join(" › ");
@@ -64,7 +51,8 @@ function Modal({ titulo, descricao, onClose, children }) {
 }
 
 export default function Patrimonio() {
-  const cliente = useMemo(criarCliente, []);
+  const contextoPatrimonial = useContextoPatrimonial();
+  const cliente = contextoPatrimonial.clienteApi;
   const [unidades, setUnidades] = useState([]);
   const [ativos, setAtivos] = useState([]);
   const [movimentacoes, setMovimentacoes] = useState([]);
@@ -78,6 +66,7 @@ export default function Patrimonio() {
   const [modalUnidadeAberto, setModalUnidadeAberto] = useState(false);
   const [modalAtivoAberto, setModalAtivoAberto] = useState(false);
   const [unidadeParaExcluir, setUnidadeParaExcluir] = useState(null);
+  const [erroExclusao, setErroExclusao] = useState("");
   const [movimento, setMovimento] = useState({ destinoSalaId: "", motivo: "" });
   const [mensagem, setMensagem] = useState(
     cliente ? "Carregando cadastro patrimonial…" : "Conecte a API corporativa para usar o patrimônio.",
@@ -128,6 +117,13 @@ export default function Patrimonio() {
   useEffect(() => { carregar(); }, []);
 
   useEffect(() => {
+    const idGlobal = contextoPatrimonial.unidadeAtivaId;
+    if (idGlobal && idGlobal !== unidadeSelecionadaId && unidades.some((item) => item.id === idGlobal)) {
+      aplicarSelecao(idGlobal, unidades);
+    }
+  }, [contextoPatrimonial.unidadeAtivaId, unidades]);
+
+  useEffect(() => {
     if (!cliente || !ativoSelecionadoId) {
       setMovimentacoes([]);
       return;
@@ -144,6 +140,17 @@ export default function Patrimonio() {
     setSelecao(proxima);
     setUnidadeSelecionadaId(item.id);
     setAtivoSelecionadoId("");
+    contextoPatrimonial.selecionarUnidade(item.id);
+  }
+
+  async function abrirExclusao(item) {
+    setErroExclusao("");
+    try {
+      const detalhe = cliente ? await cliente.obterUnidadePatrimonial(item.id) : item;
+      setUnidadeParaExcluir(detalhe);
+    } catch (error) {
+      setMensagem(error.message);
+    }
   }
 
   function abrirNovaUnidade(nivel) {
@@ -183,6 +190,7 @@ export default function Patrimonio() {
       setModalUnidadeAberto(false);
       setEdicaoUnidadeId("");
       await carregar(salva.id);
+      await contextoPatrimonial.recarregar();
       setMensagem(`${ROTULOS[salva.nivel]} salvo com sucesso.`);
     } catch (error) { setMensagem(error.message); }
     finally { setSalvando(false); }
@@ -200,8 +208,9 @@ export default function Patrimonio() {
       setUnidadeSelecionadaId("");
       setSelecao(SELECAO_VAZIA);
       await carregar(selecionarDepois);
+      await contextoPatrimonial.recarregar();
       setMensagem(`${ROTULOS[unidadeParaExcluir.nivel]} excluído com sucesso.`);
-    } catch (error) { setMensagem(error.message); setUnidadeParaExcluir(null); }
+    } catch (error) { setErroExclusao(error.message); }
     finally { setSalvando(false); }
   }
 
@@ -268,7 +277,7 @@ export default function Patrimonio() {
     <section className="sigiu-page sigiu-page-modulo sigiu-page-patrimonio">
       <div className="sigiu-page-heading sigiu-page-heading--modulo">
         <div><span className="sigiu-page-eyebrow">Fonte corporativa única</span><h1>Patrimônio e espaços</h1><p>Selecione a estrutura da esquerda para a direita: Cliente → Site → Prédio → Sala.</p></div>
-        <div className="sigiu-page-heading__meta"><strong>11.0</strong><span>cadastro patrimonial</span></div>
+        <div className="sigiu-page-heading__meta"><strong>Cliente → Sala</strong><span>cadastro patrimonial</span></div>
       </div>
 
       <div className="sigiu-module-kpis sigiu-patrimonio-kpis">
@@ -292,7 +301,7 @@ export default function Patrimonio() {
                     <article key={item.id} className={selecao[nivel] === item.id ? "is-selected" : ""}>
                       <button type="button" onClick={() => selecionarUnidade(item)}><strong>{item.nome}</strong><small>{item.codigo} · {item.status}</small></button>
                       <button type="button" className="sigiu-patrimonio-edit" aria-label={`Editar ${item.nome}`} onClick={() => editarUnidade(item)}>✎</button>
-                      <button type="button" className="sigiu-patrimonio-delete" aria-label={`Excluir ${item.nome}`} onClick={() => setUnidadeParaExcluir(item)}>×</button>
+                      <button type="button" className="sigiu-patrimonio-delete" aria-label={`Excluir ${item.nome}`} onClick={() => abrirExclusao(item)}>×</button>
                     </article>
                   ))}
                   {habilitado && !itensPorNivel[nivel].length && <p>Nenhum {ROTULOS[nivel].toLocaleLowerCase("pt-BR")} cadastrado.</p>}
@@ -351,7 +360,7 @@ export default function Patrimonio() {
               <label><span>Cidade</span><input value={formUnidade.endereco?.cidade || ""} onChange={(e) => setFormUnidade((atual) => ({ ...atual, endereco: { ...atual.endereco, cidade: e.target.value } }))} /></label>
               <label><span>UF</span><input maxLength={2} value={formUnidade.endereco?.uf || ""} onChange={(e) => setFormUnidade((atual) => ({ ...atual, endereco: { ...atual.endereco, uf: e.target.value.toUpperCase() } }))} /></label>
             </div>
-            <footer>{edicaoUnidadeId && <button type="button" className="sigiu-btn sigiu-patrimonio-danger" onClick={() => setUnidadeParaExcluir(unidades.find((item) => item.id === edicaoUnidadeId))}>Excluir</button>}<button type="button" className="sigiu-btn sigiu-btn--outline" onClick={() => setModalUnidadeAberto(false)}>Cancelar</button><button type="submit" className="sigiu-btn sigiu-btn--primary" disabled={salvando}>{salvando ? "Salvando…" : "Salvar unidade"}</button></footer>
+            <footer>{edicaoUnidadeId && <button type="button" className="sigiu-btn sigiu-patrimonio-danger" onClick={() => abrirExclusao(unidades.find((item) => item.id === edicaoUnidadeId))}>Excluir</button>}<button type="button" className="sigiu-btn sigiu-btn--outline" onClick={() => setModalUnidadeAberto(false)}>Cancelar</button><button type="submit" className="sigiu-btn sigiu-btn--primary" disabled={salvando}>{salvando ? "Salvando…" : "Salvar unidade"}</button></footer>
           </form>
         </Modal>
       )}
@@ -380,7 +389,11 @@ export default function Patrimonio() {
           <div className="sigiu-patrimonio-confirm-delete">
             <p>Confirma a exclusão de <strong>{unidadeParaExcluir.nome}</strong>?</p>
             <small>Unidades filhas, ativos, obras ou movimentações vinculadas impedem a exclusão para proteger a integridade dos dados.</small>
-            <footer><button type="button" className="sigiu-btn sigiu-btn--outline" onClick={() => setUnidadeParaExcluir(null)}>Cancelar</button><button type="button" className="sigiu-btn sigiu-patrimonio-danger" disabled={salvando} onClick={excluirUnidade}>{salvando ? "Excluindo…" : "Excluir definitivamente"}</button></footer>
+            {unidadeParaExcluir.totais?.total > 0 && (
+              <p className="sigiu-patrimonio-delete-warning" role="alert">Este cadastro possui {unidadeParaExcluir.totais.total} vínculo(s). A exclusão será liberada após transferi-los ou removê-los.</p>
+            )}
+            {erroExclusao && <p className="sigiu-patrimonio-delete-error" role="alert">{erroExclusao}</p>}
+            <footer><button type="button" className="sigiu-btn sigiu-btn--outline" onClick={() => { setUnidadeParaExcluir(null); setErroExclusao(""); }}>Cancelar</button><button type="button" className="sigiu-btn sigiu-patrimonio-danger" disabled={salvando || unidadeParaExcluir.totais?.total > 0} onClick={excluirUnidade}>{salvando ? "Excluindo…" : "Excluir definitivamente"}</button></footer>
           </div>
         </Modal>
       )}

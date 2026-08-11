@@ -44,6 +44,11 @@ import {
   PERMISSOES_PADRAO_POR_PERFIL,
   PERMISSOES_PLATAFORMA,
 } from "../../shared/platform";
+import {
+  ROADMAP_PRUMO,
+  STATUS_ROADMAP,
+  agruparRoadmapPorFase,
+} from "../config/roadmapPrumo";
 
 const ABAS_ADMIN = [
   { id: "geral", label: "Visão operacional" },
@@ -59,7 +64,7 @@ function StatusChip({ status }) {
   const normalizado = String(status || "").toLowerCase();
   let classe = "neutral";
 
-  if (normalizado.includes("ativo") || normalizado.includes("operacional")) classe = "success";
+  if (normalizado.includes("ativo") || normalizado.includes("operacional") || normalizado.includes("conclu")) classe = "success";
   if (normalizado.includes("previsto") || normalizado.includes("planejado") || normalizado.includes("aguardando")) classe = "warning";
   if (normalizado.includes("erro") || normalizado.includes("inativo")) classe = "danger";
 
@@ -189,6 +194,7 @@ function InfraestruturaCorporativa({ basesPrecos }) {
   const [lotes, setLotes] = useState([]);
   const [trabalhos, setTrabalhos] = useState([]);
   const [transicoes, setTransicoes] = useState([]);
+  const [prontidao, setProntidao] = useState(null);
   const [processandoTrabalho, setProcessandoTrabalho] = useState(false);
   const [mensagemGovernanca, setMensagemGovernanca] = useState("");
   const dadosMigracao = useMemo(() => ({
@@ -213,15 +219,18 @@ function InfraestruturaCorporativa({ basesPrecos }) {
   async function carregarGovernanca() {
     if (!cliente) return;
     try {
-      const [fila, estados] = await Promise.all([
+      const [fila, estados, estadoProntidao] = await Promise.all([
         cliente.listarTrabalhos(),
         cliente.listarTransicoesRepositorio(),
+        cliente.obterProntidaoOperacional(),
       ]);
       setTrabalhos(fila);
       setTransicoes(estados);
+      setProntidao(estadoProntidao);
     } catch {
       setTrabalhos([]);
       setTransicoes([]);
+      setProntidao(null);
     }
   }
 
@@ -351,10 +360,31 @@ function InfraestruturaCorporativa({ basesPrecos }) {
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>
+            <h2>Prontidão operacional</h2>
+            <p>Leitura consolidada da API, banco, identidade e armazenamento de arquivos.</p>
+          </div>
+          <StatusChip status={prontidao?.ok
+            ? (prontidao?.componentes?.storage?.ok && configuracao.autenticacaoConfigurada ? "Produção pronta" : "Desenvolvimento pronto")
+            : cliente ? "Atenção necessária" : "Sessão necessária"} />
+        </header>
+        <div className="sigiu-admin-definition-list">
+          <div><span>API</span><strong>{prontidao?.versao ? `v${prontidao.versao}` : "Aguardando verificação"}</strong></div>
+          <div><span>PostgreSQL</span><strong>{prontidao?.componentes?.banco?.ok ? "Disponível" : "Não verificado"}</strong></div>
+          <div><span>Identidade</span><strong>{configuracao.autenticacaoConfigurada ? "OIDC configurado" : "Desenvolvimento controlado"}</strong></div>
+          <div><span>Storage GED</span><strong>{prontidao?.componentes?.storage?.ok ? "Disponível" : prontidao?.componentes?.storage?.obrigatorio ? "Bloqueador" : "Pendente para produção"}</strong></div>
+        </div>
+        <footer className="sigiu-admin-security-note">
+          A entrada em produção somente é liberada com PostgreSQL, OIDC e storage corporativo ativos; nenhuma credencial é exibida nesta tela.
+        </footer>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card">
+        <header className="sigiu-card-header-row">
+          <div>
             <h2>Inventário para migração</h2>
             <p>Cada domínio será migrado com validação, rastreabilidade e possibilidade de retorno.</p>
           </div>
-          <StatusChip status="Sprint 10.3" />
+          <StatusChip status="Migração assistida" />
         </header>
         <div className="sigiu-infrastructure-grid">
           {diagnostico.map((item) => (
@@ -372,7 +402,7 @@ function InfraestruturaCorporativa({ basesPrecos }) {
             <h2>Plano de migração assistida</h2>
             <p>Ordem, contagens e barreiras previstas antes da publicação no banco corporativo.</p>
           </div>
-          <StatusChip status="Sprint 10.3" />
+          <StatusChip status="Processo reversível" />
         </header>
         <div className="sigiu-migration-plan">
           {planoMigracao.map((dominio, indice) => (
@@ -1156,6 +1186,68 @@ function Sincronizacao({ basesPrecos }) {
   );
 }
 
+function RoadmapProduto() {
+  const fases = agruparRoadmapPorFase();
+  const concluidas = ROADMAP_PRUMO.filter((item) => item.status === "concluida").length;
+  const atuais = ROADMAP_PRUMO.filter((item) => item.status === "em_andamento").length;
+  const planejadas = ROADMAP_PRUMO.filter((item) => item.status === "planejada").length;
+  const progresso = Math.round((concluidas / ROADMAP_PRUMO.length) * 100);
+
+  return (
+    <section className="sigiu-card sigiu-admin-card sigiu-roadmap-card">
+      <header className="sigiu-card-header-row">
+        <div>
+          <span className="sigiu-page-eyebrow">Evolução do produto</span>
+          <h2>Roadmap completo do PRUMO</h2>
+          <p>Histórico consolidado das entregas e próximos marcos da plataforma, mantido junto à governança e à auditoria.</p>
+        </div>
+        <StatusChip status={`${progresso}% concluído`} />
+      </header>
+
+      <div className="sigiu-roadmap-summary" aria-label="Resumo do roadmap">
+        <article><span>Entregas concluídas</span><strong>{concluidas}</strong></article>
+        <article><span>Em andamento</span><strong>{atuais}</strong></article>
+        <article><span>Planejadas</span><strong>{planejadas}</strong></article>
+        <article><span>Total de marcos</span><strong>{ROADMAP_PRUMO.length}</strong></article>
+      </div>
+
+      <div className="sigiu-roadmap-progress" aria-label={`${progresso}% do roadmap concluído`}>
+        <i style={{ width: `${progresso}%` }} />
+      </div>
+
+      <div className="sigiu-roadmap-phases">
+        {fases.map((fase) => (
+          <section key={fase.nome} className="sigiu-roadmap-phase">
+            <header>
+              <h3>{fase.nome}</h3>
+              <span>{fase.itens.length} marco(s)</span>
+            </header>
+            <div className="sigiu-roadmap-timeline">
+              {fase.itens.map((item) => {
+                const status = STATUS_ROADMAP[item.status];
+                return (
+                  <article key={item.id} className={`sigiu-roadmap-item ${status.classe}`}>
+                    <div className="sigiu-roadmap-marker" aria-hidden="true"><i /></div>
+                    <div className="sigiu-roadmap-content">
+                      <header>
+                        <span>Marco {item.id}</span>
+                        <em>{status.rotulo}</em>
+                      </header>
+                      <h4>{item.tema}</h4>
+                      <p>{item.resumo}</p>
+                      <div>{item.entregas.map((entrega) => <small key={entrega}>{entrega}</small>)}</div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Auditoria() {
   const configuracao = useMemo(() => obterConfiguracaoInfraestrutura(), []);
   const contexto = useMemo(() => obterContextoDesenvolvimento(), []);
@@ -1243,6 +1335,7 @@ function Auditoria() {
 
   return (
     <div className="sigiu-admin-stack">
+      <RoadmapProduto />
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>
@@ -1403,8 +1496,8 @@ export default function Administracao({ basesPrecos }) {
           </p>
         </div>
         <div className="sigiu-page-heading__meta sigiu-page-heading__meta--admin">
-          <strong>14.0</strong>
-          <span>contratos e atas</span>
+          <strong>Governança</strong>
+          <span>plataforma integrada</span>
         </div>
       </div>
 

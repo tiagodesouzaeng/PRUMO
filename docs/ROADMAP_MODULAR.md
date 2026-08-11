@@ -44,14 +44,17 @@ Referências:
 | 18 | Convênios e prestação de contas | Instrumentos, metas, contrapartidas, repasses, execução e comprovação |
 | 19 | Compliance e transparência | Regularidade, riscos, auditoria, controles, dados e relatórios públicos |
 | 20 | BI, portais e consolidação | Indicadores executivos, portais, integrações e prontidão comercial ampliada |
+| 20.1 | Estabilização integrada | Roadmap gerencial, telas sem rótulos de desenvolvimento, segurança de dependências e validação completa |
+| 21 | Prontidão de produção | OIDC, contexto global Cliente > Site > Prédio > Sala, exclusão segura de Sites, base de homologação multiempresa, migração definitiva e endurecimento |
 
 As Sprints 10.4 e 10.5 preservam o escopo já aprovado. A Sprint 10.6 formaliza
 a convergência comercial antes da criação dos novos domínios transacionais.
 
-As Sprints 10.4, 10.5, 10.6, 11, 12, 12.1, 13 e 14 estão concluídas localmente
-na versão `14.0.0`. A próxima etapa executável é a Sprint 15 — Financeiro-
-orçamentário, após a homologação de Contratos. O backup atualizado já foi
-restaurado em teste.
+As Sprints 10.4 a 20 estão concluídas localmente. A versão `20.1.0` inicia a
+homologação integrada, centraliza este roadmap no módulo de Auditoria e remove
+das telas operacionais os rótulos internos de desenvolvimento. A etapa seguinte
+concentra identidade corporativa, migração definitiva, endurecimento de produção
+e preparação comercial, sem publicação automática.
 
 ## Sprint 10.4 — Auditoria e governança
 
@@ -149,6 +152,22 @@ Essas sprints consolidam recursos visuais e locais já existentes, conectando-os
 ao PostgreSQL, à hierarquia patrimonial, aos documentos e aos contratos. Não são
 reescritas integrais dos módulos atuais.
 
+### Sprint 16 — concluída localmente
+
+- carteira corporativa de obras ligada a patrimônio, contrato e orçamento;
+- cronograma físico-financeiro, diário, efetivo, ocorrências e evidências;
+- boletins com itens, retenções, glosas, multas, aprovação e aceite;
+- saldo a medir, progresso físico e financeiro e integração preparada com o Financeiro;
+- RLS, permissões segregadas, auditoria, versão e idempotência.
+
+### Sprint 17 — concluída localmente
+
+- chamados corretivos, preventivos, inspeções e melhorias;
+- SLA por prioridade, triagem, programação, execução, solução e aceite;
+- planos preventivos vinculados a espaços e ativos patrimoniais;
+- ordens de serviço com equipes, fornecedores, materiais, mão de obra e custos;
+- RLS, permissões segregadas, auditoria, versão e idempotência.
+
 ## Sprints 18 a 20 — Prestação de contas e escala
 
 O ciclo final amplia convênios, regularidade, transparência, indicadores,
@@ -167,3 +186,13 @@ Uma sprint de domínio somente pode ser encerrada quando possuir, no mínimo:
 - testes automatizados proporcionais ao risco;
 - documentação operacional e estratégia de backup;
 - integração explícita, quando consumir ou publicar dados de outro módulo.
+
+## Sprints 21 a 23 — Homologação e operação assistida
+
+A versão `22.0.0` conclui localmente o contexto Cliente → Site → Prédio → Sala,
+a exclusão segura, a massa de três organizações fictícias e a homologação
+assistida dos dados locais. A versão 23.0.0 conclui a fundação do piloto:
+contrato OIDC obrigatório em produção, storage GED S3 compatível com URLs
+temporárias, prontidão operacional, endurecimento de segurança e runbook de
+entrada controlada. A ativação pública continua condicionada à contratação e
+configuração dos serviços externos de identidade, API, PostgreSQL e storage.

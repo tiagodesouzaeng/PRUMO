@@ -342,12 +342,53 @@ instrumentos com vigência, valores, saldo, gestores, fiscais, garantias,
 aditivos, execução, ocorrências, sanções e encerramento. O fechamento possui
 134 testes aprovados e 21 migrações. Consulte `docs/SPRINT_14.md`.
 
+A versão `15.0.0` conclui o Financeiro-orçamentário. Centros de custo, fontes e
+orçamentos CAPEX/OPEX suportam compromissos originados por pedidos, contratos,
+medições ou registro manual. Reserva, compromisso/empenho, liquidação/aprovação,
+retenções, glosas, pagamentos e conciliação usam terminologia por perfil,
+controle de saldo, RLS e histórico imutável. O fechamento possui 138 testes
+aprovados e 22 migrações. Consulte `docs/SPRINT_15.md`.
+
+A versão `16.0.0` consolida Obras e Medições corporativas. A carteira de obras
+reutiliza a hierarquia `Cliente > Site > Prédio > Sala`, contratos e orçamentos;
+cronograma físico-financeiro, diário, evidências e boletins possuem fluxo,
+retenções, glosas, aceite, auditoria e RLS. Consulte `docs/SPRINT_16.md`.
+
+A versão `17.0.0` conclui Manutenção e Facilities. Chamados corretivos e
+preventivos usam SLA por prioridade, ativos e espaços patrimoniais; planos,
+ordens, equipes, fornecedores, recursos e custos permanecem rastreáveis. O
+fechamento conjunto possui 143 testes aprovados e 25 migrações. Consulte
+`docs/SPRINT_17.md`.
+
+A versão `20.0.0` conclui as Sprints 18–20. Convênios, metas, repasses,
+execução e prestação de contas passam a operar com regularidade patrimonial,
+riscos, auditorias e transparência. O fechamento acrescenta BI executivo,
+relatórios configuráveis, portais segregados, integrações e observabilidade,
+com RLS e permissões em toda a cadeia. Consulte `docs/SPRINT_18.md`,
+`docs/SPRINT_19.md` e `docs/SPRINT_20.md`.
+
+A versão `20.1.0` inicia a estabilização integrada: o roadmap completo passa a
+ser acompanhado em `Administração > Auditoria`, os rótulos de Sprint deixam as
+telas operacionais e as dependências vulneráveis identificadas na homologação
+são atualizadas. Consulte `docs/SPRINT_20_1.md`.
+
 - plano da sprint: `docs/SPRINT_10.md`;
 - fechamento patrimonial: `docs/SPRINT_11.md`;
 - demandas e investimentos: `docs/SPRINT_12.md`;
 - consolidação administrativa: `docs/SPRINT_12_1.md`;
 - suprimentos e contratações: `docs/SPRINT_13.md`;
 - contratos e atas: `docs/SPRINT_14.md`;
+- financeiro-orçamentário: `docs/SPRINT_15.md`;
+- obras e medições corporativas: `docs/SPRINT_16.md`;
+- manutenção e facilities: `docs/SPRINT_17.md`;
+- convênios e prestação de contas: `docs/SPRINT_18.md`;
+- regularidade, compliance e transparência: `docs/SPRINT_19.md`;
+- BI, portais e consolidação: `docs/SPRINT_20.md`;
+- estabilização integrada: `docs/SPRINT_20_1.md`;
+- contexto e homologação multiempresa: `docs/SPRINT_21.md`;
+- consolidação e prontidão local: `docs/SPRINT_22.md`;
+- piloto controlado e produção: `docs/SPRINT_23.md`;
+- runbook do piloto: `docs/operacao/PILOTO_PRODUCAO.md`;
 - padrão visual da plataforma: `docs/DESIGN_SYSTEM_PRUMO.md`;
 - backlog permanente: `BACKLOG_PRUMO.md`;
 - configuração da futura API: `VITE_PRUMO_API_URL`;
@@ -395,6 +436,7 @@ pnpm api
 Validação de produção:
 
 ```bash
+pnpm production:check
 pnpm build
 ```
 
@@ -408,4 +450,9 @@ do orçamento, composições próprias, preferências e bases de preços. A API 
 PostgreSQL estão ativos no desenvolvimento local, mas esses domínios só podem
 abandonar o navegador após inventário, migração assistida e homologação. OIDC e
 armazenamento corporativo dos arquivos binários do GED seguem obrigatórios para
-produção.
+produção. Na versão `22.0.0`, o inventário local foi enviado, validado e
+homologado no PostgreSQL; os repositórios permanecem em modo híbrido para a
+validação reversível antes da ativação corporativa definitiva. A versão
+`23.0.0` acrescenta upload e download real do GED por URLs temporárias,
+readiness da API e um verificador que impede promover um ambiente sem
+PostgreSQL, OIDC, storage e origens HTTPS.

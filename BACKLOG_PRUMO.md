@@ -355,14 +355,14 @@ critérios mínimos de aceite e manter o histórico de situação.
 
 ### BL-008 — Financeiro-orçamentário modular
 
-- **Situação:** Planejado — Sprint 15
+- **Situação:** Concluído — Sprint 15 / v15.0.0
 - **Prioridade sugerida:** Crítica
 - **Módulos afetados:** Planejamento, Suprimentos, Contratos, Medições,
   Convênios, Relatórios e Auditoria
 - **Necessidade:** controlar a execução gerencial e financeira dos investimentos,
   contratos, compras e serviços sem obrigar o PRUMO a substituir inicialmente
   os sistemas fiscais, contábeis e trabalhistas especializados.
-- **Critérios mínimos para futura implementação:**
+- **Implementado na v15.0.0:**
   - planejamento anual e plurianual, centros de custo e fontes de recurso;
   - conceitos configuráveis de dotação, reserva, empenho, liquidação e pagamento;
   - equivalentes empresariais para federações e organizações privadas;
@@ -374,13 +374,13 @@ critérios mínimos de aceite e manter o histórico de situação.
 
 ### BL-009 — Convênios, repasses e prestação de contas
 
-- **Situação:** Planejado — Sprint 18
+- **Situação:** Concluído — Sprint 18 / v18.0.0
 - **Prioridade sugerida:** Alta
 - **Módulos afetados:** Planejamento, Patrimônio, Obras, Contratos, Financeiro,
   Documentos, Relatórios e Auditoria
 - **Necessidade:** acompanhar instrumentos de repasse desde a celebração até a
   comprovação do objeto e a prestação de contas.
-- **Critérios mínimos para futura implementação:**
+- **Implementado na v18.0.0:**
   - concedente, recebedor, vigência, plano de trabalho, metas e etapas;
   - fontes, contrapartidas, parcelas e cronograma de desembolso;
   - vínculo com contratos, obras, medições e execução financeira;
@@ -388,6 +388,104 @@ critérios mínimos de aceite e manter o histórico de situação.
   - pendências, prazos, diligências e aprovações;
   - prestação de contas e relatórios auditáveis;
   - integração preparada para plataformas oficiais sem duplicação de registros.
+
+### BL-010 — Contexto patrimonial global no banner
+
+- **Situação:** Concluído nas Sprints 21 e 22
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Todos os módulos operacionais, Visão Geral, Relatórios e
+  Administração
+- **Necessidade:** substituir a unidade fixa apresentada no banner por um
+  contexto real e compartilhado, permitindo que o usuário saiba para qual
+  cliente e recorte patrimonial está consultando ou registrando informações.
+- **Requisitos mínimos:**
+  - exibir permanentemente no banner o nome do cliente ativo;
+  - remover o texto fixo `Campus Canoas`;
+  - disponibilizar uma caixa de seleção hierárquica com `Site > Prédio > Sala`;
+  - permitir seleção em qualquer um dos três níveis;
+  - ao selecionar um Site ou Prédio, considerar todos os descendentes do nível;
+  - apresentar o caminho completo da seleção e uma ação clara para limpar o
+    recorte;
+  - preservar a seleção durante a navegação entre módulos;
+  - aplicar o mesmo contexto aos indicadores, tabelas, relatórios e cadastros
+    compatíveis;
+  - carregar apenas locais pertencentes ao cliente, empresa, equipe e permissões
+    ativos;
+  - impedir que a seleção visual altere ou atravesse o isolamento RLS;
+  - oferecer comportamento responsivo para desktop e dispositivos móveis;
+  - registrar testes de propagação do contexto e prevenção de acesso cruzado.
+- **Critério de aceite:** o nome do cliente e o caminho patrimonial selecionado
+  permanecem visíveis e todos os módulos compatíveis atualizam seus dados sem
+  misturar organizações ou locais fora do escopo autorizado.
+
+### BL-011 — Correção da exclusão de Sites
+
+- **Situação:** Concluído na Sprint 21
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Patrimônio, Administração, Auditoria e módulos que
+  referenciam a hierarquia patrimonial
+- **Problema:** o botão de exclusão apresentado no cadastro patrimonial não está
+  removendo o Site selecionado.
+- **Requisitos mínimos:**
+  - permitir a exclusão de Site sem registros dependentes;
+  - solicitar confirmação explícita antes da operação;
+  - bloquear a exclusão quando existirem Prédios, Salas, ativos, documentos,
+    demandas, obras, manutenção ou outros vínculos associados;
+  - apresentar ao usuário quais vínculos impedem a exclusão;
+  - impedir exclusão por usuário sem `patrimonio.editar`;
+  - respeitar empresa, equipe, controle de versão e RLS;
+  - registrar tentativa, sucesso ou bloqueio na auditoria;
+  - atualizar imediatamente a árvore e os indicadores após a exclusão;
+  - diferenciar claramente exclusão definitiva de futura inativação/arquivamento;
+  - testar Site sem vínculo, Site com Prédio, concorrência de versão e tentativa
+    entre empresas distintas.
+- **Critério de aceite:** um Site sem vínculos é removido e desaparece da árvore;
+  um Site com dependências permanece preservado e o sistema informa de forma
+  compreensível todos os impedimentos relevantes.
+
+### BL-012 — Base completa de homologação multiempresa
+
+- **Situação:** Concluído na Sprint 21
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Todos os módulos, API, PostgreSQL, Administração,
+  Auditoria, Relatórios e testes automatizados
+- **Necessidade:** disponibilizar uma massa de dados fictícia, realista e
+  reproduzível para validar fluxos completos, isolamento RLS, permissões,
+  indicadores, relatórios e integrações sem utilizar informações verdadeiras.
+- **Empresas fictícias propostas:**
+  1. `Município Modelo` — órgão público com secretarias, prédios administrativos,
+     escolas, unidades de saúde, licitações, contratos, obras e convênios;
+  2. `Federação Regional Modelo` — entidade distribuída com sedes, unidades
+     regionais, patrimônio, manutenção, consumo, contratos e prestação de contas;
+  3. `Projetos Integrados Modelo` — escritório de engenharia e arquitetura com
+     clientes, Sites, projetos, orçamentos, documentos, fornecedores e obras.
+- **Requisitos mínimos da massa de dados:**
+  - organizações, equipes, usuários fictícios e diferentes perfis de permissão;
+  - hierarquia completa `Cliente > Site > Prédio > Sala` para cada empresa;
+  - ativos patrimoniais, movimentações, documentos e requisitos de regularidade;
+  - demandas, programas, carteiras e decisões em diferentes estágios;
+  - bases de preços, composições, orçamentos, revisões e medições consistentes;
+  - fornecedores, pesquisas, processos, pedidos, recebimentos e contratos;
+  - planejamento financeiro, compromissos, retenções, glosas e pagamentos;
+  - obras, cronogramas, diários, evidências e boletins de medição;
+  - chamados corretivos e planos preventivos com SLA e custos;
+  - convênios, metas, repasses, execuções, diligências e prestações de contas;
+  - riscos, planos de ação, auditorias e publicações de transparência;
+  - relatórios, portais e canais de integração sem segredos verdadeiros;
+  - registros concluídos, em andamento, vencidos, bloqueados e com alertas para
+    validar todos os estados visuais relevantes.
+- **Segurança e operação:**
+  - usar banco ou organização técnica exclusiva de homologação;
+  - impedir execução do carregamento em produção sem confirmação explícita;
+  - não incluir CPF, CNPJ, e-mail, telefone, endereço ou credencial real;
+  - gerar identificadores, datas e valores determinísticos para permitir testes;
+  - disponibilizar comandos seguros para criar, restaurar e limpar somente a
+    massa fictícia;
+  - preservar migrações e checksums existentes;
+  - validar isolamento entre as três empresas e suas equipes por testes RLS.
+- **Critério de aceite:** a carga pode ser recriada do zero, os principais fluxos
+  funcionam de ponta a ponta, os painéis apresentam dados coerentes e nenhuma
+  empresa consegue consultar ou alterar registros das outras duas.
 
 ## Histórico
 
@@ -407,3 +505,11 @@ critérios mínimos de aceite e manter o histórico de situação.
 | 08/08/2026 | BL-007 | Planejado o ciclo integrado de suprimentos, contratações e contratos. |
 | 08/08/2026 | BL-008 | Planejado o módulo financeiro-orçamentário com perfis público e empresarial. |
 | 08/08/2026 | BL-009 | Planejado o módulo de convênios, repasses e prestação de contas. |
+| 11/08/2026 | BL-008 | Concluído o Financeiro-orçamentário com centros, fontes, orçamento, compromissos, deduções, pagamentos, conciliação, RLS e perfis organizacionais. |
+| 11/08/2026 | BL-010 | Planejado o contexto patrimonial global do banner com Cliente, Site, Prédio e Sala. |
+| 11/08/2026 | BL-011 | Registrada a correção da exclusão segura de Sites no cadastro patrimonial. |
+| 11/08/2026 | BL-012 | Planejada uma base completa de homologação com três empresas fictícias e isolamento RLS. |
+| 11/08/2026 | BL-010 | Implementado o contexto global Cliente, Site, Prédio e Sala com persistência da preferência e propagação operacional. |
+| 11/08/2026 | BL-011 | Corrigida a exclusão de Sites com diagnóstico dos vínculos e mensagem no diálogo. |
+| 11/08/2026 | BL-012 | Criada a massa homologação-v22 com três empresas, perfis e fluxos integrados fictícios. |
+| 11/08/2026 | BL-013 | Concluída a fundação do piloto v23 com OIDC obrigatório, storage GED S3, prontidão, runbook e publicação controlada. |

@@ -70,7 +70,44 @@ test("API informa saúde sem exigir autenticação ou empresa", async (t) => {
   const resposta = await app.inject({ method: "GET", url: "/health" });
   assert.equal(resposta.statusCode, 200);
   assert.equal(resposta.json().armazenamento, "memory");
-  assert.equal(resposta.json().versao, "14.0.0");
+  assert.equal(resposta.json().versao, "23.0.0");
+  assert.ok(resposta.headers["x-request-id"]);
+  assert.equal(resposta.headers["x-content-type-options"], "nosniff");
+});
+
+test("readiness distingue storage opcional local de storage obrigatório", async (t) => {
+  const local = await criarApiTeste();
+  t.after(() => local.close());
+  const respostaLocal = await local.inject({ method: "GET", url: "/ready" });
+  assert.equal(respostaLocal.statusCode, 200);
+  assert.equal(respostaLocal.json().componentes.storage.obrigatorio, false);
+
+  const producao = await criarAplicacaoApi({
+    repository: criarRepositorioMemoria(),
+    authenticate: async () => ({ subject: "dev-user" }),
+    storageRequired: true,
+  });
+  t.after(() => producao.close());
+  const respostaProducao = await producao.inject({ method: "GET", url: "/ready" });
+  assert.equal(respostaProducao.statusCode, 503);
+  assert.equal(respostaProducao.json().ok, false);
+});
+
+test("CORS permite alterações e exclusões executadas pelo frontend", async (t) => {
+  const app = await criarApiTeste();
+  t.after(() => app.close());
+  const resposta = await app.inject({
+    method: "OPTIONS",
+    url: "/v1/patrimonio/unidades/qualquer",
+    headers: {
+      origin: "http://127.0.0.1:4173",
+      "access-control-request-method": "DELETE",
+      "access-control-request-headers": "if-match,x-prumo-dev-user,x-prumo-tenant-id,x-prumo-team-id",
+    },
+  });
+  assert.equal(resposta.statusCode, 204);
+  assert.match(resposta.headers["access-control-allow-methods"], /DELETE/);
+  assert.match(resposta.headers["access-control-allow-methods"], /PUT/);
 });
 
 test("API valida vínculo de empresa e equipe antes de consultar dados", async (t) => {

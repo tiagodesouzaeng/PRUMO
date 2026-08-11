@@ -29,6 +29,17 @@ test("produção exige PostgreSQL e provedor OIDC", () => {
     }),
     /exige OIDC/,
   );
+  assert.throws(
+    () => carregarConfiguracaoServidor({
+      NODE_ENV: "production",
+      PRUMO_API_STORAGE: "postgres",
+      PRUMO_DATABASE_URL: "postgresql://localhost/prumo",
+      PRUMO_OIDC_ISSUER: "https://id.example.test",
+      PRUMO_OIDC_AUDIENCE: "prumo-api",
+      PRUMO_OIDC_JWKS_URL: "https://id.example.test/.well-known/jwks.json",
+    }),
+    /exige storage GED/,
+  );
   const configuracao = carregarConfiguracaoServidor({
     NODE_ENV: "production",
     PRUMO_API_STORAGE: "postgres",
@@ -36,7 +47,11 @@ test("produção exige PostgreSQL e provedor OIDC", () => {
     PRUMO_OIDC_ISSUER: "https://id.example.test",
     PRUMO_OIDC_AUDIENCE: "prumo-api",
     PRUMO_OIDC_JWKS_URL: "https://id.example.test/.well-known/jwks.json",
+    PRUMO_OBJECT_STORAGE_PROVIDER: "s3",
+    PRUMO_OBJECT_STORAGE_REGION: "sa-east-1",
+    PRUMO_OBJECT_STORAGE_BUCKET: "prumo-documentos",
   });
   assert.equal(configuracao.armazenamento, "postgres");
   assert.equal(configuracao.permitirIdentidadeDesenvolvimento, false);
+  assert.equal(configuracao.storageProvider, "s3");
 });

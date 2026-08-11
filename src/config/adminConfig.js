@@ -82,7 +82,7 @@ export const SIGIU_ADMIN_FONTES_DADOS = [
     id: "hidrico",
     modulo: "Consumo Hídrico",
     tipo: "Google Forms + Apps Script",
-    url: "A configurar na Sprint 9",
+    url: "Integração pendente",
     planilha: "Base_Hidrico_SIGIU",
     status: "Previsto",
     sincronizacao: "Incremental por nova leitura",
@@ -143,7 +143,7 @@ export const SIGIU_ADMIN_CADASTROS_MESTRES = [
   {
     grupo: "Pontos de medição",
     total: 0,
-    itens: ["A iniciar na Sprint 9", "Poços", "Hidrômetros", "Corsan", "Pontos internos"],
+    itens: ["Cadastro pendente", "Poços", "Hidrômetros", "Corsan", "Pontos internos"],
   },
 ];
 
@@ -200,13 +200,13 @@ export const SIGIU_ADMIN_SYNC_STATUS = [
 
 export const SIGIU_ADMIN_AUDITORIA = [
   {
-    data: "Sprint 8.0",
+    data: "Implantação inicial",
     usuario: "Sistema",
     acao: "Criado módulo Administração",
     detalhe: "Base visual para governança, usuários e configurações.",
   },
   {
-    data: "Sprint 8.1",
+    data: "Evolução administrativa",
     usuario: "Sistema",
     acao: "Criada estrutura de Fontes de Dados",
     detalhe: "URLs, status, sincronização, cache e validação por módulo.",
@@ -220,7 +220,7 @@ export const SIGIU_ADMIN_AUDITORIA = [
 ];
 
 export const SIGIU_ADMIN_CONFIG_GERAL = {
-  versaoBase: "PRUMO v14.0.0",
+  versaoBase: "PRUMO v23.0.0",
   ambiente: "Desenvolvimento",
   autenticacao: "Perfis e sessão em memória / pendente provedor",
   cacheNavegador: "Compatibilidade durante migração",

@@ -186,6 +186,77 @@
   padding: 16px 28px;
 }
 
+.sigiu-context-selector {
+  min-width: 230px;
+}
+
+.sigiu-context-trigger {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.sigiu-context-trigger > strong:last-child {
+  margin-left: auto;
+}
+
+.sigiu-context-trigger__text {
+  min-width: 0;
+  display: grid;
+  line-height: 1.15;
+}
+
+.sigiu-context-trigger__text strong,
+.sigiu-context-trigger__text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sigiu-context-trigger__text strong { font-size: .8rem; }
+.sigiu-context-trigger__text small { margin-top: 3px; color: var(--sigiu-text-muted); font-size: .7rem; font-weight: 600; }
+
+.sigiu-context-popover {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% - 9px);
+  right: 28px;
+  width: min(390px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--sigiu-text);
+  box-shadow: 0 20px 55px rgba(4, 45, 42, .22);
+}
+
+.sigiu-context-popover > header {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--sigiu-border);
+}
+
+.sigiu-context-popover > header strong { color: var(--sigiu-verde-profundo); font-size: 1rem; }
+.sigiu-context-popover > header small { color: var(--sigiu-text-muted); }
+.sigiu-context-popover label { display: grid; gap: 5px; }
+.sigiu-context-popover label > span { color: var(--sigiu-text-muted); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.sigiu-context-popover select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--sigiu-text);
+  font: inherit;
+}
+.sigiu-context-popover select:disabled { background: var(--sigiu-surface-soft); color: var(--sigiu-text-muted); }
+.sigiu-context-popover > footer { display: flex; justify-content: flex-end; padding-top: 3px; }
+.sigiu-context-error { margin: 0; padding: 9px 11px; border-radius: 8px; background: #fff2f0; color: #9c2f22; font-size: .78rem; }
+
 .sigiu-topbar-title h1 {
   margin: 0;
   color: var(--sigiu-verde-profundo);
@@ -309,6 +380,16 @@
     background: var(--sigiu-gradient-deep);
     color: #fff;
     border-bottom: none;
+  }
+
+  .sigiu-context-popover {
+    position: fixed;
+    top: 126px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+    max-height: calc(100vh - 150px);
+    overflow: auto;
   }
 
   .sigiu-topbar-title {

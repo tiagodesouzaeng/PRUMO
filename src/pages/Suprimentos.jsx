@@ -315,7 +315,7 @@ export default function Suprimentos() {
     <div className="sigiu-page sigiu-procurement">
       <header className="sigiu-page-heading sigiu-page-heading--modulo sigiu-procurement-header">
         <div>
-          <span className="sigiu-page-eyebrow">SPRINT 13 · CICLO DE AQUISIÇÃO</span>
+          <span className="sigiu-page-eyebrow">Suprimentos e aquisições</span>
           <h1>Suprimentos e contratações</h1>
           <p>
             Da demanda incorporada ao pedido recebido, com pesquisa, decisão e

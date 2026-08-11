@@ -3446,6 +3446,18 @@ button.sigiu-document-row.is-selected {
   font-size: 11px;
 }
 
+.sigiu-patrimonio-delete-warning,
+.sigiu-patrimonio-delete-error {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.sigiu-patrimonio-delete-warning { background: #fff7e6; color: #805b10; }
+.sigiu-patrimonio-delete-error { background: #fff0ee; color: #9c2f22; }
+
 .sigiu-patrimonio-layout {
   margin-bottom: 16px;
   display: grid;

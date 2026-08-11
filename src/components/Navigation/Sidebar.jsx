@@ -2,7 +2,7 @@ import { SIGIU_NAV_ITEMS } from "./navItems";
 import PrumoLogo from "../Brand/PrumoLogo";
 
 export default function Sidebar({ paginaAtiva, setPaginaAtiva, recolhido, onAlternar, modulosPermitidos }) {
-  const itens = modulosPermitidos?.size
+  const itens = modulosPermitidos instanceof Set
     ? SIGIU_NAV_ITEMS.filter((item) => modulosPermitidos.has(item.moduleId))
     : SIGIU_NAV_ITEMS;
   return (

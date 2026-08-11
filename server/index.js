@@ -6,6 +6,7 @@ import {
 } from "./auth/oidc.js";
 import { criarRepositorioMemoria } from "./db/memoryRepository.js";
 import { criarRepositorioPostgres } from "./db/postgresRepository.js";
+import { criarArmazenamentoObjetos } from "./storage/objectStorage.js";
 
 const configuracao = carregarConfiguracaoServidor();
 const repository = configuracao.armazenamento === "postgres"
@@ -21,10 +22,13 @@ const authenticate = configuracao.permitirIdentidadeDesenvolvimento
       audience: configuracao.oidcAudience,
       jwksUrl: configuracao.oidcJwksUrl,
     });
+const objectStorage = criarArmazenamentoObjetos(configuracao);
 
 const app = await criarAplicacaoApi({
   repository,
   authenticate,
+  objectStorage,
+  storageRequired: configuracao.nodeEnv === "production",
   corsOrigins: configuracao.corsOrigins,
   logger: { level: configuracao.logLevel },
 });

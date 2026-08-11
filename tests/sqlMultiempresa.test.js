@@ -37,6 +37,7 @@ const arquivoPlanejamento = new URL("../server/migrations/018_demandas_carteira_
 const arquivoCompatibilidadePlanejamento = new URL("../server/migrations/019_compatibilidade_ativacao_planejamento.sql", import.meta.url);
 const arquivoSuprimentos = new URL("../server/migrations/020_suprimentos_contratacoes.sql", import.meta.url);
 const arquivoContratos = new URL("../server/migrations/021_contratos_gestao_contratual.sql", import.meta.url);
+const arquivoFinanceiro = new URL("../server/migrations/022_financeiro_orcamentario.sql", import.meta.url);
 
 test("migração PostgreSQL força RLS e ativa contexto somente após validar vínculo", async () => {
   const sql = await readFile(arquivo, "utf8");
@@ -259,4 +260,19 @@ test("Sprint 14 governa contratos, saldos, fiscalização e encerramento com RLS
   assert.match(sql, /somente processo aprovado origina contrato/);
   assert.match(sql, /'contratos','suprimentos',true/);
   assert.doesNotMatch(sql, /GRANT[\s\S]*DELETE ON app\.contract_decisions TO prumo_api/);
+});
+
+test("Sprint 15 governa orçamento, compromissos, pagamentos e conciliação com RLS", async () => {
+  const sql = await readFile(arquivoFinanceiro, "utf8");
+  assert.match(sql, /CREATE TABLE app\.financial_cost_centers/);
+  assert.match(sql, /CREATE TABLE app\.financial_funding_sources/);
+  assert.match(sql, /CREATE TABLE app\.financial_budgets/);
+  assert.match(sql, /CREATE TABLE app\.financial_commitments/);
+  assert.match(sql, /CREATE TABLE app\.financial_movements/);
+  assert.match(sql, /CREATE TABLE app\.financial_reconciliations/);
+  assert.match(sql, /financial_movements_immutable/);
+  assert.match(sql, /app\.financial_commitments FORCE ROW LEVEL SECURITY/);
+  assert.match(sql, /GRANT SELECT,INSERT ON app\.financial_movements,app\.financial_reconciliations TO prumo_api/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION app\.limpar_financeiro_tenant_teste/);
+  assert.doesNotMatch(sql, /GRANT[\s\S]*DELETE ON app\.financial_movements TO prumo_api/);
 });

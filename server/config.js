@@ -31,6 +31,15 @@ export function carregarConfiguracaoServidor(ambiente = process.env) {
     oidcIssuer: texto(ambiente, "PRUMO_OIDC_ISSUER"),
     oidcAudience: texto(ambiente, "PRUMO_OIDC_AUDIENCE"),
     oidcJwksUrl: texto(ambiente, "PRUMO_OIDC_JWKS_URL"),
+    storageProvider: texto(ambiente, "PRUMO_OBJECT_STORAGE_PROVIDER", "disabled").toLowerCase(),
+    storageRegion: texto(ambiente, "PRUMO_OBJECT_STORAGE_REGION"),
+    storageBucket: texto(ambiente, "PRUMO_OBJECT_STORAGE_BUCKET"),
+    storageEndpoint: texto(ambiente, "PRUMO_OBJECT_STORAGE_ENDPOINT"),
+    storageForcePathStyle: texto(ambiente, "PRUMO_OBJECT_STORAGE_FORCE_PATH_STYLE", "false") === "true",
+    storageAccessKeyId: texto(ambiente, "PRUMO_OBJECT_STORAGE_ACCESS_KEY_ID"),
+    storageSecretAccessKey: texto(ambiente, "PRUMO_OBJECT_STORAGE_SECRET_ACCESS_KEY"),
+    storageSessionToken: texto(ambiente, "PRUMO_OBJECT_STORAGE_SESSION_TOKEN"),
+    storageSignedUrlTtl: inteiro(ambiente, "PRUMO_OBJECT_STORAGE_SIGNED_URL_TTL", "300"),
     permitirIdentidadeDesenvolvimento:
       nodeEnv !== "production"
       && texto(ambiente, "PRUMO_DEV_IDENTITY", "false") === "true",
@@ -38,6 +47,15 @@ export function carregarConfiguracaoServidor(ambiente = process.env) {
 
   if (!["memory", "postgres"].includes(armazenamento)) {
     throw new Error("PRUMO_API_STORAGE deve ser memory ou postgres.");
+  }
+  if (!["disabled", "s3"].includes(configuracao.storageProvider)) {
+    throw new Error("PRUMO_OBJECT_STORAGE_PROVIDER deve ser disabled ou s3.");
+  }
+  if (configuracao.storageProvider === "s3" && (
+    !configuracao.storageRegion
+    || !configuracao.storageBucket
+  )) {
+    throw new Error("O storage S3 exige região e bucket.");
   }
   if (nodeEnv === "production" && armazenamento !== "postgres") {
     throw new Error("O modo de produção exige armazenamento PostgreSQL.");
@@ -51,6 +69,9 @@ export function carregarConfiguracaoServidor(ambiente = process.env) {
     || !configuracao.oidcJwksUrl
   )) {
     throw new Error("O modo de produção exige OIDC issuer, audience e JWKS URL.");
+  }
+  if (nodeEnv === "production" && configuracao.storageProvider !== "s3") {
+    throw new Error("O modo de produção exige storage GED S3 compatível.");
   }
   return configuracao;
 }
