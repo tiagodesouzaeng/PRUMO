@@ -70,7 +70,7 @@ test("API informa saúde sem exigir autenticação ou empresa", async (t) => {
   const resposta = await app.inject({ method: "GET", url: "/health" });
   assert.equal(resposta.statusCode, 200);
   assert.equal(resposta.json().armazenamento, "memory");
-  assert.equal(resposta.json().versao, "23.0.0");
+  assert.equal(resposta.json().versao, "25.0.0");
   assert.ok(resposta.headers["x-request-id"]);
   assert.equal(resposta.headers["x-content-type-options"], "nosniff");
 });

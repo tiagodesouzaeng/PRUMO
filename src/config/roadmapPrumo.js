@@ -172,6 +172,22 @@ export const ROADMAP_PRUMO = [
     resumo: "Fundação de produção concluída com OIDC, storage GED S3 compatível, prontidão operacional, runbook de piloto e publicação controlada.",
     entregas: ["OIDC corporativo", "Upload e download seguro no GED", "Monitoramento e prontidão", "Guia de treinamento e piloto", "Plano de entrada em produção"],
   },
+  {
+    id: "24",
+    fase: "Operação corporativa",
+    tema: "Ambiente corporativo verificável",
+    status: "concluida",
+    resumo: "Prontidão de API, PostgreSQL, identidade, GED, segredos, recuperação, monitoramento e origens seguras governada por evidências.",
+    entregas: ["Readiness com identidade", "Validação HTTPS", "Checklist por organização", "Evidências auditáveis"],
+  },
+  {
+    id: "25",
+    fase: "Operação corporativa",
+    tema: "Migração definitiva e piloto assistido",
+    status: "concluida",
+    resumo: "Homologação, transição de repositórios, isolamento, retorno seguro e aceite do piloto submetidos a decisão administrativa bloqueante.",
+    entregas: ["Governança da migração", "Piloto por organização", "Bloqueio de promoção prematura", "Decisões auditáveis"],
+  },
 ];
 
 export const STATUS_ROADMAP = {

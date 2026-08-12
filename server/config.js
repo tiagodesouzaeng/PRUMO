@@ -8,6 +8,10 @@ function inteiro(ambiente, nome, padrao) {
   }
   return valor;
 }
+function urlSegura(valor) {
+  try { return new URL(valor).protocol === "https:"; }
+  catch { return false; }
+}
 
 export function carregarConfiguracaoServidor(ambiente = process.env) {
   const nodeEnv = texto(ambiente, "NODE_ENV", "development");
@@ -72,6 +76,21 @@ export function carregarConfiguracaoServidor(ambiente = process.env) {
   }
   if (nodeEnv === "production" && configuracao.storageProvider !== "s3") {
     throw new Error("O modo de produção exige storage GED S3 compatível.");
+  }
+  if (nodeEnv === "production" && !configuracao.corsOrigins.length) {
+    throw new Error("O modo de produção exige ao menos uma origem CORS explícita.");
+  }
+  if (nodeEnv === "production" && configuracao.corsOrigins.some((origem) => !urlSegura(origem))) {
+    throw new Error("As origens CORS de produção devem usar HTTPS.");
+  }
+  if (nodeEnv === "production" && (!urlSegura(configuracao.oidcIssuer) || !urlSegura(configuracao.oidcJwksUrl))) {
+    throw new Error("OIDC issuer e JWKS devem usar HTTPS em produção.");
+  }
+  if (nodeEnv === "production" && configuracao.storageEndpoint && !urlSegura(configuracao.storageEndpoint)) {
+    throw new Error("O endpoint do storage deve usar HTTPS em produção.");
+  }
+  if (nodeEnv === "production" && configuracao.storageSignedUrlTtl > 900) {
+    throw new Error("URLs temporárias do GED não podem exceder 900 segundos em produção.");
   }
   return configuracao;
 }

@@ -18,6 +18,12 @@ import { calcularResumoConvenio, resolverTransicaoConvenio } from "../domain/agr
 import { calcularNivelRisco, classificarRequisito, sanitizarPublicacao } from "../domain/compliance.js";
 import { gerarCredencialPortal, validarEscopoPortal } from "../domain/intelligence.js";
 import {
+  avaliarEstadoPiloto,
+  atualizarItemPiloto,
+  criarEstadoPiloto,
+  decidirPiloto,
+} from "../domain/pilot.js";
+import {
   criarHashAuditoria,
   normalizarFiltrosAuditoria,
   sanitizarDadosAuditoria,
@@ -99,6 +105,7 @@ export function criarRepositorioMemoria({
   convenios = [], metasConvenios = [], repassesConvenios = [], execucoesConvenios = [], prestacoesConvenios = [], diligenciasConvenios = [],
   requisitosCompliance = [], riscosCompliance = [], acoesCompliance = [], auditoriasCompliance = [], publicacoesTransparencia = [],
   definicoesRelatorios = [], acessosPortais = [], canaisIntegracao = [],
+  estadosPiloto = [],
 } = {}) {
   const registros = new Map(orcamentos.map((item) => [item.id, {
     ...copiar(item),
@@ -163,6 +170,7 @@ export function criarRepositorioMemoria({
   const registrosMetasConvenios = metasConvenios.map(copiar); const registrosRepassesConvenios = repassesConvenios.map(copiar); const registrosExecucoesConvenios = execucoesConvenios.map(copiar); const registrosPrestacoesConvenios = new Map(prestacoesConvenios.map((item)=>[item.id,copiar(item)])); const registrosDiligenciasConvenios = diligenciasConvenios.map(copiar);
   const registrosRequisitos = new Map(requisitosCompliance.map((item)=>[item.id,copiar(item)])); const registrosRiscos = new Map(riscosCompliance.map((item)=>[item.id,copiar(item)])); const registrosAcoes = new Map(acoesCompliance.map((item)=>[item.id,copiar(item)])); const registrosAuditoriasCompliance = auditoriasCompliance.map(copiar); const registrosPublicacoesTransparencia = new Map(publicacoesTransparencia.map((item)=>[item.id,copiar(item)]));
   const registrosRelatorios = new Map(definicoesRelatorios.map((item)=>[item.id,copiar(item)])); const registrosPortais = new Map(acessosPortais.map((item)=>[item.id,copiar(item)])); const registrosCanais = new Map(canaisIntegracao.map((item)=>[item.id,copiar(item)]));
+  const pilotos = new Map(estadosPiloto.map((item) => [item.tenantId, copiar(item)]));
   const itensCronogramaObras = cronogramaObras.map(copiar);
   const registrosDiarioObras = diariosObras.map(copiar);
   const itensMedicoesObras = itensMedicoesCorporativas.map(copiar);
@@ -1228,6 +1236,32 @@ export function criarRepositorioMemoria({
     async listarCanaisIntegracao(contextoBruto) { const c=validarContexto(contextoBruto);exigirPermissao(c,"integracoes.consultar");return [...registrosCanais.values()].filter(x=>visivel(x,c)).map(copiar); },
     async criarCanalIntegracao(contextoBruto,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"integracoes.administrar");const agora=new Date().toISOString();const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,...copiar(dados),status:"configuracao",versao:1,criadoPor:c.usuarioId,atualizadoPor:c.usuarioId,criadoEm:agora,atualizadoEm:agora};registrosCanais.set(x.id,x);return copiar(x); },
     async obterObservabilidade(contextoBruto) { const c=validarContexto(contextoBruto);exigirPermissao(c,"observabilidade.consultar");return{status:"operacional",banco:"disponivel",rls:"ativo",fila:{pendentes:[...registrosTrabalhos.values()].filter(x=>visivel(x,c)&&x.status==="pendente").length,falhos:[...registrosTrabalhos.values()].filter(x=>visivel(x,c)&&x.status==="falhou").length},integracoes:{total:[...registrosCanais.values()].filter(x=>visivel(x,c)).length,comErro:[...registrosCanais.values()].filter(x=>visivel(x,c)&&x.status==="erro").length},verificadoEm:new Date().toISOString()}; },
+    async obterEstadoPiloto(contextoBruto) {
+      const c = validarContexto(contextoBruto); exigirPermissao(c, "piloto.consultar");
+      if (!pilotos.has(c.tenantId)) pilotos.set(c.tenantId, criarEstadoPiloto(c));
+      const estado = copiar(pilotos.get(c.tenantId));
+      return { ...estado, avaliacao: avaliarEstadoPiloto(estado) };
+    },
+    async atualizarItemPiloto(contextoBruto, itemId, dados) {
+      const c = validarContexto(contextoBruto); exigirPermissao(c, "piloto.administrar");
+      const anterior = pilotos.get(c.tenantId) || criarEstadoPiloto(c);
+      let atualizado;
+      try { atualizado = atualizarItemPiloto(anterior, itemId, dados, c); }
+      catch (error) { throw new ApiError(422, "REQUISITO_PILOTO_INVALIDO", error.message); }
+      pilotos.set(c.tenantId, atualizado);
+      registrarAuditoria(c, { moduleId: "administracao", action: "piloto.requisito.atualizado", entityType: "requisito-piloto", entityId: itemId, before: anterior.itens.find((x)=>x.id===itemId), after: atualizado.itens.find((x)=>x.id===itemId) });
+      return { ...copiar(atualizado), avaliacao: avaliarEstadoPiloto(atualizado) };
+    },
+    async decidirPiloto(contextoBruto, dados) {
+      const c = validarContexto(contextoBruto); exigirPermissao(c, "piloto.administrar");
+      const anterior = pilotos.get(c.tenantId) || criarEstadoPiloto(c);
+      let atualizado;
+      try { atualizado = decidirPiloto(anterior, dados, c); }
+      catch (error) { throw new ApiError(409, "DECISAO_PILOTO_BLOQUEADA", error.message); }
+      pilotos.set(c.tenantId, atualizado);
+      registrarAuditoria(c, { moduleId: "administracao", action: `piloto.${dados.acao}`, entityType: "piloto", entityId: c.tenantId, before: { status: anterior.status }, after: { status: atualizado.status }, metadata: { justificativa: dados.justificativa } });
+      return { ...copiar(atualizado), avaliacao: avaliarEstadoPiloto(atualizado) };
+    },
     async listarOrcamentos(contextoBruto) {
       const contexto = validarContexto(contextoBruto);
       exigirPermissao(contexto, "orcamento.consultar");

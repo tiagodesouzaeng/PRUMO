@@ -14,6 +14,12 @@ import { calcularResumoConvenio, resolverTransicaoConvenio } from "../domain/agr
 import { calcularNivelRisco, sanitizarPublicacao } from "../domain/compliance.js";
 import { gerarCredencialPortal, validarEscopoPortal } from "../domain/intelligence.js";
 import {
+  avaliarEstadoPiloto,
+  atualizarItemPiloto,
+  criarEstadoPiloto,
+  decidirPiloto,
+} from "../domain/pilot.js";
+import {
   criarHashAuditoria,
   normalizarFiltrosAuditoria,
   sanitizarDadosAuditoria,
@@ -1609,6 +1615,56 @@ export function criarRepositorioPostgres({
     async listarCanaisIntegracao(contexto) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"integracoes.consultar");const r=await cliente.query("SELECT * FROM app.integration_channels ORDER BY nome");return r.rows.map(mapearLinhaGenerica);}); },
     async criarCanalIntegracao(contexto,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"integracoes.administrar");const r=await cliente.query(`INSERT INTO app.integration_channels(tenant_id,id,team_id,codigo,nome,tipo,direcao,configuracao_publica,segredo_referencia,criado_por,atualizado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING *`,[c.tenantId,randomUUID(),c.teamId,dados.codigo.trim(),dados.nome.trim(),dados.tipo,dados.direcao||"bidirecional",dados.configuracaoPublica||{},dados.segredoReferencia||"",c.usuarioId]);return mapearLinhaGenerica(r.rows[0]);}); },
     async obterObservabilidade(contexto) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"observabilidade.consultar");const [j,i]=await Promise.all([cliente.query("SELECT count(*) FILTER(WHERE status='pendente')::int pendentes,count(*) FILTER(WHERE status='falhou')::int falhos FROM app.jobs"),cliente.query("SELECT count(*)::int total,count(*) FILTER(WHERE status='erro')::int com_erro FROM app.integration_channels")]);return{status:"operacional",banco:"disponivel",rls:"ativo",fila:mapearLinhaGenerica(j.rows[0]),integracoes:mapearLinhaGenerica(i.rows[0]),verificadoEm:new Date().toISOString()};}); },
+    async obterEstadoPiloto(contexto) {
+      return comContexto(contexto, async (cliente, c) => {
+        exigirPermissao(c, "piloto.consultar");
+        const resultado = await cliente.query(
+          "SELECT valor FROM app.tenant_settings WHERE chave='operacao.piloto.v25'",
+        );
+        const estado = resultado.rows[0]?.valor || criarEstadoPiloto(c);
+        return { ...estado, avaliacao: avaliarEstadoPiloto(estado) };
+      });
+    },
+    async atualizarItemPiloto(contexto, itemId, dados) {
+      return comContexto(contexto, async (cliente, c) => {
+        exigirPermissao(c, "piloto.administrar");
+        const resultado = await cliente.query(
+          "SELECT valor FROM app.tenant_settings WHERE chave='operacao.piloto.v25' FOR UPDATE",
+        );
+        const anterior = resultado.rows[0]?.valor || criarEstadoPiloto(c);
+        let atualizado;
+        try { atualizado = atualizarItemPiloto(anterior, itemId, dados, c); }
+        catch (error) { throw new ApiError(422, "REQUISITO_PILOTO_INVALIDO", error.message); }
+        await cliente.query(
+          `INSERT INTO app.tenant_settings(tenant_id,chave,valor,atualizado_por)
+           VALUES($1,'operacao.piloto.v25',$2,$3)
+           ON CONFLICT(tenant_id,chave) DO UPDATE SET valor=EXCLUDED.valor,atualizado_por=EXCLUDED.atualizado_por,atualizado_em=now()`,
+          [c.tenantId, atualizado, c.usuarioId],
+        );
+        await registrarAuditoria(cliente, c, { moduleId:"administracao", action:"piloto.requisito.atualizado", entityType:"requisito-piloto", entityId:itemId, before:anterior.itens.find((x)=>x.id===itemId), after:atualizado.itens.find((x)=>x.id===itemId) });
+        return { ...atualizado, avaliacao: avaliarEstadoPiloto(atualizado) };
+      });
+    },
+    async decidirPiloto(contexto, dados) {
+      return comContexto(contexto, async (cliente, c) => {
+        exigirPermissao(c, "piloto.administrar");
+        const resultado = await cliente.query(
+          "SELECT valor FROM app.tenant_settings WHERE chave='operacao.piloto.v25' FOR UPDATE",
+        );
+        const anterior = resultado.rows[0]?.valor || criarEstadoPiloto(c);
+        let atualizado;
+        try { atualizado = decidirPiloto(anterior, dados, c); }
+        catch (error) { throw new ApiError(409, "DECISAO_PILOTO_BLOQUEADA", error.message); }
+        await cliente.query(
+          `INSERT INTO app.tenant_settings(tenant_id,chave,valor,atualizado_por)
+           VALUES($1,'operacao.piloto.v25',$2,$3)
+           ON CONFLICT(tenant_id,chave) DO UPDATE SET valor=EXCLUDED.valor,atualizado_por=EXCLUDED.atualizado_por,atualizado_em=now()`,
+          [c.tenantId, atualizado, c.usuarioId],
+        );
+        await registrarAuditoria(cliente, c, { moduleId:"administracao", action:`piloto.${dados.acao}`, entityType:"piloto", entityId:c.tenantId, before:{status:anterior.status}, after:{status:atualizado.status}, metadata:{justificativa:dados.justificativa} });
+        return { ...atualizado, avaliacao: avaliarEstadoPiloto(atualizado) };
+      });
+    },
     async listarOrcamentos(contexto) {
       return comContexto(contexto, async (cliente, validado) => {
         exigirPermissao(validado, "orcamento.consultar");

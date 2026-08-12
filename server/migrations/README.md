@@ -72,6 +72,10 @@ pnpm db:migrate
 
 O executor mantém checksum e recusa alterações em migrações já aplicadas.
 
+A migração `029_prontidao_piloto_v25.sql` adiciona as permissões administrativas
+do piloto. O estado e as evidências ficam em `app.tenant_settings`, sob a mesma
+RLS da organização, e as decisões relevantes são registradas na Auditoria.
+
 ## Backup e restauração
 
 A identidade da API não deve receber `BYPASSRLS` apenas para viabilizar cópias

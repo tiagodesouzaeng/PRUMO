@@ -46,6 +46,10 @@ Referências:
 | 20 | BI, portais e consolidação | Indicadores executivos, portais, integrações e prontidão comercial ampliada |
 | 20.1 | Estabilização integrada | Roadmap gerencial, telas sem rótulos de desenvolvimento, segurança de dependências e validação completa |
 | 21 | Prontidão de produção | OIDC, contexto global Cliente > Site > Prédio > Sala, exclusão segura de Sites, base de homologação multiempresa, migração definitiva e endurecimento |
+| 22 | Consolidação local | Homologação assistida, repositórios híbridos e propagação do contexto patrimonial |
+| 23 | Fundação do piloto | OIDC obrigatório, GED S3, readiness, segurança e runbook operacional |
+| 24 | Ambiente corporativo | Prontidão verificável por organização, HTTPS, identidade, dados, GED, recuperação e monitoramento |
+| 25 | Migração e piloto assistido | Evidências, isolamento, transição de repositórios, retorno seguro, aceite e promoção controlada |
 
 As Sprints 10.4 e 10.5 preservam o escopo já aprovado. A Sprint 10.6 formaliza
 a convergência comercial antes da criação dos novos domínios transacionais.
@@ -187,7 +191,7 @@ Uma sprint de domínio somente pode ser encerrada quando possuir, no mínimo:
 - documentação operacional e estratégia de backup;
 - integração explícita, quando consumir ou publicar dados de outro módulo.
 
-## Sprints 21 a 23 — Homologação e operação assistida
+## Sprints 21 a 25 — Homologação e operação assistida
 
 A versão `22.0.0` conclui localmente o contexto Cliente → Site → Prédio → Sala,
 a exclusão segura, a massa de três organizações fictícias e a homologação
@@ -196,3 +200,10 @@ contrato OIDC obrigatório em produção, storage GED S3 compatível com URLs
 temporárias, prontidão operacional, endurecimento de segurança e runbook de
 entrada controlada. A ativação pública continua condicionada à contratação e
 configuração dos serviços externos de identidade, API, PostgreSQL e storage.
+
+As versões 24.0.0 e 25.0.0 acrescentam a governança operacional que faltava:
+cada requisito de infraestrutura, migração e piloto possui estado, evidência,
+responsável e data por organização. O início do piloto é bloqueado enquanto a
+Sprint 24 não estiver comprovada e a promoção é bloqueada até todos os requisitos
+da Sprint 25 serem aprovados. A contratação e a configuração dos serviços
+externos continuam sendo ações de implantação, não credenciais do código-fonte.

@@ -89,6 +89,8 @@ export const PERMISSOES_PLATAFORMA = [
   { id: "integracoes.consultar", moduloId: "administracao" },
   { id: "integracoes.administrar", moduloId: "administracao" },
   { id: "observabilidade.consultar", moduloId: "administracao" },
+  { id: "piloto.consultar", moduloId: "administracao" },
+  { id: "piloto.administrar", moduloId: "administracao" },
   { id: "produto-modular.consultar", moduloId: "administracao" },
   { id: "produto-modular.administrar", moduloId: "administracao" },
   { id: "migracao.administrar", moduloId: "administracao" },
@@ -149,6 +151,7 @@ export const PERMISSOES_PADRAO_POR_PERFIL = {
     "integracoes.consultar",
     "produto-modular.consultar",
     "observabilidade.consultar",
+    "piloto.consultar",
   ],
   orcamentista: [
     "plataforma.consultar",

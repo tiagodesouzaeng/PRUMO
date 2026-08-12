@@ -29,6 +29,10 @@ const app = await criarAplicacaoApi({
   authenticate,
   objectStorage,
   storageRequired: configuracao.nodeEnv === "production",
+  identityRequired: configuracao.nodeEnv === "production",
+  identityMode: configuracao.permitirIdentidadeDesenvolvimento
+    ? "desenvolvimento"
+    : configuracao.oidcIssuer ? "oidc" : "nao_configurado",
   corsOrigins: configuracao.corsOrigins,
   logger: { level: configuracao.logLevel },
 });

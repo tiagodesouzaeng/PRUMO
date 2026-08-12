@@ -9,6 +9,8 @@
 5. Publicar a API em HTTPS e restringir CORS à URL do frontend.
 6. Definir no frontend somente as URLs públicas da API e autenticação.
 7. Executar pnpm production:check; nenhuma pendência pode permanecer.
+8. Abrir `Administração > Operação técnica` e registrar uma evidência para cada
+   requisito da Sprint 24; o piloto não poderá iniciar antes dessa aprovação.
 
 As credenciais do banco e do storage ficam no cofre de segredos da plataforma de
 backend. Não devem ser definidas no Netlify, no frontend ou no repositório.
@@ -23,6 +25,8 @@ backend. Não devem ser definidas no Netlify, no frontend ou no repositório.
 - enviar, baixar e conferir o hash de um documento por organização;
 - validar fila, integrações, auditoria e exportações;
 - revisar os domínios ainda em modo híbrido antes de ativá-los como corporativos.
+- registrar na seção de prontidão os resultados de RLS, inventário, lotes,
+  fluxos críticos e teste de retorno da Sprint 25.
 
 ## 3. Executar o piloto
 
@@ -31,6 +35,8 @@ backend. Não devem ser definidas no Netlify, no frontend ou no repositório.
 - registrar incidentes com horário, organização, módulo e X-Request-Id;
 - realizar conferência diária de alertas, fila, integrações e backups;
 - manter os dados locais preservados enquanto houver domínio em modo híbrido;
+- iniciar, suspender, retomar e aprovar o piloto somente pelas decisões
+  administrativas auditáveis da seção de Operação técnica;
 - treinar primeiro a navegação, contexto Cliente/Site/Prédio/Sala, permissões,
   documentos, auditoria e procedimento de suporte.
 

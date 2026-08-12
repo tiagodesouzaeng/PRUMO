@@ -388,6 +388,8 @@ são atualizadas. Consulte `docs/SPRINT_20_1.md`.
 - contexto e homologação multiempresa: `docs/SPRINT_21.md`;
 - consolidação e prontidão local: `docs/SPRINT_22.md`;
 - piloto controlado e produção: `docs/SPRINT_23.md`;
+- ambiente corporativo verificável: `docs/SPRINT_24.md`;
+- migração definitiva e piloto assistido: `docs/SPRINT_25.md`;
 - runbook do piloto: `docs/operacao/PILOTO_PRODUCAO.md`;
 - padrão visual da plataforma: `docs/DESIGN_SYSTEM_PRUMO.md`;
 - backlog permanente: `BACKLOG_PRUMO.md`;
@@ -456,3 +458,8 @@ validação reversível antes da ativação corporativa definitiva. A versão
 `23.0.0` acrescenta upload e download real do GED por URLs temporárias,
 readiness da API e um verificador que impede promover um ambiente sem
 PostgreSQL, OIDC, storage e origens HTTPS.
+
+A versão `25.0.0` fecha as Sprints 24 e 25 com prontidão e piloto governados por
+organização. Evidências de infraestrutura, migração e homologação são
+registradas na Administração; o piloto não inicia sem o ambiente comprovado e
+a promoção permanece bloqueada até a aprovação integral do checklist.

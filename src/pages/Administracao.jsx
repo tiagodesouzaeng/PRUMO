@@ -195,6 +195,9 @@ function InfraestruturaCorporativa({ basesPrecos }) {
   const [trabalhos, setTrabalhos] = useState([]);
   const [transicoes, setTransicoes] = useState([]);
   const [prontidao, setProntidao] = useState(null);
+  const [piloto, setPiloto] = useState(null);
+  const [justificativaPiloto, setJustificativaPiloto] = useState("");
+  const [salvandoPiloto, setSalvandoPiloto] = useState(false);
   const [processandoTrabalho, setProcessandoTrabalho] = useState(false);
   const [mensagemGovernanca, setMensagemGovernanca] = useState("");
   const dadosMigracao = useMemo(() => ({
@@ -219,18 +222,21 @@ function InfraestruturaCorporativa({ basesPrecos }) {
   async function carregarGovernanca() {
     if (!cliente) return;
     try {
-      const [fila, estados, estadoProntidao] = await Promise.all([
+      const [fila, estados, estadoProntidao, estadoPiloto] = await Promise.all([
         cliente.listarTrabalhos(),
         cliente.listarTransicoesRepositorio(),
         cliente.obterProntidaoOperacional(),
+        cliente.obterEstadoPiloto(),
       ]);
       setTrabalhos(fila);
       setTransicoes(estados);
       setProntidao(estadoProntidao);
+      setPiloto(estadoPiloto);
     } catch {
       setTrabalhos([]);
       setTransicoes([]);
       setProntidao(null);
+      setPiloto(null);
     }
   }
 
@@ -322,6 +328,46 @@ function InfraestruturaCorporativa({ basesPrecos }) {
     }
   }
 
+  function editarRequisitoPiloto(itemId, campo, valor) {
+    setPiloto((atual) => atual ? {
+      ...atual,
+      itens: atual.itens.map((item) => item.id === itemId ? { ...item, [campo]: valor } : item),
+    } : atual);
+  }
+
+  async function salvarRequisitoPiloto(item) {
+    if (!cliente) return;
+    setSalvandoPiloto(true);
+    setMensagemGovernanca("");
+    try {
+      setPiloto(await cliente.atualizarRequisitoPiloto(item.id, {
+        status: item.status,
+        evidencia: item.evidencia || "",
+        observacao: item.observacao || "",
+      }));
+      setMensagemGovernanca("Evidência registrada no histórico do piloto.");
+    } catch (erro) {
+      setMensagemGovernanca(erro.message);
+    } finally {
+      setSalvandoPiloto(false);
+    }
+  }
+
+  async function executarDecisaoPiloto(acao) {
+    if (!cliente) return;
+    setSalvandoPiloto(true);
+    setMensagemGovernanca("");
+    try {
+      setPiloto(await cliente.decidirPiloto({ acao, justificativa: justificativaPiloto }));
+      setJustificativaPiloto("");
+      setMensagemGovernanca("Decisão do piloto registrada e auditada.");
+    } catch (erro) {
+      setMensagemGovernanca(erro.message);
+    } finally {
+      setSalvandoPiloto(false);
+    }
+  }
+
   return (
     <div className="sigiu-admin-stack">
       <section className="sigiu-card sigiu-admin-card sigiu-infrastructure-summary">
@@ -376,6 +422,53 @@ function InfraestruturaCorporativa({ basesPrecos }) {
         <footer className="sigiu-admin-security-note">
           A entrada em produção somente é liberada com PostgreSQL, OIDC e storage corporativo ativos; nenhuma credencial é exibida nesta tela.
         </footer>
+      </section>
+
+      <section className="sigiu-card sigiu-admin-card sigiu-pilot-readiness">
+        <header className="sigiu-card-header-row">
+          <div>
+            <h2>Prontidão e piloto corporativo</h2>
+            <p>Requisitos das Sprints 24 e 25 com evidência por organização e decisão administrativa auditável.</p>
+          </div>
+          <StatusChip status={piloto ? `${piloto.avaliacao?.progresso || 0}% · ${piloto.status}` : "API corporativa necessária"} />
+        </header>
+        {piloto ? (
+          <>
+            <div className="sigiu-audit-summary">
+              <article><span>Ambiente corporativo</span><strong>{piloto.avaliacao?.sprint24?.aprovados || 0}/{piloto.avaliacao?.sprint24?.total || 0}</strong></article>
+              <article><span>Migração e piloto</span><strong>{piloto.avaliacao?.sprint25?.aprovados || 0}/{piloto.avaliacao?.sprint25?.total || 0}</strong></article>
+              <article><span>Bloqueadores</span><strong>{piloto.avaliacao?.bloqueados || 0}</strong></article>
+              <article><span>Promoção</span><strong>{piloto.avaliacao?.podePromover ? "Liberada" : "Bloqueada"}</strong></article>
+            </div>
+            <div className="sigiu-pilot-checklist">
+              {piloto.itens.map((item) => (
+                <article key={item.id}>
+                  <div className="sigiu-pilot-checklist__heading">
+                    <div><small>Sprint {item.sprint} · {item.grupo}</small><strong>{item.titulo}</strong></div>
+                    <select aria-label={`Status de ${item.titulo}`} value={item.status} onChange={(event) => editarRequisitoPiloto(item.id, "status", event.target.value)}>
+                      <option value="pendente">Pendente</option>
+                      <option value="em_validacao">Em validação</option>
+                      <option value="aprovado">Aprovado</option>
+                      <option value="bloqueado">Bloqueado</option>
+                    </select>
+                  </div>
+                  <label><span>Evidência</span><input value={item.evidencia || ""} onChange={(event) => editarRequisitoPiloto(item.id, "evidencia", event.target.value)} placeholder="Relatório, execução, URL ou registro verificável" /></label>
+                  <label><span>Observação</span><input value={item.observacao || ""} onChange={(event) => editarRequisitoPiloto(item.id, "observacao", event.target.value)} placeholder="Risco, responsável ou pendência" /></label>
+                  <button type="button" className="sigiu-btn sigiu-btn--outline" disabled={salvandoPiloto} onClick={() => salvarRequisitoPiloto(item)}>Registrar evidência</button>
+                </article>
+              ))}
+            </div>
+            <footer className="sigiu-pilot-decision">
+              <label><span>Justificativa da decisão</span><input value={justificativaPiloto} onChange={(event) => setJustificativaPiloto(event.target.value)} placeholder="Informe a decisão administrativa e sua justificativa" /></label>
+              <div className="sigiu-admin-card-actions">
+                {piloto.status === "preparacao" && <button type="button" className="sigiu-btn sigiu-btn--primary" disabled={salvandoPiloto} onClick={() => executarDecisaoPiloto("iniciar")}>Iniciar piloto</button>}
+                {piloto.status === "em_execucao" && <><button type="button" className="sigiu-btn sigiu-btn--primary" disabled={salvandoPiloto} onClick={() => executarDecisaoPiloto("aprovar")}>Aprovar piloto</button><button type="button" className="sigiu-btn" disabled={salvandoPiloto} onClick={() => executarDecisaoPiloto("suspender")}>Suspender</button></>}
+                {piloto.status === "suspenso" && <button type="button" className="sigiu-btn sigiu-btn--primary" disabled={salvandoPiloto} onClick={() => executarDecisaoPiloto("retomar")}>Retomar piloto</button>}
+                {piloto.status === "aprovado" && <button type="button" className="sigiu-btn sigiu-btn--primary" disabled={salvandoPiloto} onClick={() => executarDecisaoPiloto("encerrar")}>Encerrar e promover</button>}
+              </div>
+            </footer>
+          </>
+        ) : <p className="sigiu-admin-empty">Conecte a API e selecione uma organização para registrar evidências do ambiente e do piloto.</p>}
       </section>
 
       <section className="sigiu-card sigiu-admin-card">
@@ -1049,6 +1142,7 @@ function Sincronizacao({ basesPrecos }) {
           {clienteCorporativo && !integracoesCorporativas.length && <p className="sigiu-admin-empty">Salve uma configuração abaixo para registrá-la no servidor.</p>}
         </div>
       </section>
+
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>

@@ -273,6 +273,14 @@ export function criarClientePrumo({
     criarCanalIntegracao: (dados,idempotencyKey) => requisitar("v1/integracoes/canais",{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
     obterObservabilidade: () => requisitar("v1/operacao/observabilidade"),
     obterProntidaoOperacional: () => requisitar("v1/operacao/prontidao"),
+    obterEstadoPiloto: () => requisitar("v1/operacao/piloto"),
+    atualizarRequisitoPiloto: (itemId, dados) => requisitar(
+      `v1/operacao/piloto/requisitos/${encodeURIComponent(itemId)}`,
+      { method: "PUT", body: JSON.stringify(dados) },
+    ),
+    decidirPiloto: (dados) => requisitar("v1/operacao/piloto/decisoes", {
+      method: "POST", body: JSON.stringify(dados),
+    }),
     listarEmpreendimentos: () => requisitar("v1/empreendimentos"),
     criarEmpreendimento: (dados, idempotencyKey) => requisitar("v1/empreendimentos", {
       method: "POST",

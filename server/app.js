@@ -153,6 +153,27 @@ const esquemaTransicaoRepositorio = {
   },
 };
 
+const esquemaRequisitoPiloto = {
+  type: "object",
+  required: ["status"],
+  additionalProperties: false,
+  properties: {
+    status: { enum: ["pendente", "em_validacao", "aprovado", "bloqueado"] },
+    evidencia: { type: "string", maxLength: 2000 },
+    observacao: { type: "string", maxLength: 4000 },
+  },
+};
+
+const esquemaDecisaoPiloto = {
+  type: "object",
+  required: ["acao", "justificativa"],
+  additionalProperties: false,
+  properties: {
+    acao: { enum: ["iniciar", "suspender", "retomar", "aprovar", "encerrar"] },
+    justificativa: { type: "string", minLength: 5, maxLength: 4000 },
+  },
+};
+
 const esquemaUnidadePatrimonial = {
   type: "object",
   required: ["nivel", "codigo", "nome"],
@@ -491,6 +512,8 @@ export async function criarAplicacaoApi({
   authenticate,
   objectStorage = criarArmazenamentoDesabilitado(),
   storageRequired = false,
+  identityRequired = false,
+  identityMode = "desenvolvimento",
   corsOrigins = [],
   logger = false,
   jobWorker,
@@ -561,7 +584,7 @@ export async function criarAplicacaoApi({
     return {
       ok: true,
       servico: "PRUMO API",
-      versao: "23.0.0",
+      versao: "25.0.0",
       armazenamento: repository.tipo,
       banco,
     };
@@ -572,11 +595,12 @@ export async function criarAplicacaoApi({
       repository.health(),
       objectStorage.health(),
     ]);
-    const ok = Boolean(banco?.ok) && (!storageRequired || Boolean(storage?.ok));
+    const identidadeOk = !identityRequired || identityMode === "oidc";
+    const ok = Boolean(banco?.ok) && (!storageRequired || Boolean(storage?.ok)) && identidadeOk;
     return reply.code(ok ? 200 : 503).send({
       ok,
       servico: "PRUMO API",
-      versao: "23.0.0",
+      versao: "25.0.0",
       componentes: {
         banco: { ok: Boolean(banco?.ok), tipo: repository.tipo },
         storage: {
@@ -584,6 +608,7 @@ export async function criarAplicacaoApi({
           tipo: objectStorage.tipo,
           obrigatorio: Boolean(storageRequired),
         },
+        identidade: { ok: identidadeOk, tipo: identityMode, obrigatorio: Boolean(identityRequired) },
       },
     });
   });
@@ -859,19 +884,43 @@ export async function criarAplicacaoApi({
       repository.health(),
       objectStorage.health(),
     ]);
-    const ok=Boolean(banco?.ok)&&(!storageRequired||Boolean(storage?.ok));
+    const identidadeOk=!identityRequired||identityMode==="oidc";
+    const ok=Boolean(banco?.ok)&&(!storageRequired||Boolean(storage?.ok))&&identidadeOk;
     return {
       ok,
-      versao:"23.0.0",
+      versao:"25.0.0",
       operacao,
       componentes:{
         banco:{ok:Boolean(banco?.ok),tipo:repository.tipo,latenciaMs:banco?.latenciaMs},
         storage:{ok:Boolean(storage?.ok),tipo:objectStorage.tipo,obrigatorio:Boolean(storageRequired)},
-        identidade:{ok:true,tipo:"OIDC/JWT ou identidade local controlada"},
+        identidade:{ok:identidadeOk,tipo:identityMode,obrigatorio:Boolean(identityRequired)},
       },
       verificadoEm:new Date().toISOString(),
     };
   });
+
+  app.get("/v1/operacao/piloto", async (request) => (
+    repository.obterEstadoPiloto(contextoDaRequisicao(request, request.identity))
+  ));
+
+  app.put("/v1/operacao/piloto/requisitos/:itemId", {
+    schema: { body: esquemaRequisitoPiloto },
+  }, async (request) => (
+    repository.atualizarItemPiloto(
+      contextoDaRequisicao(request, request.identity),
+      request.params.itemId,
+      request.body,
+    )
+  ));
+
+  app.post("/v1/operacao/piloto/decisoes", {
+    schema: { body: esquemaDecisaoPiloto },
+  }, async (request) => (
+    repository.decidirPiloto(
+      contextoDaRequisicao(request, request.identity),
+      request.body,
+    )
+  ));
 
   app.get("/v1/empreendimentos", async (request) => (
     repository.listarEmpreendimentos(contextoDaRequisicao(request, request.identity))
