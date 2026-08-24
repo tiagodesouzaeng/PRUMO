@@ -13,9 +13,12 @@ import { resolverTransicaoContratacao, validarPesquisaPrecos } from "../domain/p
 import { calcularAditivoContrato, calcularSaldoContrato, resolverTransicaoContrato, validarVigenciaContrato } from "../domain/contracts.js";
 import { aplicarMovimentoFinanceiro, calcularResumoCompromisso, truncarFinanceiro, validarLimiteOrcamentario } from "../domain/finance.js";
 import { calcularMedicao, calcularProgressoObra, resolverTransicaoMedicao, resolverTransicaoObra, validarPeriodoObra } from "../domain/construction.js";
+import { calcularSaldoBaseContratada, criarBaseContratada, resolverTransicaoSolicitacaoAditivo } from "../../shared/budgetContracting.js";
+import { resolverTransicaoDocumento, validarTipoEntidadeDocumental } from "../../shared/documentGovernance.js";
 import { avaliarSla, calcularCustoOrdem, calcularVencimentoSla, resolverTransicaoChamado } from "../domain/maintenance.js";
 import { calcularResumoConvenio, resolverTransicaoConvenio } from "../domain/agreements.js";
 import { calcularNivelRisco, classificarRequisito, sanitizarPublicacao } from "../domain/compliance.js";
+import { classificarSituacaoPpci, resumirPpcis, validarLocalPpci } from "../domain/fireSafety.js";
 import { gerarCredencialPortal, validarEscopoPortal } from "../domain/intelligence.js";
 import {
   avaliarEstadoPiloto,
@@ -28,6 +31,11 @@ import {
   normalizarFiltrosAuditoria,
   sanitizarDadosAuditoria,
 } from "../domain/audit.js";
+import {
+  compararManifestosRepositorio,
+  criarManifestoCorporativoOrcamentos,
+  validarManifestoLocal,
+} from "../domain/repositoryTransition.js";
 
 function copiar(valor) {
   return structuredClone(valor);
@@ -36,7 +44,7 @@ function copiar(valor) {
 const DEPENDENCIAS_MODULOS = [
   ["obras", "patrimonio"],
   ["planejamento", "patrimonio"],
-  ["bases-precos", "orcamentos"], ["suprimentos", "orcamentos"], ["contratos", "suprimentos"],
+  ["suprimentos", "orcamentos"], ["contratos", "suprimentos"],
   ["medicoes", "obras"], ["manutencao", "patrimonio"], ["documentos", "visao-geral"],
   ["regularidade", "patrimonio"], ["convenios", "visao-geral"],
   ["relatorios", "visao-geral"], ["administracao", "visao-geral"],
@@ -59,6 +67,7 @@ export function criarRepositorioMemoria({
   lotesMigracao = [],
   trabalhos = [],
   transicoesRepositorio = [],
+  verificacoesRepositorio = [],
   auditoria = [],
   politicasAuditoria = [],
   documentos = [],
@@ -97,6 +106,9 @@ export function criarRepositorioMemoria({
   diariosObras = [],
   itensMedicoesCorporativas = [],
   decisoesMedicoesCorporativas = [],
+  basesContratadas = [],
+  solicitacoesAditivo = [],
+  decisoesSolicitacoesAditivo = [],
   planosManutencao = [],
   chamadosManutencao = [],
   ordensManutencao = [],
@@ -104,6 +116,8 @@ export function criarRepositorioMemoria({
   decisoesManutencao = [],
   convenios = [], metasConvenios = [], repassesConvenios = [], execucoesConvenios = [], prestacoesConvenios = [], diligenciasConvenios = [],
   requisitosCompliance = [], riscosCompliance = [], acoesCompliance = [], auditoriasCompliance = [], publicacoesTransparencia = [],
+  ppcis = [], sistemasPpci = [], inspecoesPpci = [],
+  medidoresUtilidades = [], leiturasUtilidades = [],
   definicoesRelatorios = [], acessosPortais = [], canaisIntegracao = [],
   estadosPiloto = [],
 } = {}) {
@@ -126,7 +140,12 @@ export function criarRepositorioMemoria({
   const configuracoes = new Map();
   const registrosTrabalhos = new Map(trabalhos.map((item) => [item.id, copiar(item)]));
   const transicoes = new Map(
-    transicoesRepositorio.map((item) => [`${item.tenantId}:${item.dominioId}`, copiar(item)]),
+    transicoesRepositorio.map((item) => [`${item.tenantId}:${item.dominioId}`, {
+      ...copiar(item), versao: Number(item.versao) || 1,
+    }]),
+  );
+  const verificacoesTransicao = new Map(
+    verificacoesRepositorio.map((item) => [`${item.tenantId}:${item.id}`, copiar(item)]),
   );
   const registrosAuditoria = auditoria.map(copiar);
   const politicas = new Map(
@@ -169,17 +188,33 @@ export function criarRepositorioMemoria({
   const registrosConvenios = new Map(convenios.map((item) => [item.id, copiar(item)]));
   const registrosMetasConvenios = metasConvenios.map(copiar); const registrosRepassesConvenios = repassesConvenios.map(copiar); const registrosExecucoesConvenios = execucoesConvenios.map(copiar); const registrosPrestacoesConvenios = new Map(prestacoesConvenios.map((item)=>[item.id,copiar(item)])); const registrosDiligenciasConvenios = diligenciasConvenios.map(copiar);
   const registrosRequisitos = new Map(requisitosCompliance.map((item)=>[item.id,copiar(item)])); const registrosRiscos = new Map(riscosCompliance.map((item)=>[item.id,copiar(item)])); const registrosAcoes = new Map(acoesCompliance.map((item)=>[item.id,copiar(item)])); const registrosAuditoriasCompliance = auditoriasCompliance.map(copiar); const registrosPublicacoesTransparencia = new Map(publicacoesTransparencia.map((item)=>[item.id,copiar(item)]));
+  const registrosPpci = new Map(ppcis.map((item)=>[item.id,copiar(item)])); const registrosSistemasPpci = new Map(sistemasPpci.map((item)=>[item.id,copiar(item)])); const registrosInspecoesPpci = inspecoesPpci.map(copiar);
+  const registrosMedidoresUtilidades = new Map(medidoresUtilidades.map((item)=>[item.id,copiar(item)])); const registrosLeiturasUtilidades = leiturasUtilidades.map(copiar);
   const registrosRelatorios = new Map(definicoesRelatorios.map((item)=>[item.id,copiar(item)])); const registrosPortais = new Map(acessosPortais.map((item)=>[item.id,copiar(item)])); const registrosCanais = new Map(canaisIntegracao.map((item)=>[item.id,copiar(item)]));
   const pilotos = new Map(estadosPiloto.map((item) => [item.tenantId, copiar(item)]));
   const itensCronogramaObras = cronogramaObras.map(copiar);
   const registrosDiarioObras = diariosObras.map(copiar);
   const itensMedicoesObras = itensMedicoesCorporativas.map(copiar);
   const decisoesMedicoesObras = decisoesMedicoesCorporativas.map(copiar);
+  const basesContratadasOrcamento = new Map(basesContratadas.map((item) => [item.id, copiar(item)]));
+  const solicitacoesAditivoObras = new Map(solicitacoesAditivo.map((item) => [item.id, copiar(item)]));
+  const decisoesAditivoObras = decisoesSolicitacoesAditivo.map(copiar);
   const planosFacilities = new Map(planosManutencao.map((item) => [item.id, copiar(item)]));
   const chamadosFacilities = new Map(chamadosManutencao.map((item) => [item.id, copiar(item)]));
   const ordensFacilities = new Map(ordensManutencao.map((item) => [item.id, copiar(item)]));
   const recursosFacilities = recursosManutencao.map(copiar);
   const decisoesFacilities = decisoesManutencao.map(copiar);
+  const entidadesDocumentais = new Map([
+    ["patrimonio:unidade_patrimonial", unidadesPatrimonio], ["patrimonio:ativo", ativosPatrimonio],
+    ["planejamento:solicitacao", demandasPlanejamento], ["orcamentos:orcamento", registros],
+    ["suprimentos:processo_contratacao", processosSuprimentos], ["suprimentos:pedido", pedidosSuprimentos],
+    ["contratos:contrato", contratosOperacionais], ["obras:obra", registrosEmpreendimentos],
+    ["medicoes:medicao", registrosMedicoes], ["manutencao:chamado", chamadosFacilities],
+    ["manutencao:ordem_manutencao", ordensFacilities], ["regularidade:requisito_regularidade", registrosRequisitos],
+    ["regularidade:ppci", registrosPpci], ["regularidade:sistema_ppci", registrosSistemasPpci],
+    ["utilidades:medidor", registrosMedidoresUtilidades],
+    ["convenios:convenio", registrosConvenios],
+  ]);
 
   function validarContexto({ identity, tenantId, teamId = "" }) {
     const tenant = tenants.find((item) => item.id === tenantId && item.status === "ativo");
@@ -413,10 +448,28 @@ export function criarRepositorioMemoria({
       });
       return copiar(politica);
     },
-    async listarDocumentos(contextoBruto) {
+    async listarEntidadesDocumentais(contextoBruto) {
       const contexto = validarContexto(contextoBruto);
       exigirPermissao(contexto, "documentos.consultar");
-      return [...registrosDocumentos.values()].filter((item) => visivel(item, contexto)).map(copiar);
+      const resposta = [];
+      for (const [chave, registrosEntidade] of entidadesDocumentais) {
+        const [moduleId, entidadeTipo] = chave.split(":");
+        for (const item of registrosEntidade.values()) if (visivel(item, contexto)) resposta.push({
+          moduleId, entidadeTipo, id:item.id,
+          rotulo:[item.codigo || item.numero, item.nome || item.titulo || item.descricao].filter(Boolean).join(" · ") || item.id,
+        });
+      }
+      return copiar(resposta);
+    },
+    async listarDocumentos(contextoBruto, filtros = {}) {
+      const contexto = validarContexto(contextoBruto);
+      exigirPermissao(contexto, "documentos.consultar");
+      return [...registrosDocumentos.values()].filter((item) => (
+        visivel(item, contexto)
+        && (!filtros.moduleId || item.vinculos.some((v) => v.moduleId === filtros.moduleId))
+        && (!filtros.entidadeTipo || item.vinculos.some((v) => v.entidadeTipo === filtros.entidadeTipo))
+        && (!filtros.entidadeId || item.vinculos.some((v) => v.entidadeId === filtros.entidadeId))
+      )).map(copiar);
     },
     async prepararUploadDocumento(contextoBruto, documentoId) {
       const contexto = validarContexto(contextoBruto);
@@ -442,12 +495,18 @@ export function criarRepositorioMemoria({
       exigirPermissao(contexto, "documentos.editar");
       const anterior = idempotencia.get(`${contexto.tenantId}:documento:${idempotencyKey}`);
       if (anterior) return copiar(anterior);
+      let vinculo;
+      try { vinculo = validarTipoEntidadeDocumental(dados.vinculo); }
+      catch (erro) { throw new ApiError(422,"VINCULO_DOCUMENTAL_INVALIDO",erro.message); }
+      const entidade = entidadesDocumentais.get(`${vinculo.moduleId}:${vinculo.entidadeTipo}`)?.get(vinculo.entidadeId);
+      if (!entidade || !visivel(entidade,contexto)) throw new ApiError(422,"ENTIDADE_DOCUMENTAL_NAO_ENCONTRADA","A entidade selecionada não existe ou não está acessível neste contexto.");
       const agora = new Date().toISOString();
       const item = {
         id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId,
         titulo: dados.titulo, tipo: dados.tipo || "documento_tecnico",
-        status: dados.status || "rascunho", versaoAtual: 0,
-        metadados: copiar(dados.metadados || {}), versoes: [], vinculos: [],
+        status: dados.status || "rascunho", versaoAtual: 0, versao:1,
+        metadados: copiar(dados.metadados || {}), versoes: [],
+        vinculos: [{...vinculo,principal:true,criadoPor:contexto.usuarioId,criadoEm:agora}],
         criadoPor: contexto.usuarioId, criadoEm: agora, atualizadoEm: agora,
       };
       registrosDocumentos.set(item.id, item);
@@ -460,17 +519,38 @@ export function criarRepositorioMemoria({
       exigirPermissao(contexto, "documentos.editar");
       const item = registrosDocumentos.get(documentoId);
       if (!item || !visivel(item, contexto)) throw new ApiError(404, "DOCUMENTO_NAO_ENCONTRADO", "Documento não encontrado.");
+      let vinculoValidado;
+      try { vinculoValidado = validarTipoEntidadeDocumental(dados); }
+      catch (erro) { throw new ApiError(422,"VINCULO_DOCUMENTAL_INVALIDO",erro.message); }
+      const entidade = entidadesDocumentais.get(`${vinculoValidado.moduleId}:${vinculoValidado.entidadeTipo}`)?.get(vinculoValidado.entidadeId);
+      if (!entidade || !visivel(entidade,contexto)) throw new ApiError(422,"ENTIDADE_DOCUMENTAL_NAO_ENCONTRADA","A entidade selecionada não existe ou não está acessível neste contexto.");
       const existente = item.vinculos.find((vinculo) => (
-        vinculo.moduleId === dados.moduleId
-        && vinculo.entidadeTipo === dados.entidadeTipo
-        && vinculo.entidadeId === dados.entidadeId
+        vinculo.moduleId === vinculoValidado.moduleId
+        && vinculo.entidadeTipo === vinculoValidado.entidadeTipo
+        && vinculo.entidadeId === vinculoValidado.entidadeId
       ));
       if (existente) return copiar(existente);
-      const vinculo = { ...copiar(dados), criadoEm: new Date().toISOString() };
+      const vinculo = { ...copiar(vinculoValidado), principal:false, criadoPor:contexto.usuarioId, criadoEm: new Date().toISOString() };
       item.vinculos.push(vinculo);
       item.atualizadoEm = vinculo.criadoEm;
       registrarAuditoria(contexto, { moduleId: "documentos", action: "documento.vinculado", entityType: "documento", entityId: item.id, metadata: vinculo });
       return copiar(vinculo);
+    },
+    async decidirDocumento(contextoBruto, documentoId, dados, versaoConhecida) {
+      const contexto = validarContexto(contextoBruto);
+      exigirPermissao(contexto,["aprovar","arquivar"].includes(dados.acao)?"documentos.aprovar":"documentos.editar");
+      const item = registrosDocumentos.get(documentoId);
+      if (!item || !visivel(item,contexto)) throw new ApiError(404,"DOCUMENTO_NAO_ENCONTRADO","Documento não encontrado.");
+      if (Number(item.versao || 1)!==versaoConhecida) throw new ApiError(412,"VERSAO_DIVERGENTE","O documento foi alterado por outro usuário.");
+      let status;
+      try { status=resolverTransicaoDocumento(item,dados.acao); }
+      catch (erro) { throw new ApiError(422,"TRANSICAO_DOCUMENTAL_INVALIDA",erro.message); }
+      const anterior=copiar(item); const agora=new Date().toISOString();
+      item.status=status; item.versao=Number(item.versao||1)+1; item.atualizadoEm=agora;
+      if(status==="aprovado"){item.aprovadoPor=contexto.usuarioId;item.aprovadoEm=agora;}
+      if(status==="arquivado")item.arquivadoEm=agora;
+      registrarAuditoria(contexto,{moduleId:"documentos",action:`documento.${dados.acao}`,entityType:"documento",entityId:item.id,before:anterior,after:item,metadata:{justificativa:dados.justificativa||""}});
+      return copiar(item);
     },
     async adicionarVersaoDocumento(contextoBruto, documentoId, dados) {
       const contexto = validarContexto(contextoBruto);
@@ -1104,25 +1184,69 @@ export function criarRepositorioMemoria({
       const previsto = orçamentos.reduce((s, item) => s + Number(item.valorInicial) + Number(item.ajustes || 0), 0); const perfil = perfisProduto.get(contexto.tenantId)?.perfil || "publico";
       return copiar({ ano, perfil, terminologia: perfil === "publico" ? { orçamento: "Dotação", reserva: "Reserva", compromisso: "Empenho", liquidacao: "Liquidação", pagamento: "Pagamento" } : { orçamento: "Orçamento", reserva: "Reserva", compromisso: "Compromisso", liquidacao: "Aprovação financeira", pagamento: "Pagamento" }, previsto: truncarFinanceiro(previsto), disponivel: truncarFinanceiro(previsto - totais.comprometido), ...Object.fromEntries(Object.entries(totais).map(([k, v]) => [k, truncarFinanceiro(v)])), capex: truncarFinanceiro(orçamentos.filter((x) => x.classificacao === "capex").reduce((s, x) => s + Number(x.valorAtual || x.valorInicial), 0)), opex: truncarFinanceiro(orçamentos.filter((x) => x.classificacao === "opex").reduce((s, x) => s + Number(x.valorAtual || x.valorInicial), 0)) });
     },
+    async listarBasesContratadas(contextoBruto, budgetId) {
+      const contexto = validarContexto(contextoBruto); exigirPermissao(contexto, "orcamento.consultar");
+      return [...basesContratadasOrcamento.values()].filter((item) => item.orcamentoId === budgetId && visivel(item, contexto)).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).map(copiar);
+    },
+    async criarBaseContratada(contextoBruto, budgetId, dados, idempotencyKey) {
+      const contexto = validarContexto(contextoBruto); exigirPermissao(contexto, "orcamento.contratar"); exigirEquipe(contexto);
+      const chave = `${contexto.tenantId}:base-contratada:${idempotencyKey}`; if (idempotencia.has(chave)) return copiar(idempotencia.get(chave));
+      const orcamento = registros.get(budgetId); if (!orcamento || !visivel(orcamento, contexto)) throw new ApiError(404, "ORCAMENTO_NAO_ENCONTRADO", "Orçamento não encontrado.");
+      if (!String(orcamento.dados?.status || "").toLocaleLowerCase("pt-BR").includes("aprov")) throw new ApiError(422, "ORCAMENTO_NAO_APROVADO", "A base contratada só pode ser criada a partir de um orçamento aprovado.");
+      let calculada; try { calculada = criarBaseContratada({ ...dados, orcamentoId: budgetId }); } catch (error) { throw new ApiError(422, "BASE_CONTRATADA_INVALIDA", error.message); }
+      const item = { id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId, ...calculada, criadoPor: contexto.usuarioId };
+      basesContratadasOrcamento.set(item.id, item); idempotencia.set(chave, item); registrarAuditoria(contexto, { moduleId: "orcamentos", action: "orcamento.base-contratada-homologada", entityType: "base-contratada", entityId: item.id, after: item }); return copiar(item);
+    },
+    async listarSolicitacoesAditivo(contextoBruto, workId) {
+      const contexto = validarContexto(contextoBruto); exigirPermissao(contexto, "obras.consultar");
+      return [...solicitacoesAditivoObras.values()].filter((item) => item.obraId === workId && visivel(item, contexto)).sort((a, b) => b.numero - a.numero).map((item) => copiar({ ...item, decisoes: decisoesAditivoObras.filter((x) => x.solicitacaoId === item.id && visivel(x, contexto)) }));
+    },
+    async criarSolicitacaoAditivo(contextoBruto, workId, dados, idempotencyKey) {
+      const contexto = validarContexto(contextoBruto); exigirPermissao(contexto, "obras.solicitar-aditivo"); exigirEquipe(contexto);
+      const chave = `${contexto.tenantId}:solicitacao-aditivo:${idempotencyKey}`; if (idempotencia.has(chave)) return copiar(idempotencia.get(chave));
+      const obra = registrosEmpreendimentos.get(workId); if (!obra || !visivel(obra, contexto) || obra.tipo !== "obra") throw new ApiError(404, "OBRA_NAO_ENCONTRADA", "Obra não encontrada.");
+      const base = [...basesContratadasOrcamento.values()].filter((item) => item.orcamentoId === obra.orcamentoId && visivel(item, contexto)).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))[0];
+      if (!base) throw new ApiError(422, "BASE_CONTRATADA_AUSENTE", "Homologue a base contratada antes de solicitar aditivo.");
+      const agora = new Date().toISOString(); const numero = 1 + Math.max(0, ...[...solicitacoesAditivoObras.values()].filter((x) => x.obraId === workId).map((x) => x.numero));
+      const item = { id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId, obraId: workId, baseContratadaId: base.id, numero, tipo: dados.tipo, descricao: dados.descricao.trim(), justificativa: dados.justificativa.trim(), impactoValor: truncarFinanceiro(dados.impactoValor || 0), impactoPrazoDias: Number(dados.impactoPrazoDias || 0), status: "rascunho", parecerCustos: "", versao: 1, criadoPor: contexto.usuarioId, atualizadoPor: contexto.usuarioId, criadoEm: agora, atualizadoEm: agora };
+      solicitacoesAditivoObras.set(item.id, item); idempotencia.set(chave, item); registrarAuditoria(contexto, { moduleId: "obras", action: "obras.solicitacao-aditivo-criada", entityType: "solicitacao-aditivo", entityId: item.id, after: item }); return copiar(item);
+    },
+    async decidirSolicitacaoAditivo(contextoBruto, id, dados, versaoEsperada, idempotencyKey) {
+      const contexto = validarContexto(contextoBruto); const anterior = solicitacoesAditivoObras.get(id); if (!anterior || !visivel(anterior, contexto)) throw new ApiError(404, "SOLICITACAO_ADITIVO_NAO_ENCONTRADA", "Solicitação de aditivo não encontrada.");
+      const chave = `${contexto.tenantId}:decisao-solicitacao-aditivo:${idempotencyKey}`; if (idempotencia.has(chave)) return copiar(idempotencia.get(chave)); if (anterior.versao !== versaoEsperada) throw new ApiError(412, "VERSAO_DIVERGENTE", "A solicitação foi alterada por outro usuário.");
+      let transicao; try { transicao = resolverTransicaoSolicitacaoAditivo(anterior.status, dados.acao); } catch (error) { throw new ApiError(422, "TRANSICAO_ADITIVO_INVALIDA", error.message); } exigirPermissao(contexto, transicao.permissao);
+      if (["aprovar", "rejeitar"].includes(dados.acao) && String(dados.parecer || "").trim().length < 3) throw new ApiError(422, "PARECER_OBRIGATORIO", "Informe o parecer da engenharia de custos.");
+      const agora = new Date().toISOString(); const item = { ...anterior, status: transicao.para, parecerCustos: dados.parecer || anterior.parecerCustos, versao: anterior.versao + 1, atualizadoPor: contexto.usuarioId, atualizadoEm: agora };
+      const decisao = { id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId, solicitacaoId: id, acao: dados.acao, statusAnterior: anterior.status, statusNovo: item.status, parecer: dados.parecer || "", decididoPor: contexto.usuarioId, decididoEm: agora };
+      solicitacoesAditivoObras.set(id, item); decisoesAditivoObras.push(decisao); const resposta = { solicitacao: copiar(item), decisao: copiar(decisao) }; idempotencia.set(chave, resposta); registrarAuditoria(contexto, { moduleId: "orcamentos", action: `orcamento.aditivo-${dados.acao}`, entityType: "solicitacao-aditivo", entityId: id, before: anterior, after: item, metadata: decisao }); return resposta;
+    },
     async listarObrasCorporativas(contextoBruto, filtros = {}) {
       const contexto = validarContexto(contextoBruto); exigirPermissao(contexto, "obras.consultar");
       return [...registrosEmpreendimentos.values()]
         .filter((item) => visivel(item, contexto) && item.tipo === "obra")
         .filter((item) => !filtros.status || item.status === filtros.status)
-        .map((item) => copiar({ ...item, resumo: calcularProgressoObra(item, [...registrosMedicoes.values()].filter((medicao) => medicao.obraId === item.id && visivel(medicao, contexto))) }))
+        .map((item) => {
+          const baseContratada = [...basesContratadasOrcamento.values()].filter((base) => base.orcamentoId === item.orcamentoId && visivel(base, contexto)).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))[0];
+          const obraMedivel = baseContratada ? { ...item, valorPrevisto: baseContratada.valorContratado } : item;
+          return copiar({ ...item, baseContratada, resumo: calcularProgressoObra(obraMedivel, [...registrosMedicoes.values()].filter((medicao) => medicao.obraId === item.id && visivel(medicao, contexto))) });
+        })
         .sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm));
     },
     async obterObraCorporativa(contextoBruto, id) {
       const contexto = validarContexto(contextoBruto); exigirPermissao(contexto, "obras.consultar"); const item = registrosEmpreendimentos.get(id);
       if (!item || !visivel(item, contexto) || item.tipo !== "obra") throw new ApiError(404, "OBRA_NAO_ENCONTRADA", "Obra não encontrada.");
       const medicoesObra = [...registrosMedicoes.values()].filter((medicao) => medicao.obraId === id && visivel(medicao, contexto));
-      return copiar({ ...item, resumo: calcularProgressoObra(item, medicoesObra), cronograma: itensCronogramaObras.filter((x) => x.workId === id && visivel(x, contexto)), diario: registrosDiarioObras.filter((x) => x.workId === id && visivel(x, contexto)).sort((a, b) => b.dataRegistro.localeCompare(a.dataRegistro)), medicoes: medicoesObra.sort((a, b) => b.numero - a.numero) });
+      const baseContratada = [...basesContratadasOrcamento.values()].filter((base) => base.orcamentoId === item.orcamentoId && visivel(base, contexto)).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))[0];
+      const obraMedivel = baseContratada ? { ...item, valorPrevisto: baseContratada.valorContratado } : item;
+      return copiar({ ...item, baseContratada, resumo: calcularProgressoObra(obraMedivel, medicoesObra), cronograma: itensCronogramaObras.filter((x) => x.workId === id && visivel(x, contexto)), diario: registrosDiarioObras.filter((x) => x.workId === id && visivel(x, contexto)).sort((a, b) => b.dataRegistro.localeCompare(a.dataRegistro)), medicoes: medicoesObra.sort((a, b) => b.numero - a.numero), solicitacoesAditivo: [...solicitacoesAditivoObras.values()].filter((x) => x.obraId === id && visivel(x, contexto)).sort((a, b) => b.numero - a.numero) });
     },
     async criarObraCorporativa(contextoBruto, dados, idempotencyKey) {
       const contexto = validarContexto(contextoBruto); exigirPermissao(contexto, "obras.editar"); exigirEquipe(contexto);
       const chave = `${contexto.tenantId}:obra:${idempotencyKey}`; if (idempotencia.has(chave)) return copiar(idempotencia.get(chave));
       const unidade = unidadesPatrimonio.get(dados.patrimonioUnidadeId); if (!unidade || !visivel(unidade, contexto)) throw new ApiError(422, "LOCAL_OBRA_INVALIDO", "Selecione um local da estrutura patrimonial.");
       if (dados.contractId) { const contrato = contratosOperacionais.get(dados.contractId); if (!contrato || !visivel(contrato, contexto)) throw new ApiError(422, "CONTRATO_OBRA_INVALIDO", "O contrato não pertence à empresa e equipe selecionadas."); }
+      if (!dados.contractId || !dados.orcamentoId) throw new ApiError(422, "VINCULOS_OBRA_OBRIGATORIOS", "A obra deve estar vinculada a um contrato e a um orçamento.");
+      const orcamento = registros.get(dados.orcamentoId); if (!orcamento || !visivel(orcamento, contexto)) throw new ApiError(422, "ORCAMENTO_OBRA_INVALIDO", "O orçamento não pertence à empresa e equipe selecionadas.");
       if ([...registrosEmpreendimentos.values()].some((x) => visivel(x, contexto) && x.codigo.toUpperCase() === dados.codigo.trim().toUpperCase())) throw new ApiError(409, "CODIGO_OBRA_DUPLICADO", "Já existe obra com esse código.");
       validarPeriodoObra(dados.dataInicio, dados.dataFimPrevista); const agora = new Date().toISOString();
       const item = { id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId, unidadeId: "", patrimonioUnidadeId: dados.patrimonioUnidadeId, contractId: dados.contractId || "", orcamentoId: dados.orcamentoId || "", codigo: dados.codigo.trim(), nome: dados.nome.trim(), tipo: "obra", status: "planejamento", responsavel: dados.responsavel || "", dataInicio: dados.dataInicio, dataFimPrevista: dados.dataFimPrevista, valorPrevisto: truncarFinanceiro(dados.valorPrevisto), progressoFisico: Number(dados.progressoFisico || 0), dados: copiar(dados.dados || {}), versao: 1, criadoPor: contexto.usuarioId, atualizadoPor: contexto.usuarioId, criadoEm: agora, atualizadoEm: agora };
@@ -1157,9 +1281,11 @@ export function criarRepositorioMemoria({
     async criarMedicaoObra(contextoBruto, workId, dados, idempotencyKey) {
       const contexto = validarContexto(contextoBruto); exigirPermissao(contexto, "medicao.registrar"); const obra = registrosEmpreendimentos.get(workId); if (!obra || !visivel(obra, contexto)) throw new ApiError(404, "OBRA_NAO_ENCONTRADA", "Obra não encontrada.");
       const chave = `${contexto.tenantId}:medicao-obra:${idempotencyKey}`; if (idempotencia.has(chave)) return copiar(idempotencia.get(chave)); validarPeriodoObra(dados.periodoInicio, dados.periodoFim, "PERIODO_MEDICAO_INVALIDO");
-      const anteriores = [...registrosMedicoes.values()].filter((item) => item.obraId === workId && visivel(item, contexto)); const resumo = calcularProgressoObra(obra, anteriores); const calculo = calcularMedicao(dados, resumo.saldoMedir);
+      const baseContratada = [...basesContratadasOrcamento.values()].filter((base) => base.orcamentoId === obra.orcamentoId && visivel(base, contexto)).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))[0];
+      if (!baseContratada) throw new ApiError(422, "BASE_CONTRATADA_AUSENTE", "A medição exige uma base contratada homologada.");
+      const anteriores = [...registrosMedicoes.values()].filter((item) => item.obraId === workId && visivel(item, contexto)); const saldoContratual = calcularSaldoBaseContratada(baseContratada, anteriores); const calculo = calcularMedicao(dados, saldoContratual.saldo);
       if (anteriores.some((x) => x.numero === Number(dados.numero))) throw new ApiError(409, "NUMERO_MEDICAO_DUPLICADO", "Já existe medição com esse número na obra.");
-      const agora = new Date().toISOString(); const item = { id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId, obraId: workId, orcamentoId: obra.orcamentoId || "", contratoId: obra.contractId || "", numero: Number(dados.numero), status: "rascunho", periodoInicio: dados.periodoInicio, periodoFim: dados.periodoFim, ...calculo, dados: copiar(dados.dados || {}), versao: 1, criadoPor: contexto.usuarioId, atualizadoPor: contexto.usuarioId, criadoEm: agora, atualizadoEm: agora };
+      const agora = new Date().toISOString(); const item = { id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId, obraId: workId, orcamentoId: obra.orcamentoId || "", contratoId: obra.contractId || "", baseContratadaId: baseContratada.id, numero: Number(dados.numero), status: "rascunho", periodoInicio: dados.periodoInicio, periodoFim: dados.periodoFim, ...calculo, dados: { ...copiar(dados.dados || {}), baseContratadaId: baseContratada.id }, versao: 1, criadoPor: contexto.usuarioId, atualizadoPor: contexto.usuarioId, criadoEm: agora, atualizadoEm: agora };
       registrosMedicoes.set(item.id, item); (dados.itens || []).forEach((dadosItem) => itensMedicoesObras.push({ id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId, measurementId: item.id, codigo: dadosItem.codigo, descricao: dadosItem.descricao, unidade: dadosItem.unidade || "", quantidadePrevista: Number(dadosItem.quantidadePrevista || 0), quantidadePeriodo: Number(dadosItem.quantidadePeriodo || 0), quantidadeAcumulada: Number(dadosItem.quantidadeAcumulada || 0), valorUnitario: Number(dadosItem.valorUnitario || 0), valorPeriodo: truncarFinanceiro(Number(dadosItem.quantidadePeriodo || 0) * Number(dadosItem.valorUnitario || 0)), criadoPor: contexto.usuarioId, criadoEm: agora })); idempotencia.set(chave, item); registrarAuditoria(contexto, { moduleId: "medicoes", action: "medicao.criada", entityType: "medicao", entityId: item.id, after: item }); return copiar(item);
     },
     async decidirMedicaoObra(contextoBruto, measurementId, dados, versaoEsperada, idempotencyKey) {
@@ -1218,6 +1344,22 @@ export function criarRepositorioMemoria({
 
     async listarRequisitosCompliance(contextoBruto,filtros={}) { const c=validarContexto(contextoBruto);exigirPermissao(c,"regularidade.consultar");return [...registrosRequisitos.values()].filter(x=>visivel(x,c)).map(x=>copiar({...x,status:classificarRequisito(x)})).filter(x=>!filtros.status||x.status===filtros.status); },
     async criarRequisitoCompliance(contextoBruto,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"regularidade.editar");exigirEquipe(c);const unidade=unidadesPatrimonio.get(dados.patrimonioUnidadeId);if(!unidade||!visivel(unidade,c))throw new ApiError(422,"LOCAL_COMPLIANCE_INVALIDO","Selecione um local patrimonial válido.");const agora=new Date().toISOString();const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,...copiar(dados),status:classificarRequisito(dados),dados:copiar(dados.dados||{}),versao:1,criadoPor:c.usuarioId,atualizadoPor:c.usuarioId,criadoEm:agora,atualizadoEm:agora};registrosRequisitos.set(x.id,x);return copiar(x); },
+    async listarPpcis(contextoBruto,filtros={}) { const c=validarContexto(contextoBruto);exigirPermissao(c,"ppci.consultar");return [...registrosPpci.values()].filter(x=>visivel(x,c)&&(!filtros.status||classificarSituacaoPpci(x)===filtros.status)&&(!filtros.patrimonioUnidadeId||x.patrimonioUnidadeId===filtros.patrimonioUnidadeId)).map(x=>copiar({...x,statusCalculado:classificarSituacaoPpci(x),local:unidadesPatrimonio.get(x.patrimonioUnidadeId)?.nome||""})); },
+    async obterPpci(contextoBruto,id) { const c=validarContexto(contextoBruto);exigirPermissao(c,"ppci.consultar");const x=registrosPpci.get(id);if(!x||!visivel(x,c))throw new ApiError(404,"PPCI_NAO_ENCONTRADO","PPCI não encontrado.");return copiar({...x,statusCalculado:classificarSituacaoPpci(x),local:unidadesPatrimonio.get(x.patrimonioUnidadeId)?.nome||"",sistemas:[...registrosSistemasPpci.values()].filter(y=>y.planId===id&&visivel(y,c)&&y.status!=="inativo"),inspecoes:registrosInspecoesPpci.filter(y=>y.planId===id&&visivel(y,c))}); },
+    async criarPpci(contextoBruto,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"ppci.editar");exigirEquipe(c);const chave=`ppci:${c.tenantId}:${idempotencyKey}`;if(idempotencia.has(chave))return copiar(idempotencia.get(chave));const unidade=unidadesPatrimonio.get(dados.patrimonioUnidadeId);try{if(!unidade||!visivel(unidade,c))throw new Error();validarLocalPpci(unidade);}catch{throw new ApiError(422,"LOCAL_PPCI_INVALIDO","O PPCI deve estar vinculado a um Site, Prédio ou Sala ativo.");}if([...registrosPpci.values()].some(x=>visivel(x,c)&&x.codigo===dados.codigo.trim()))throw new ApiError(409,"CODIGO_PPCI_DUPLICADO","Já existe um PPCI com este código.");const agora=new Date().toISOString();const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,...copiar(dados),codigo:dados.codigo.trim(),titulo:dados.titulo.trim(),numeroProcesso:dados.numeroProcesso||"",classificacaoRisco:dados.classificacaoRisco||"medio",areaProtegidaM2:Number(dados.areaProtegidaM2||0),orgaoResponsavel:dados.orgaoResponsavel||"",fase:dados.fase||"levantamento",status:dados.status||"em_elaboracao",responsavel:dados.responsavel||"",proximoPasso:dados.proximoPasso||"",dados:copiar(dados.dados||{}),versao:1,criadoPor:c.usuarioId,atualizadoPor:c.usuarioId,criadoEm:agora,atualizadoEm:agora};registrosPpci.set(x.id,x);idempotencia.set(chave,x);registrarAuditoria(c,{moduleId:"regularidade",action:"ppci.criado",entityType:"ppci",entityId:x.id,after:x});return copiar(x); },
+    async atualizarPpci(contextoBruto,id,dados,versao) { const c=validarContexto(contextoBruto);exigirPermissao(c,"ppci.editar");const anterior=registrosPpci.get(id);if(!anterior||!visivel(anterior,c))throw new ApiError(404,"PPCI_NAO_ENCONTRADO","PPCI não encontrado.");if(anterior.versao!==versao)throw new ApiError(412,"VERSAO_DIVERGENTE","O PPCI foi alterado por outro usuário.");const unidade=unidadesPatrimonio.get(dados.patrimonioUnidadeId);try{if(!unidade||!visivel(unidade,c))throw new Error();validarLocalPpci(unidade);}catch{throw new ApiError(422,"LOCAL_PPCI_INVALIDO","O PPCI deve estar vinculado a um Site, Prédio ou Sala ativo.");}const novo={...anterior,...copiar(dados),codigo:dados.codigo.trim(),titulo:dados.titulo.trim(),versao:anterior.versao+1,atualizadoPor:c.usuarioId,atualizadoEm:new Date().toISOString()};registrosPpci.set(id,novo);registrarAuditoria(c,{moduleId:"regularidade",action:"ppci.atualizado",entityType:"ppci",entityId:id,before:anterior,after:novo});return copiar(novo); },
+    async criarSistemaPpci(contextoBruto,planId,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"ppci.editar");await this.obterPpci(contextoBruto,planId);const unidade=unidadesPatrimonio.get(dados.patrimonioUnidadeId),ativo=dados.ativoId?ativosPatrimonio.get(dados.ativoId):null;if(!unidade||!visivel(unidade,c)||(ativo&&(!visivel(ativo,c)||ativo.salaId!==unidade.id)))throw new ApiError(422,"REFERENCIA_SISTEMA_PPCI_INVALIDA","O local ou ativo de segurança não pertence ao escopo selecionado.");const agora=new Date().toISOString();const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,planId,...copiar(dados),quantidade:Number(dados.quantidade||0),unidade:dados.unidade||"un",conformidade:dados.conformidade||"nao_avaliado",responsavel:dados.responsavel||"",status:"ativo",dados:copiar(dados.dados||{}),versao:1,criadoPor:c.usuarioId,atualizadoPor:c.usuarioId,criadoEm:agora,atualizadoEm:agora};registrosSistemasPpci.set(x.id,x);registrarAuditoria(c,{moduleId:"regularidade",action:"ppci.sistema-criado",entityType:"sistema-ppci",entityId:x.id,after:x});return copiar(x); },
+    async atualizarSistemaPpci(contextoBruto,planId,id,dados,versao) { const c=validarContexto(contextoBruto);exigirPermissao(c,"ppci.editar");await this.obterPpci(contextoBruto,planId);const anterior=registrosSistemasPpci.get(id);if(!anterior||anterior.planId!==planId||!visivel(anterior,c)||anterior.status==="inativo")throw new ApiError(404,"SISTEMA_PPCI_NAO_ENCONTRADO","Sistema PPCI não encontrado.");if(anterior.versao!==versao)throw new ApiError(412,"VERSAO_DIVERGENTE","O sistema PPCI foi alterado por outro usuário.");const unidade=unidadesPatrimonio.get(dados.patrimonioUnidadeId),ativo=dados.ativoId?ativosPatrimonio.get(dados.ativoId):null;if(!unidade||!visivel(unidade,c)||(ativo&&(!visivel(ativo,c)||ativo.salaId!==unidade.id)))throw new ApiError(422,"REFERENCIA_SISTEMA_PPCI_INVALIDA","O local ou ativo de segurança não pertence ao escopo selecionado.");const novo={...anterior,...copiar(dados),quantidade:Number(dados.quantidade||0),versao:anterior.versao+1,atualizadoPor:c.usuarioId,atualizadoEm:new Date().toISOString()};registrosSistemasPpci.set(id,novo);registrarAuditoria(c,{moduleId:"regularidade",action:"ppci.sistema-atualizado",entityType:"sistema-ppci",entityId:id,before:anterior,after:novo});return copiar(novo); },
+    async removerSistemaPpci(contextoBruto,planId,id,dados,versao) { const c=validarContexto(contextoBruto);exigirPermissao(c,"ppci.editar");const anterior=registrosSistemasPpci.get(id);if(!anterior||anterior.planId!==planId||!visivel(anterior,c)||anterior.status==="inativo")throw new ApiError(404,"SISTEMA_PPCI_NAO_ENCONTRADO","Sistema PPCI não encontrado.");if(anterior.versao!==versao)throw new ApiError(412,"VERSAO_DIVERGENTE","O sistema PPCI foi alterado por outro usuário.");const possuiHistorico=registrosInspecoesPpci.some(x=>x.systemId===id&&visivel(x,c));if(possuiHistorico){const novo={...anterior,status:"inativo",removidoMotivo:dados.motivo,removidoPor:c.usuarioId,removidoEm:new Date().toISOString(),versao:anterior.versao+1,atualizadoPor:c.usuarioId,atualizadoEm:new Date().toISOString()};registrosSistemasPpci.set(id,novo);}else registrosSistemasPpci.delete(id);registrarAuditoria(c,{moduleId:"regularidade",action:possuiHistorico?"ppci.sistema-inativado":"ppci.sistema-removido",entityType:"sistema-ppci",entityId:id,before:anterior,after:possuiHistorico?registrosSistemasPpci.get(id):null,reason:dados.motivo});return { removido:true, modo:possuiHistorico?"inativado":"excluido" }; },
+    async registrarInspecaoPpci(contextoBruto,planId,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"ppci.editar");await this.obterPpci(contextoBruto,planId);if(dados.systemId){const s=registrosSistemasPpci.get(dados.systemId);if(!s||s.planId!==planId||!visivel(s,c))throw new ApiError(422,"SISTEMA_PPCI_INVALIDO","O sistema não pertence ao PPCI informado.");}const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,planId,...copiar(dados),evidencias:copiar(dados.evidencias||[]),registradoPor:c.usuarioId,registradoEm:new Date().toISOString()};registrosInspecoesPpci.push(x);registrarAuditoria(c,{moduleId:"regularidade",action:"ppci.inspecao-registrada",entityType:"inspecao-ppci",entityId:x.id,after:x});return copiar(x); },
+    async obterResumoPpci(contextoBruto) { return resumirPpcis(await this.listarPpcis(contextoBruto)); },
+    async listarResponsaveisCorporativos(contextoBruto) { const c=validarContexto(contextoBruto);const usuarios=memberships.filter(x=>x.tenantId===c.tenantId&&x.status==="ativo").map(x=>({id:x.subject,tipo:"usuario",nome:x.nome||x.subject,perfilId:x.perfilId}));const equipes=[...new Set(memberships.filter(x=>x.tenantId===c.tenantId&&x.status==="ativo").flatMap(x=>x.teamIds||[]))].map(id=>({id,tipo:"equipe",nome:`Equipe ${id}`}));return copiar({usuarios,equipes}); },
+    async listarMedidoresUtilidades(contextoBruto,filtros={}) { const c=validarContexto(contextoBruto);exigirPermissao(c,"utilidades.consultar");return [...registrosMedidoresUtilidades.values()].filter(x=>visivel(x,c)&&(!filtros.recurso||x.recurso===filtros.recurso)&&(!filtros.status||x.status===filtros.status)&&(!filtros.patrimonioUnidadeId||x.patrimonioUnidadeId===filtros.patrimonioUnidadeId)).map(x=>copiar({...x,local:unidadesPatrimonio.get(x.patrimonioUnidadeId)?.nome||""})); },
+    async obterMedidorUtilidade(contextoBruto,id) { const c=validarContexto(contextoBruto);exigirPermissao(c,"utilidades.consultar");const x=registrosMedidoresUtilidades.get(id);if(!x||!visivel(x,c))throw new ApiError(404,"MEDIDOR_NAO_ENCONTRADO","Medidor não encontrado.");const leituras=registrosLeiturasUtilidades.filter(y=>y.meterId===id&&visivel(y,c)).sort((a,b)=>String(b.dataLeitura).localeCompare(String(a.dataLeitura)));return copiar({...x,local:unidadesPatrimonio.get(x.patrimonioUnidadeId)?.nome||"",leituras}); },
+    async criarMedidorUtilidade(contextoBruto,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"utilidades.editar");exigirEquipe(c);const local=unidadesPatrimonio.get(dados.patrimonioUnidadeId),ativo=dados.ativoId?ativosPatrimonio.get(dados.ativoId):null;if(!local||!visivel(local,c)||!["site","predio","sala"].includes(local.nivel)||local.status!=="ativo"||(ativo&&(!visivel(ativo,c)||ativo.salaId!==local.id)))throw new ApiError(422,"REFERENCIA_MEDIDOR_INVALIDA","Selecione um Site, Prédio ou Sala ativo e um ativo compatível.");if([...registrosMedidoresUtilidades.values()].some(x=>visivel(x,c)&&x.codigo===dados.codigo.trim()))throw new ApiError(409,"CODIGO_MEDIDOR_DUPLICADO","Já existe um medidor com este código.");const agora=new Date().toISOString();const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,...copiar(dados),codigo:dados.codigo.trim(),nome:dados.nome.trim(),multiplicador:Number(dados.multiplicador||1),status:dados.status||"ativo",responsavel:dados.responsavel||"",dados:copiar(dados.dados||{}),versao:1,criadoPor:c.usuarioId,atualizadoPor:c.usuarioId,criadoEm:agora,atualizadoEm:agora};registrosMedidoresUtilidades.set(x.id,x);registrarAuditoria(c,{moduleId:"utilidades",action:"medidor.criado",entityType:"medidor-utilidade",entityId:x.id,after:x});return copiar(x); },
+    async atualizarMedidorUtilidade(contextoBruto,id,dados,versao) { const c=validarContexto(contextoBruto);exigirPermissao(c,"utilidades.editar");const anterior=registrosMedidoresUtilidades.get(id);if(!anterior||!visivel(anterior,c))throw new ApiError(404,"MEDIDOR_NAO_ENCONTRADO","Medidor não encontrado.");if(anterior.versao!==versao)throw new ApiError(412,"VERSAO_DIVERGENTE","O medidor foi alterado por outro usuário.");const local=unidadesPatrimonio.get(dados.patrimonioUnidadeId);if(!local||!visivel(local,c)||!["site","predio","sala"].includes(local.nivel)||local.status!=="ativo")throw new ApiError(422,"REFERENCIA_MEDIDOR_INVALIDA","Selecione um Site, Prédio ou Sala ativo.");const novo={...anterior,...copiar(dados),codigo:dados.codigo.trim(),nome:dados.nome.trim(),multiplicador:Number(dados.multiplicador||1),versao:anterior.versao+1,atualizadoPor:c.usuarioId,atualizadoEm:new Date().toISOString()};registrosMedidoresUtilidades.set(id,novo);registrarAuditoria(c,{moduleId:"utilidades",action:"medidor.atualizado",entityType:"medidor-utilidade",entityId:id,before:anterior,after:novo});return copiar(novo); },
+    async removerMedidorUtilidade(contextoBruto,id,versao) { const c=validarContexto(contextoBruto);exigirPermissao(c,"utilidades.editar");const anterior=registrosMedidoresUtilidades.get(id);if(!anterior||!visivel(anterior,c))throw new ApiError(404,"MEDIDOR_NAO_ENCONTRADO","Medidor não encontrado.");if(anterior.versao!==versao)throw new ApiError(412,"VERSAO_DIVERGENTE","O medidor foi alterado por outro usuário.");const possuiLeituras=registrosLeiturasUtilidades.some(x=>x.meterId===id&&visivel(x,c));if(possuiLeituras)registrosMedidoresUtilidades.set(id,{...anterior,status:"inativo",versao:anterior.versao+1,atualizadoPor:c.usuarioId,atualizadoEm:new Date().toISOString()});else registrosMedidoresUtilidades.delete(id);registrarAuditoria(c,{moduleId:"utilidades",action:possuiLeituras?"medidor.inativado":"medidor.removido",entityType:"medidor-utilidade",entityId:id,before:anterior,after:possuiLeituras?registrosMedidoresUtilidades.get(id):null});return {removido:true,modo:possuiLeituras?"inativado":"excluido"}; },
+    async registrarLeituraUtilidade(contextoBruto,meterId,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"utilidades.registrar-leitura");const medidor=registrosMedidoresUtilidades.get(meterId);if(!medidor||!visivel(medidor,c)||medidor.status!=="ativo")throw new ApiError(404,"MEDIDOR_NAO_ENCONTRADO","Medidor ativo não encontrado.");if(registrosLeiturasUtilidades.some(x=>x.meterId===meterId&&x.dataLeitura===dados.dataLeitura&&visivel(x,c)))throw new ApiError(409,"LEITURA_DUPLICADA","Já existe uma leitura para este medidor na data e hora informadas.");const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,meterId,...copiar(dados),valor:Number(dados.valor),natureza:dados.natureza||"leitura",origem:dados.origem||"manual",registradoPor:c.usuarioId,registradoEm:new Date().toISOString()};registrosLeiturasUtilidades.push(x);registrarAuditoria(c,{moduleId:"utilidades",action:"leitura.registrada",entityType:"leitura-utilidade",entityId:x.id,after:x});return copiar(x); },
     async listarRiscosCompliance(contextoBruto) { const c=validarContexto(contextoBruto);exigirPermissao(c,"regularidade.consultar");return [...registrosRiscos.values()].filter(x=>visivel(x,c)).map(copiar); },
     async criarRiscoCompliance(contextoBruto,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"regularidade.editar");const nivel=calcularNivelRisco(dados.probabilidade,dados.impacto);const agora=new Date().toISOString();const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,...copiar(dados),...nivel,status:dados.status||"aberto",versao:1,criadoPor:c.usuarioId,atualizadoPor:c.usuarioId,criadoEm:agora,atualizadoEm:agora};registrosRiscos.set(x.id,x);return copiar(x); },
     async criarAcaoCompliance(contextoBruto,riskId,dados,idempotencyKey) { const c=validarContexto(contextoBruto);exigirPermissao(c,"regularidade.editar");const risco=registrosRiscos.get(riskId);if(!risco||!visivel(risco,c))throw new ApiError(404,"RISCO_NAO_ENCONTRADO","Risco não encontrado.");const agora=new Date().toISOString();const x={id:randomUUID(),tenantId:c.tenantId,teamId:c.teamId,riskId,...copiar(dados),percentual:Number(dados.percentual||0),status:dados.status||"aberta",versao:1,criadoPor:c.usuarioId,atualizadoPor:c.usuarioId,criadoEm:agora,atualizadoEm:agora};registrosAcoes.set(x.id,x);return copiar(x); },
@@ -1687,6 +1829,10 @@ export function criarRepositorioMemoria({
             sincronizadoEm: lote.homologadoEm || new Date().toISOString(),
             ativadoPor: contexto.usuarioId,
             atualizadoEm: new Date().toISOString(),
+            verificacaoId: "",
+            verificadoEm: "",
+            motivoRetorno: "",
+            versao: 1,
           });
         }
       });
@@ -1798,15 +1944,65 @@ export function criarRepositorioMemoria({
       exigirPermissao(contexto, "migracao.administrar");
       return [...transicoes.values()]
         .filter((item) => visivel(item, contexto))
-        .map(copiar);
+        .map((item) => ({
+          ...copiar(item),
+          versao: Number(item.versao) || 1,
+          verificacao: item.verificacaoId
+            ? copiar(verificacoesTransicao.get(`${item.tenantId}:${item.verificacaoId}`) || null)
+            : null,
+        }));
     },
-    async alterarTransicaoRepositorio(contextoBruto, dominioId, modo) {
+    async verificarTransicaoRepositorio(contextoBruto, dominioId, manifestoBruto) {
       const contexto = validarContexto(contextoBruto);
       exigirPermissao(contexto, "repositorio.transicionar");
+      if (dominioId !== "orcamentos") {
+        throw new ApiError(422, "VERIFICACAO_NAO_IMPLEMENTADA", "A verificação definitiva está disponível inicialmente para Orçamentos.");
+      }
+      let manifestoLocal;
+      try {
+        manifestoLocal = validarManifestoLocal(manifestoBruto);
+      } catch (erro) {
+        throw new ApiError(422, "MANIFESTO_LOCAL_INVALIDO", erro.message);
+      }
+      const chave = `${contexto.tenantId}:${dominioId}`;
+      const transicao = transicoes.get(chave);
+      if (!transicao) throw new ApiError(409, "DOMINIO_NAO_HOMOLOGADO", "Homologue o domínio antes de verificar sua promoção.");
+      if (transicao.modo !== "hibrido") throw new ApiError(409, "VERIFICACAO_FORA_DO_HIBRIDO", "A paridade deve ser verificada enquanto o domínio está em modo híbrido.");
+      const manifestoCorporativo = criarManifestoCorporativoOrcamentos(
+        [...registros.values()].filter((item) => visivel(item, contexto)),
+      );
+      const comparacao = compararManifestosRepositorio(manifestoLocal, manifestoCorporativo);
+      const agora = new Date().toISOString();
+      const verificacao = {
+        id: randomUUID(), tenantId: contexto.tenantId, teamId: contexto.teamId,
+        dominioId, status: comparacao.conforme ? "conforme" : "divergente",
+        localTotal: manifestoLocal.total, corporativoTotal: manifestoCorporativo.total,
+        localHash: manifestoLocal.hash, corporativoHash: manifestoCorporativo.hash,
+        divergencias: comparacao, verificadoPor: contexto.usuarioId, verificadoEm: agora,
+      };
+      verificacoesTransicao.set(`${contexto.tenantId}:${verificacao.id}`, verificacao);
+      transicao.verificacaoId = verificacao.id;
+      transicao.verificadoEm = agora;
+      transicao.versao = (Number(transicao.versao) || 1) + 1;
+      transicao.atualizadoEm = agora;
+      registrarAuditoria(contexto, {
+        moduleId: "administracao", action: "repositorio.paridade-verificada",
+        entityType: "transicao-repositorio", entityId: dominioId,
+        metadata: { status: verificacao.status, divergencias: comparacao },
+      });
+      return { transicao: { ...copiar(transicao), verificacao: copiar(verificacao) }, verificacao: copiar(verificacao) };
+    },
+    async alterarTransicaoRepositorio(contextoBruto, dominioId, dados, versaoConhecida) {
+      const contexto = validarContexto(contextoBruto);
+      exigirPermissao(contexto, "repositorio.transicionar");
+      const modo = dados.modo;
       const chave = `${contexto.tenantId}:${dominioId}`;
       const item = transicoes.get(chave);
       if (!item) {
         throw new ApiError(409, "DOMINIO_NAO_HOMOLOGADO", "Homologue o domínio antes de alterar sua fonte de dados.");
+      }
+      if ((Number(item.versao) || 1) !== versaoConhecida) {
+        throw new ApiError(412, "VERSAO_DIVERGENTE", "A transição foi alterada por outro administrador.");
       }
       const permitidas = {
         local: ["hibrido"],
@@ -1816,9 +2012,31 @@ export function criarRepositorioMemoria({
       if (modo !== item.modo && !permitidas[item.modo]?.includes(modo)) {
         throw new ApiError(409, "TRANSICAO_INVALIDA", "A mudança de fonte solicitada não é segura.");
       }
+      if (item.modo === "corporativo" && modo === "hibrido" && String(dados.justificativa || "").trim().length < 10) {
+        throw new ApiError(422, "JUSTIFICATIVA_OBRIGATORIA", "Informe a justificativa para retornar ao modo híbrido.");
+      }
+      if (modo === "corporativo") {
+        const verificacao = verificacoesTransicao.get(`${contexto.tenantId}:${item.verificacaoId}`);
+        const vigente = verificacao && Date.now() - new Date(verificacao.verificadoEm).getTime() <= 86_400_000;
+        if (verificacao?.status !== "conforme" || !vigente) {
+          throw new ApiError(409, "PARIDADE_NAO_COMPROVADA", "Execute uma verificação de paridade válida antes da promoção.");
+        }
+        if (dados.manifestoHash !== verificacao.localHash) {
+          throw new ApiError(409, "MANIFESTO_LOCAL_ALTERADO", "Os dados locais mudaram depois da verificação. Execute a paridade novamente.");
+        }
+      }
+      const anterior = copiar(item);
       item.modo = modo;
       item.ativadoPor = contexto.usuarioId;
+      item.motivoRetorno = modo === "hibrido" ? String(dados.justificativa || "").trim() : "";
+      item.versao = (Number(item.versao) || 1) + 1;
       item.atualizadoEm = new Date().toISOString();
+      registrarAuditoria(contexto, {
+        moduleId: "administracao",
+        action: modo === "corporativo" ? "repositorio.promovido" : "repositorio.retorno-hibrido",
+        entityType: "transicao-repositorio", entityId: dominioId,
+        before: anterior, after: item, metadata: { justificativa: dados.justificativa || "" },
+      });
       return copiar(item);
     },
     async fechar() {},

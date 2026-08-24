@@ -7,15 +7,15 @@ import { ROADMAP_PRUMO, agruparRoadmapPorFase } from "../src/config/roadmapPrumo
 const ler = (caminho) => readFile(new URL(`../${caminho}`, import.meta.url), "utf8");
 
 test("roadmap administrativo cobre a evolução e a continuidade do produto", () => {
-  assert.equal(ROADMAP_PRUMO.length, 23);
-  assert.equal(ROADMAP_PRUMO.filter((item) => item.status === "concluida").length, 23);
+  assert.equal(ROADMAP_PRUMO.length, 31);
+  assert.equal(ROADMAP_PRUMO.filter((item) => item.status === "concluida").length, 30);
   assert.deepEqual(
     ROADMAP_PRUMO.filter((item) => item.status === "em_andamento").map((item) => item.id),
     [],
   );
   assert.deepEqual(
     ROADMAP_PRUMO.filter((item) => item.status === "planejada").map((item) => item.id),
-    [],
+    ["32"],
   );
   assert.ok(agruparRoadmapPorFase().length >= 5);
 });

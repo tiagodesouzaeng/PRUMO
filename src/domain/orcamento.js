@@ -184,6 +184,7 @@ export function distribuirSaldoInteiroNosVazios(totalInformado, periodos = [], v
 
 export function calcularSaldosMedicao(orcamento, medicaoAtualId = "") {
   const servicos = (orcamento?.itens || []).filter((item) => item.tipo !== "grupo");
+  const precosContratados = new Map((orcamento?.baseContratada?.itens || []).map((item) => [item.itemId, numeroSeguro(item.precoContratadoUnitario)]));
   const itensPorId = new Map(servicos.map((item) => [item.id, item]));
   const acumulados = new Map(servicos.map((item) => [item.id, {
     quantidade: 0,
@@ -201,7 +202,7 @@ export function calcularSaldosMedicao(orcamento, medicaoAtualId = "") {
         const item = itensPorId.get(linha.itemId);
         if (!item) return;
         const quantidade = Math.max(0, numeroSeguro(linha.quantidadePeriodo));
-        const precoMedido = Math.max(0, numeroSeguro(linha.precoUnitario ?? item.unitario));
+        const precoMedido = Math.max(0, numeroSeguro(linha.precoUnitario ?? precosContratados.get(item.id) ?? item.unitario));
         const acumulado = acumulados.get(item.id);
         acumulado.quantidade += quantidade;
         acumulado.valor += quantidade * precoMedido;
@@ -210,7 +211,7 @@ export function calcularSaldosMedicao(orcamento, medicaoAtualId = "") {
 
   return new Map(servicos.map((item) => {
     const quantidadeContratada = Math.max(0, numeroSeguro(item.quantidade));
-    const precoUnitario = Math.max(0, numeroSeguro(item.unitario));
+    const precoUnitario = Math.max(0, numeroSeguro(precosContratados.get(item.id) ?? item.unitario));
     const valorContratado = quantidadeContratada * precoUnitario;
     const acumulado = acumulados.get(item.id);
     return [item.id, {
@@ -403,12 +404,15 @@ export function obterHistogramaInteligente(orcamento) {
 
 export function criarMedicoesPropostas(orcamento) {
   const cronograma = obterCronogramaProposto(orcamento);
+  const precosContratados = new Map((orcamento?.baseContratada?.itens || []).map((item) => [item.itemId, numeroSeguro(item.precoContratadoUnitario)]));
   return cronograma.periodos.map((periodo, indice) => {
     const valorPrevisto = cronograma.servicos.reduce((total, { item, quantidades }) => {
       const quantidade = numeroSeguro(item.quantidade);
       const fracao = quantidade > 0
         ? numeroSeguro(quantidades[periodo.inicio]) / quantidade
         : 0;
+      const precoContratado = precosContratados.get(item.id);
+      if (precoContratado != null) return total + quantidade * precoContratado * fracao;
       const bdiItem = obterBdiItem(orcamento, item) / 100;
       return total + totalItem(item) * (1 + bdiItem) * fracao;
     }, 0);
@@ -431,7 +435,7 @@ export function criarMedicoesPropostas(orcamento) {
         unidade: item.unidade,
         quantidadeContratada: numeroSeguro(item.quantidade),
         quantidadePeriodo: numeroSeguro(quantidades[periodo.inicio]),
-        precoUnitario: numeroSeguro(item.unitario),
+        precoUnitario: numeroSeguro(precosContratados.get(item.id) ?? item.unitario),
       })),
       proposta: true,
     };

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { criarClientePrumo, obterConfiguracaoInfraestrutura, obterContextoDesenvolvimento } from "../services/infraestruturaCorporativa";
+import { TIPOS_ENTIDADE_DOCUMENTAL } from "../../shared/documentGovernance";
 
 function criarCliente() {
   const config = obterConfiguracaoInfraestrutura();
@@ -7,22 +8,29 @@ function criarCliente() {
   return criarClientePrumo({ baseUrl: config.apiUrl, obterContexto: () => obterContextoDesenvolvimento() });
 }
 
-export default function Documentos() {
+export default function Documentos({ contextoInicial = null }) {
   const cliente = useMemo(criarCliente, []);
   const [documentos, setDocumentos] = useState([]);
+  const [entidades, setEntidades] = useState([]);
   const [titulo, setTitulo] = useState("");
   const [documentoId, setDocumentoId] = useState("");
   const [arquivo, setArquivo] = useState(null);
   const [enviando, setEnviando] = useState(false);
-  const [vinculo, setVinculo] = useState({ moduleId: "medicoes", entidadeTipo: "medicao", entidadeId: "" });
+  const [origem, setOrigem] = useState(contextoInicial || { moduleId: "planejamento", entidadeTipo: "solicitacao", entidadeId: "" });
+  const [vinculo, setVinculo] = useState({ moduleId: "obras", entidadeTipo: "obra", entidadeId: "" });
+  const [busca, setBusca] = useState("");
   const [mensagem, setMensagem] = useState(cliente ? "Carregando documentos…" : "Conecte a API corporativa para usar o GED.");
 
   async function carregar() {
     if (!cliente) return;
     try {
-      const lista = await cliente.listarDocumentos();
+      const [lista, catalogo] = await Promise.all([cliente.listarDocumentos(), cliente.listarEntidadesDocumentais()]);
       setDocumentos(lista);
-      setDocumentoId((atual) => atual || lista[0]?.id || "");
+      setEntidades(catalogo);
+      setOrigem((atual) => ({ ...atual, entidadeId: atual.entidadeId || catalogo.find((e) => e.moduleId===atual.moduleId&&e.entidadeTipo===atual.entidadeTipo)?.id || "" }));
+      setVinculo((atual) => ({ ...atual, entidadeId: atual.entidadeId || catalogo.find((e) => e.moduleId===atual.moduleId&&e.entidadeTipo===atual.entidadeTipo)?.id || "" }));
+      const relacionado = contextoInicial && lista.find((documento) => documento.vinculos?.some((item) => item.moduleId===contextoInicial.moduleId&&item.entidadeTipo===contextoInicial.entidadeTipo&&item.entidadeId===contextoInicial.entidadeId));
+      setDocumentoId((atual) => relacionado?.id || atual || lista[0]?.id || "");
       setMensagem("");
     } catch (error) {
       setMensagem(error.message);
@@ -92,13 +100,29 @@ export default function Documentos() {
     event.preventDefault();
     if (!cliente || titulo.trim().length < 2) return;
     try {
-      await cliente.criarDocumento({ titulo: titulo.trim(), tipo: "documento_tecnico", metadados: { origem: "ged-prumo" } }, crypto.randomUUID());
+      await cliente.criarDocumento({ titulo: titulo.trim(), tipo: "documento_tecnico", metadados: { origem: "ged-prumo" }, vinculo: origem }, crypto.randomUUID());
       setTitulo("");
       await carregar();
     } catch (error) {
       setMensagem(error.message);
     }
   }
+
+  async function decidir(acao) {
+    const documento=documentos.find((item)=>item.id===documentoId); if(!documento)return;
+    try { await cliente.decidirDocumento(documento.id,{acao},documento.versao); setMensagem("Situação documental atualizada."); await carregar(); }
+    catch(error){setMensagem(error.message);}
+  }
+
+  function alterarTipo(setter, chave) {
+    const [moduleId,entidadeTipo]=chave.split(":");
+    setter({moduleId,entidadeTipo,entidadeId:entidades.find((e)=>e.moduleId===moduleId&&e.entidadeTipo===entidadeTipo)?.id||""});
+  }
+
+  const documentoAtual=documentos.find((item)=>item.id===documentoId);
+  const documentosVisiveis=documentos.filter((item)=>`${item.titulo} ${item.tipo} ${item.status}`.toLocaleLowerCase("pt-BR").includes(busca.toLocaleLowerCase("pt-BR")));
+  const entidadesDaOrigem=entidades.filter((e)=>e.moduleId===origem.moduleId&&e.entidadeTipo===origem.entidadeTipo);
+  const entidadesDoVinculo=entidades.filter((e)=>e.moduleId===vinculo.moduleId&&e.entidadeTipo===vinculo.entidadeTipo);
 
   return (
     <section className="sigiu-page sigiu-page-modulo">
@@ -111,21 +135,26 @@ export default function Documentos() {
         <article className="sigiu-module-kpi sigiu-module-kpi--success"><span>✓</span><small>Integridade</small><strong>SHA-256</strong><em>por versão</em></article>
         <article className="sigiu-module-kpi sigiu-module-kpi--info"><span>↻</span><small>Histórico</small><strong>Imutável</strong><em>versões preservadas</em></article>
       </div>
+      {contextoInicial && <div className="sigiu-context-scope-notice">GED aberto no contexto de <strong>{TIPOS_ENTIDADE_DOCUMENTAL.find((item)=>item.moduleId===contextoInicial.moduleId&&item.entidadeTipo===contextoInicial.entidadeTipo)?.rotulo || contextoInicial.entidadeTipo}</strong>. Novos documentos já serão vinculados a este registro.</div>}
       <div className="sigiu-module-grid sigiu-module-grid--main-side">
         <section className="sigiu-card sigiu-admin-card">
           <header className="sigiu-card-header-row"><div><h2>Acervo técnico</h2><p>O arquivo binário permanece no armazenamento seguro; o PRUMO registra sua referência e integridade.</p></div></header>
           {mensagem && <p className="sigiu-empty-inline">{mensagem}</p>}
+          <label className="sigiu-document-search"><span>Localizar no acervo</span><input value={busca} onChange={(e)=>setBusca(e.target.value)} placeholder="Título, tipo ou situação" /></label>
           <div className="sigiu-document-list">
-            {documentos.map((item) => <button type="button" key={item.id} className={`sigiu-document-row ${documentoId === item.id ? "is-selected" : ""}`} onClick={() => setDocumentoId(item.id)}><div><strong>{item.titulo}</strong><span>{item.tipo.replaceAll("_", " ")} · {item.status} · {item.vinculos?.length || 0} vínculos</span></div><div><strong>v{item.versaoAtual}</strong><span>{item.versoes?.[0]?.nomeArquivo || "sem arquivo"}</span></div></button>)}
+            {documentosVisiveis.map((item) => <button type="button" key={item.id} className={`sigiu-document-row ${documentoId === item.id ? "is-selected" : ""}`} onClick={() => setDocumentoId(item.id)}><div><strong>{item.titulo}</strong><span>{item.tipo.replaceAll("_", " ")} · {item.status.replaceAll("_"," ")} · {item.vinculos?.length || 0} vínculos</span></div><div><strong>v{item.versaoAtual}</strong><span>{item.versoes?.[0]?.nomeArquivo || "sem arquivo"}</span></div></button>)}
             {!mensagem && !documentos.length && <p className="sigiu-empty-inline">Nenhum documento cadastrado.</p>}
           </div>
         </section>
         <section className="sigiu-card sigiu-admin-card">
-          <header className="sigiu-card-header-row"><div><h2>Novo documento</h2><p>Crie o registro antes de vincular versões e anexos.</p></div></header>
+          <header className="sigiu-card-header-row"><div><h2>Novo documento</h2><p>Todo documento nasce vinculado ao registro que justifica sua existência.</p></div></header>
           <form className="sigiu-simple-form" onSubmit={criar}>
             <label><span>Título</span><input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Projeto executivo – Bloco A" /></label>
-            <button className="sigiu-btn sigiu-btn--primary" type="submit" disabled={!cliente || titulo.trim().length < 2}>Criar documento</button>
+            <label><span>Origem</span><select value={`${origem.moduleId}:${origem.entidadeTipo}`} onChange={(e)=>alterarTipo(setOrigem,e.target.value)}>{TIPOS_ENTIDADE_DOCUMENTAL.map((t)=><option key={`${t.moduleId}:${t.entidadeTipo}`} value={`${t.moduleId}:${t.entidadeTipo}`}>{t.rotulo}</option>)}</select></label>
+            <label><span>Registro relacionado</span><select value={origem.entidadeId} onChange={(e)=>setOrigem((a)=>({...a,entidadeId:e.target.value}))}><option value="">Selecione</option>{entidadesDaOrigem.map((e)=><option key={e.id} value={e.id}>{e.rotulo}</option>)}</select></label>
+            <button className="sigiu-btn sigiu-btn--primary" type="submit" disabled={!cliente || titulo.trim().length < 2 || !origem.entidadeId}>Criar documento vinculado</button>
           </form>
+          {documentoAtual&&<div className="sigiu-document-workflow"><strong>Fluxo de aprovação</strong><span>{documentoAtual.status.replaceAll("_"," ")} · controle {documentoAtual.versao}</span><div>{documentoAtual.status==="rascunho"&&<button className="sigiu-btn sigiu-btn--outline" disabled={!documentoAtual.versaoAtual} onClick={()=>decidir("submeter")}>Submeter à revisão</button>}{documentoAtual.status==="em_revisao"&&<><button className="sigiu-btn sigiu-btn--outline" onClick={()=>decidir("devolver")}>Devolver</button><button className="sigiu-btn sigiu-btn--primary" onClick={()=>decidir("aprovar")}>Aprovar</button></>}{documentoAtual.status==="aprovado"&&<button className="sigiu-btn sigiu-btn--outline" onClick={()=>decidir("arquivar")}>Arquivar</button>}</div></div>}
         </section>
       </div>
       <div className="sigiu-module-grid sigiu-module-grid--main-side">
@@ -150,11 +179,11 @@ export default function Documentos() {
         <section className="sigiu-card sigiu-admin-card">
           <header className="sigiu-card-header-row"><div><h2>Vincular anexo</h2><p>Associe o documento a uma medição ou a outra entidade técnica sem duplicar o arquivo.</p></div></header>
           <form className="sigiu-simple-form" onSubmit={vincular}>
-            <label><span>Módulo</span><select value={vinculo.moduleId} onChange={(e) => setVinculo((atual) => ({ ...atual, moduleId: e.target.value }))}><option value="medicoes">Medições</option><option value="patrimonio">Patrimônio</option><option value="obras">Obras</option><option value="orcamentos">Orçamentos</option><option value="manutencao">Manutenção</option><option value="ppci">PPCI</option></select></label>
-            <label><span>Tipo da entidade</span><input value={vinculo.entidadeTipo} onChange={(e) => setVinculo((atual) => ({ ...atual, entidadeTipo: e.target.value }))} /></label>
-            <label><span>Identificador da entidade</span><input value={vinculo.entidadeId} onChange={(e) => setVinculo((atual) => ({ ...atual, entidadeId: e.target.value }))} placeholder="ID da medição, obra ou orçamento" /></label>
+            <label><span>Tipo de registro</span><select value={`${vinculo.moduleId}:${vinculo.entidadeTipo}`} onChange={(e)=>alterarTipo(setVinculo,e.target.value)}>{TIPOS_ENTIDADE_DOCUMENTAL.map((t)=><option key={`${t.moduleId}:${t.entidadeTipo}`} value={`${t.moduleId}:${t.entidadeTipo}`}>{t.rotulo}</option>)}</select></label>
+            <label><span>Registro</span><select value={vinculo.entidadeId} onChange={(e)=>setVinculo((a)=>({...a,entidadeId:e.target.value}))}><option value="">Selecione</option>{entidadesDoVinculo.map((e)=><option key={e.id} value={e.id}>{e.rotulo}</option>)}</select></label>
             <button className="sigiu-btn sigiu-btn--primary" type="submit" disabled={!documentoId || !vinculo.entidadeId.trim()}>Vincular documento</button>
           </form>
+          {documentoAtual?.vinculos?.length>0&&<div className="sigiu-document-links">{documentoAtual.vinculos.map((v)=><span key={`${v.moduleId}:${v.entidadeTipo}:${v.entidadeId}`}><b>{v.principal?"Origem":"Relação"}</b> · {TIPOS_ENTIDADE_DOCUMENTAL.find((t)=>t.moduleId===v.moduleId&&t.entidadeTipo===v.entidadeTipo)?.rotulo||v.entidadeTipo}</span>)}</div>}
         </section>
       </div>
     </section>

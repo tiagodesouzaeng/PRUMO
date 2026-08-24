@@ -7,7 +7,7 @@ function obterTituloPagina(paginaAtiva) {
   return SIGIU_NAV_ITEMS.find((item) => item.id === paginaAtiva)?.label ?? "Visão Geral";
 }
 
-export default function Topbar({ paginaAtiva, setPaginaAtiva, ultimaAtualizacao }) {
+export default function Topbar({ paginaAtiva, setPaginaAtiva, ultimaAtualizacao, sessao, onSair }) {
   const tituloPagina = obterTituloPagina(paginaAtiva);
   const [seletorAberto, setSeletorAberto] = useState(false);
   const seletorRef = useRef(null);
@@ -87,6 +87,7 @@ export default function Topbar({ paginaAtiva, setPaginaAtiva, ultimaAtualizacao 
         <button type="button" className="sigiu-notification-button" aria-label="Notificações">
           🔔 <span>3</span>
         </button>
+        {sessao && <button type="button" className="sigiu-session-button" onClick={onSair} title="Encerrar sessão"><span>{sessao.usuario?.nome || "Usuário"}</span><strong>Sair</strong></button>}
       </div>
 
       <div className="sigiu-mobile-controls">

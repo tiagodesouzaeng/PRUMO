@@ -8,11 +8,11 @@
 import { useState } from "react";
 import { SIGIU_NAV_ITEMS } from "./navItems";
 
-const MOBILE_PRIMARY_ITEMS = ["visao-geral", "ppci", "orcamento", "obras"];
+const MOBILE_PRIMARY_ITEMS = ["visao-geral", "planejamento", "orcamento", "obras"];
 
 function obterLabelMobile(item) {
   if (item.id === "visao-geral") return "Geral";
-  if (item.id === "hidrico") return "Consumo";
+  if (item.id === "hidrico") return "Utilidades";
   return item.label;
 }
 

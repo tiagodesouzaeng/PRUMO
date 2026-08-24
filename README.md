@@ -19,8 +19,10 @@ edições comerciais da mesma plataforma, com módulos contratáveis separadamen
 
 ## Conteúdo integrado
 
-- base histórica: PPCI, alertas, consumo hídrico, obras, manutenção,
+- base histórica: alertas, consumo hídrico, obras, manutenção,
   relatórios e administração;
+- PPCI corporativo mantido no PostgreSQL e consolidado em Regularidade, com
+  vínculo obrigatório a Site, Prédio ou Sala e sistemas vinculáveis a ativos;
 - novo módulo de Orçamentos no menu lateral e na navegação móvel;
 - planilha orçamentária e EAP;
 - bases de preços versionadas e independentes dos orçamentos;
@@ -390,6 +392,14 @@ são atualizadas. Consulte `docs/SPRINT_20_1.md`.
 - piloto controlado e produção: `docs/SPRINT_23.md`;
 - ambiente corporativo verificável: `docs/SPRINT_24.md`;
 - migração definitiva e piloto assistido: `docs/SPRINT_25.md`;
+- acesso seguro e contingência: `docs/SPRINT_26.md`;
+- consolidação funcional dos módulos: `docs/SPRINT_26_1.md`;
+- orçamento contratado e aditivos: `docs/SPRINT_27.md`;
+- governança documental: `docs/SPRINT_28.md`;
+- promoção verificável dos repositórios: `docs/SPRINT_29.md`;
+- PPCI local e segurança predial: `docs/SPRINT_30.md`;
+- PPCI operacional e Utilidades: `docs/SPRINT_31.md`;
+- próxima evolução planejada: `docs/SPRINT_32.md`;
 - runbook do piloto: `docs/operacao/PILOTO_PRODUCAO.md`;
 - padrão visual da plataforma: `docs/DESIGN_SYSTEM_PRUMO.md`;
 - backlog permanente: `BACKLOG_PRUMO.md`;
@@ -463,3 +473,45 @@ A versão `25.0.0` fecha as Sprints 24 e 25 com prontidão e piloto governados p
 organização. Evidências de infraestrutura, migração e homologação são
 registradas na Administração; o piloto não inicia sem o ambiente comprovado e
 a promoção permanece bloqueada até a aprovação integral do checklist.
+
+A versão `26.1.0` acrescenta a barreira de acesso, uma sessão administrativa
+local de contingência sem credencial no código e consolida módulos correlatos na
+navegação. OIDC com MFA continua obrigatório para a operação pública; a
+contingência local é destinada ao desenvolvimento e à recuperação controlada.
+
+A versão `27.0.0` governa o ciclo entre orçamento, licitação, contrato, obra e
+medição. O orçamento aprovado permanece preservado; o desconto vencedor gera
+uma base contratada imutável por item, utilizada como limite das medições. A
+obra não altera o orçamento: solicita aditivos, que são analisados pela
+engenharia de custos em fluxo versionado e auditável.
+
+A versão `28.0.0` governa o acervo técnico por contexto. Novos documentos
+nascem obrigatoriamente ligados a uma entidade real do PRUMO, como solicitação,
+orçamento, contrato, obra, medição, manutenção ou ativo patrimonial. O GED
+consulta essas entidades no PostgreSQL, preserva vínculos adicionais e conduz
+o arquivo por revisão, aprovação e arquivamento com concorrência e auditoria.
+
+A versão `29.0.0` conclui a promoção verificável do repositório de Orçamentos.
+A Administração calcula um manifesto do acervo local e o servidor compara
+quantidade, identificadores e hashes com o PostgreSQL. O modo corporativo só é
+liberado após paridade íntegra e recente; o retorno ao híbrido exige
+justificativa e preserva as duas fontes para recuperação segura. Os demais
+domínios locais permanecem híbridos até receberem validadores próprios.
+
+A versão `30.0.0` elimina a fonte externa histórica do PPCI. Processos,
+sistemas preventivos e inspeções passam a residir no PostgreSQL do PRUMO,
+isolados por empresa e equipe. Cada PPCI pertence a Site, Prédio ou Sala; seus
+sistemas só podem usar descendentes desse contexto e, quando informado, um
+ativo da Sala correspondente. A experiência fica integralmente consolidada
+em Regularidade, ao lado das demais licenças, riscos, auditorias e publicações.
+
+A versão `31.0.0` completa a operação de PPCI com edição e remoção rastreável
+dos sistemas, seleção de responsáveis do cliente ativo e acesso contextual ao
+GED. Utilidades deixa de ser uma tela demonstrativa: medidores e leituras de
+água, energia, geração, crédito, débito, gás e outros recursos passam ao
+PostgreSQL, vinculados ao patrimônio, com RLS, auditoria e histórico imutável.
+
+A Sprint 32 está planejada para aprimorar os diálogos e exclusões do PPCI,
+aceitar consumo direto ou leitura acumulada dos medidores, oferecer uma página
+de coleta simplificada, herdar o endereço do Site em Prédios e Salas e ligar
+planos periódicos dos ativos ao módulo e ao histórico de Manutenção.

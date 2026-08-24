@@ -3,6 +3,11 @@ import {
   obterConfiguracaoInfraestrutura,
   obterContextoDesenvolvimento,
 } from "./infraestruturaCorporativa.js";
+import { calcularHashConteudo } from "./migracaoCorporativa.js";
+import {
+  normalizarOrcamentoParaParidade,
+  ordenarManifestoRepositorio,
+} from "../../shared/repositoryPromotion.js";
 
 const MAPEAMENTO_KEY = "prumo.repositorios.corporativos";
 
@@ -92,4 +97,38 @@ export async function sincronizarOrcamentosCorporativos(
   }
   salvarMapeamento(mapa, storage);
   return { sincronizados, modo: transicao.modo };
+}
+
+export async function criarManifestoLocalOrcamentos(
+  orcamentos = [],
+  cryptoImpl = globalThis.crypto,
+) {
+  const registros = ordenarManifestoRepositorio(await Promise.all(orcamentos.map(async (item) => ({
+    id: String(item.id || ""),
+    hash: await calcularHashConteudo(normalizarOrcamentoParaParidade(item), cryptoImpl),
+  }))));
+  return {
+    total: registros.length,
+    hash: await calcularHashConteudo(registros, cryptoImpl),
+    registros,
+  };
+}
+
+export async function homologarBaseContratadaCorporativa(
+  orcamento,
+  dados,
+  { cliente = criarClientePadrao(), storage = globalThis.localStorage } = {},
+) {
+  if (!cliente) return { modo: "local", base: null };
+  const transicoes = await cliente.listarTransicoesRepositorio();
+  const transicao = transicoes.find((item) => item.dominioId === "orcamentos");
+  if (!transicao || transicao.modo === "local") return { modo: "local", base: null };
+  const vinculo = orcamento?._corporativo || lerMapeamento(storage)[orcamento?.id];
+  if (!vinculo?.id) throw new Error("Sincronize o orçamento corporativo antes de homologar a base contratada.");
+  const base = await cliente.criarBaseContratada(
+    vinculo.id,
+    dados,
+    `base-contratada:${vinculo.id}:${orcamento.revisao}:${dados.contratoId || dados.processoId || "resultado"}`,
+  );
+  return { modo: transicao.modo, base };
 }

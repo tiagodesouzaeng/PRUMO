@@ -9,9 +9,13 @@ import { resolverTransicaoContratacao, validarPesquisaPrecos } from "../domain/p
 import { calcularAditivoContrato, calcularSaldoContrato, resolverTransicaoContrato, validarVigenciaContrato } from "../domain/contracts.js";
 import { aplicarMovimentoFinanceiro, calcularResumoCompromisso, truncarFinanceiro } from "../domain/finance.js";
 import { calcularMedicao, calcularProgressoObra, resolverTransicaoMedicao, resolverTransicaoObra, validarPeriodoObra } from "../domain/construction.js";
+import { calcularSaldoBaseContratada, criarBaseContratada, resolverTransicaoSolicitacaoAditivo } from "../../shared/budgetContracting.js";
+import { resolverTransicaoDocumento, validarTipoEntidadeDocumental } from "../../shared/documentGovernance.js";
+import { criarManifestoCorporativoOrcamentos, validarManifestoLocal, compararManifestosRepositorio } from "../domain/repositoryTransition.js";
 import { avaliarSla, calcularVencimentoSla, resolverTransicaoChamado } from "../domain/maintenance.js";
 import { calcularResumoConvenio, resolverTransicaoConvenio } from "../domain/agreements.js";
 import { calcularNivelRisco, sanitizarPublicacao } from "../domain/compliance.js";
+import { resumirPpcis } from "../domain/fireSafety.js";
 import { gerarCredencialPortal, validarEscopoPortal } from "../domain/intelligence.js";
 import {
   avaliarEstadoPiloto,
@@ -35,6 +39,25 @@ const TIPOS_CATALOGO = new Set([
   "equipamento",
   "servico_auxiliar",
 ]);
+
+const ENTIDADES_DOCUMENTAIS = {
+  "patrimonio:unidade_patrimonial": { tabela: "app.patrimonial_units", rotulo: "codigo || ' · ' || nome" },
+  "patrimonio:ativo": { tabela: "app.patrimonial_assets", rotulo: "codigo || ' · ' || nome" },
+  "planejamento:solicitacao": { tabela: "app.investment_demands", rotulo: "codigo || ' · ' || titulo" },
+  "orcamentos:orcamento": { tabela: "app.orcamentos", rotulo: "nome" },
+  "suprimentos:processo_contratacao": { tabela: "app.procurement_processes", rotulo: "codigo || ' · ' || titulo" },
+  "suprimentos:pedido": { tabela: "app.purchase_orders", rotulo: "codigo" },
+  "contratos:contrato": { tabela: "app.contracts", rotulo: "codigo || ' · ' || titulo" },
+  "obras:obra": { tabela: "app.empreendimentos", rotulo: "codigo || ' · ' || nome" },
+  "medicoes:medicao": { tabela: "app.medicoes", rotulo: "'Medição ' || numero::text" },
+  "manutencao:chamado": { tabela: "app.maintenance_tickets", rotulo: "codigo || ' · ' || titulo" },
+  "manutencao:ordem_manutencao": { tabela: "app.maintenance_work_orders", rotulo: "codigo" },
+  "regularidade:requisito_regularidade": { tabela: "app.compliance_requirements", rotulo: "codigo || ' · ' || titulo" },
+  "regularidade:ppci": { tabela: "app.fire_safety_plans", rotulo: "codigo || ' · ' || titulo" },
+  "regularidade:sistema_ppci": { tabela: "app.fire_safety_systems", rotulo: "tipo || ' · ' || descricao" },
+  "utilidades:medidor": { tabela: "app.utility_meters", rotulo: "codigo || ' · ' || nome" },
+  "convenios:convenio": { tabela: "app.agreements", rotulo: "codigo || ' · ' || titulo" },
+};
 
 function normalizarTipoCatalogo(valor = "insumo") {
   const texto = String(valor || "insumo")
@@ -218,10 +241,28 @@ function mapearTransicao(linha) {
     modo: linha.modo,
     batchId: linha.batch_id || "",
     sincronizadoEm: linha.sincronizado_em || "",
+    verificacaoId: linha.verificacao_id || "",
+    verificadoEm: linha.verificado_em || "",
+    motivoRetorno: linha.motivo_retorno || "",
+    versao: Number(linha.versao || 1),
+    verificacao: linha.verificacao_id ? {
+      id: linha.verificacao_id, status: linha.verificacao_status || "",
+      localTotal: Number(linha.local_total || 0), corporativoTotal: Number(linha.corporate_total || 0),
+      localHash: linha.local_hash || "", corporativoHash: linha.corporate_hash || "",
+      divergencias: linha.divergencias || {}, verificadoPor: linha.verificado_por || "", verificadoEm: linha.verificacao_em || linha.verificado_em || "",
+    } : null,
     ativadoPor: linha.ativado_por,
     ativadoEm: linha.ativado_em,
     atualizadoEm: linha.atualizado_em,
   };
+}
+
+function mapearBaseContratada(linha) {
+  return { id: linha.id, tenantId: linha.tenant_id, teamId: linha.team_id || "", orcamentoId: linha.budget_id, revisaoId: linha.revision_id || "", processoId: linha.procurement_process_id || "", contratoId: linha.contract_id || "", fornecedor: linha.supplier_name, valorPublicado: Number(linha.published_total), descontoPercentual: Number(linha.discount_percent), valorContratado: Number(linha.contracted_total), economia: Number(linha.published_total) - Number(linha.contracted_total), itens: linha.items || [], justificativa: linha.justification, status: linha.status, criadoPor: linha.created_by, criadoEm: linha.created_at };
+}
+
+function mapearSolicitacaoAditivo(linha) {
+  return { id: linha.id, tenantId: linha.tenant_id, teamId: linha.team_id || "", obraId: linha.work_id, baseContratadaId: linha.baseline_id, numero: Number(linha.number), tipo: linha.type, descricao: linha.description, justificativa: linha.justification, impactoValor: Number(linha.impact_value), impactoPrazoDias: Number(linha.impact_days), status: linha.status, parecerCustos: linha.cost_opinion || "", versao: Number(linha.version), criadoPor: linha.created_by, atualizadoPor: linha.updated_by, criadoEm: linha.created_at, atualizadoEm: linha.updated_at };
 }
 
 const CAMPOS_NUMERICOS_FINAIS = /^(valor|quantidade|percentual|nivel|probabilidade|impacto|versao|ordem|total|executado|recebido|saldo|previsto|comprometido|liquidado|pago|custo)/i;
@@ -413,8 +454,9 @@ function mapearPoliticaAuditoria(linha) {
 function mapearDocumento(linha) {
   return {
     id: linha.id, tenantId: linha.tenant_id, teamId: linha.team_id || "", titulo: linha.titulo,
-    tipo: linha.tipo, status: linha.status, versaoAtual: Number(linha.versao_atual),
+    tipo: linha.tipo, status: linha.status, versaoAtual: Number(linha.versao_atual), versao: Number(linha.versao || 1),
     metadados: linha.metadados || {}, versoes: linha.versoes || [], vinculos: linha.vinculos || [], criadoPor: linha.criado_por,
+    aprovadoPor: linha.aprovado_por || "", aprovadoEm: linha.aprovado_em || "", arquivadoEm: linha.arquivado_em || "",
     criadoEm: linha.criado_em, atualizadoEm: linha.atualizado_em,
   };
 }
@@ -831,9 +873,29 @@ export function criarRepositorioPostgres({
         return resposta;
       });
     },
-    async listarDocumentos(contexto) {
+    async listarEntidadesDocumentais(contexto) {
       return comContexto(contexto, async (cliente, validado) => {
         exigirPermissao(validado, "documentos.consultar");
+        const entidades = [];
+        for (const [chave, definicao] of Object.entries(ENTIDADES_DOCUMENTAIS)) {
+          const [moduleId, entidadeTipo] = chave.split(":");
+          const resultado = await cliente.query(
+            `SELECT id::text AS id, ${definicao.rotulo} AS rotulo FROM ${definicao.tabela} WHERE tenant_id=$1 ORDER BY 2 LIMIT 250`,
+            [validado.tenantId],
+          );
+          entidades.push(...resultado.rows.map((item) => ({ moduleId, entidadeTipo, id: item.id, rotulo: item.rotulo })));
+        }
+        return entidades;
+      });
+    },
+    async listarDocumentos(contexto, filtros = {}) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, "documentos.consultar");
+        const parametros = [validado.tenantId];
+        const condicoes = ["d.tenant_id = $1"];
+        if (filtros.moduleId) { parametros.push(filtros.moduleId); condicoes.push(`EXISTS (SELECT 1 FROM app.document_links f WHERE f.tenant_id=d.tenant_id AND f.document_id=d.id AND f.module_id=$${parametros.length})`); }
+        if (filtros.entidadeTipo) { parametros.push(filtros.entidadeTipo); condicoes.push(`EXISTS (SELECT 1 FROM app.document_links f WHERE f.tenant_id=d.tenant_id AND f.document_id=d.id AND f.entidade_tipo=$${parametros.length})`); }
+        if (filtros.entidadeId) { parametros.push(filtros.entidadeId); condicoes.push(`EXISTS (SELECT 1 FROM app.document_links f WHERE f.tenant_id=d.tenant_id AND f.document_id=d.id AND f.entidade_id=$${parametros.length})`); }
         const resultado = await cliente.query(
           `SELECT d.*, coalesce(v.versoes, '[]'::jsonb) AS versoes,
                   coalesce(l.vinculos, '[]'::jsonb) AS vinculos
@@ -851,13 +913,14 @@ export function criarRepositorioPostgres({
              LEFT JOIN LATERAL (
                SELECT jsonb_agg(jsonb_build_object(
                  'moduleId', dl.module_id, 'entidadeTipo', dl.entidade_tipo,
-                 'entidadeId', dl.entidade_id, 'criadoEm', dl.criado_em
+                 'entidadeId', dl.entidade_id, 'principal', dl.principal,
+                 'criadoPor', dl.criado_por, 'criadoEm', dl.criado_em
                ) ORDER BY dl.criado_em DESC) AS vinculos
                FROM app.document_links dl
               WHERE dl.tenant_id = d.tenant_id AND dl.document_id = d.id
              ) l ON true
-            WHERE d.tenant_id = $1 ORDER BY d.atualizado_em DESC`,
-          [validado.tenantId],
+            WHERE ${condicoes.join(" AND ")} ORDER BY d.atualizado_em DESC`,
+          parametros,
         );
         return resultado.rows.map(mapearDocumento);
       });
@@ -897,13 +960,25 @@ export function criarRepositorioPostgres({
         exigirPermissao(validado, "documentos.editar");
         const anterior = await obterIdempotente(cliente, validado.tenantId, idempotencyKey);
         if (anterior) return anterior;
+        let vinculo;
+        try { vinculo = validarTipoEntidadeDocumental(dados.vinculo); }
+        catch (erro) { throw new ApiError(422, "VINCULO_DOCUMENTAL_INVALIDO", erro.message); }
+        const definicao = ENTIDADES_DOCUMENTAIS[`${vinculo.moduleId}:${vinculo.entidadeTipo}`];
+        const entidade = await cliente.query(`SELECT id FROM ${definicao.tabela} WHERE tenant_id=$1 AND id::text=$2`, [validado.tenantId, vinculo.entidadeId]);
+        if (!entidade.rows[0]) throw new ApiError(422, "ENTIDADE_DOCUMENTAL_NAO_ENCONTRADA", "A entidade selecionada não existe ou não está acessível neste contexto.");
         const id = randomUUID();
         const resultado = await cliente.query(
           `INSERT INTO app.documents (tenant_id,id,team_id,titulo,tipo,status,metadados,criado_por)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
           [validado.tenantId,id,validado.teamId || null,dados.titulo,dados.tipo || "documento_tecnico",dados.status || "rascunho",dados.metadados || {},validado.usuarioId],
         );
-        const item = mapearDocumento({ ...resultado.rows[0], versoes: [], vinculos: [] });
+        await cliente.query(
+          `INSERT INTO app.document_links(tenant_id,document_id,module_id,entidade_tipo,entidade_id,principal,criado_por)
+           VALUES($1,$2,$3,$4,$5,true,$6)`,
+          [validado.tenantId,id,vinculo.moduleId,vinculo.entidadeTipo,vinculo.entidadeId,validado.usuarioId],
+        );
+        const principal = { ...vinculo, principal:true, criadoPor:validado.usuarioId };
+        const item = mapearDocumento({ ...resultado.rows[0], versoes: [], vinculos: [principal] });
         await salvarIdempotencia(cliente, validado, idempotencyKey, item);
         await registrarAuditoria(cliente, validado, { moduleId:"documentos",action:"documento.criado",entityType:"documento",entityId:id,after:item });
         return item;
@@ -926,20 +1001,49 @@ export function criarRepositorioPostgres({
     async vincularDocumento(contexto, documentoId, dados) {
       return comContexto(contexto, async (cliente, validado) => {
         exigirPermissao(validado, "documentos.editar");
+        let vinculoValidado;
+        try { vinculoValidado = validarTipoEntidadeDocumental(dados); }
+        catch (erro) { throw new ApiError(422, "VINCULO_DOCUMENTAL_INVALIDO", erro.message); }
+        const definicao = ENTIDADES_DOCUMENTAIS[`${vinculoValidado.moduleId}:${vinculoValidado.entidadeTipo}`];
         const documento = await cliente.query("SELECT 1 FROM app.documents WHERE tenant_id=$1 AND id=$2", [validado.tenantId, documentoId]);
         if (!documento.rows[0]) throw new ApiError(404, "DOCUMENTO_NAO_ENCONTRADO", "Documento não encontrado.");
+        const entidade = await cliente.query(`SELECT id FROM ${definicao.tabela} WHERE tenant_id=$1 AND id::text=$2`, [validado.tenantId,vinculoValidado.entidadeId]);
+        if (!entidade.rows[0]) throw new ApiError(422, "ENTIDADE_DOCUMENTAL_NAO_ENCONTRADA", "A entidade selecionada não existe ou não está acessível neste contexto.");
         const resultado = await cliente.query(
-          `INSERT INTO app.document_links (tenant_id,document_id,module_id,entidade_tipo,entidade_id)
-           VALUES ($1,$2,$3,$4,$5)
+          `INSERT INTO app.document_links (tenant_id,document_id,module_id,entidade_tipo,entidade_id,principal,criado_por)
+           VALUES ($1,$2,$3,$4,$5,false,$6)
            ON CONFLICT (tenant_id,document_id,module_id,entidade_tipo,entidade_id)
            DO UPDATE SET entidade_id=EXCLUDED.entidade_id
-           RETURNING module_id,entidade_tipo,entidade_id,criado_em`,
-          [validado.tenantId, documentoId, dados.moduleId, dados.entidadeTipo, dados.entidadeId],
+           RETURNING module_id,entidade_tipo,entidade_id,principal,criado_por,criado_em`,
+          [validado.tenantId, documentoId, vinculoValidado.moduleId, vinculoValidado.entidadeTipo, vinculoValidado.entidadeId, validado.usuarioId],
         );
         const linha = resultado.rows[0];
-        const vinculo = { moduleId:linha.module_id,entidadeTipo:linha.entidade_tipo,entidadeId:linha.entidade_id,criadoEm:linha.criado_em };
+        const vinculo = { moduleId:linha.module_id,entidadeTipo:linha.entidade_tipo,entidadeId:linha.entidade_id,principal:linha.principal,criadoPor:linha.criado_por,criadoEm:linha.criado_em };
         await registrarAuditoria(cliente,validado,{moduleId:"documentos",action:"documento.vinculado",entityType:"documento",entityId:documentoId,metadata:vinculo});
         return vinculo;
+      });
+    },
+    async decidirDocumento(contexto, documentoId, dados, versaoConhecida) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado, ["aprovar", "arquivar"].includes(dados.acao) ? "documentos.aprovar" : "documentos.editar");
+        const resultado = await cliente.query("SELECT * FROM app.documents WHERE tenant_id=$1 AND id=$2 FOR UPDATE", [validado.tenantId,documentoId]);
+        if (!resultado.rows[0]) throw new ApiError(404,"DOCUMENTO_NAO_ENCONTRADO","Documento não encontrado.");
+        const anterior = mapearDocumento({ ...resultado.rows[0],versoes:[],vinculos:[] });
+        if (anterior.versao !== versaoConhecida) throw new ApiError(412,"VERSAO_DIVERGENTE","O documento foi alterado por outro usuário.");
+        let status;
+        try { status = resolverTransicaoDocumento(anterior,dados.acao); }
+        catch (erro) { throw new ApiError(422,"TRANSICAO_DOCUMENTAL_INVALIDA",erro.message); }
+        const atualizado = await cliente.query(
+          `UPDATE app.documents SET status=$3,versao=versao+1,atualizado_em=now(),
+             aprovado_por=CASE WHEN $3='aprovado' THEN $4 ELSE aprovado_por END,
+             aprovado_em=CASE WHEN $3='aprovado' THEN now() ELSE aprovado_em END,
+             arquivado_em=CASE WHEN $3='arquivado' THEN now() ELSE arquivado_em END
+           WHERE tenant_id=$1 AND id=$2 RETURNING *`,
+          [validado.tenantId,documentoId,status,validado.usuarioId],
+        );
+        const item = mapearDocumento({ ...atualizado.rows[0],versoes:[],vinculos:[] });
+        await registrarAuditoria(cliente,validado,{moduleId:"documentos",action:`documento.${dados.acao}`,entityType:"documento",entityId:documentoId,before:anterior,after:item,metadata:{justificativa:dados.justificativa||""}});
+        return item;
       });
     },
     async listarIntegracoes(contexto) {
@@ -987,7 +1091,8 @@ export function criarRepositorioPostgres({
           cliente.query(`SELECT m.id,m.nome,m.ordem,c.disponivel,c.contratado,c.habilitado,c.pacote,c.limites,
             coalesce((SELECT jsonb_agg(jsonb_build_object('id',mc.capability_id,'nome',mc.nome)) FROM app.module_capabilities mc WHERE mc.module_id=m.id AND mc.status='ativa'),'[]'::jsonb) capacidades,
             coalesce((SELECT jsonb_agg(jsonb_build_object('moduleId',md.depends_on_module_id,'obrigatoria',md.obrigatoria)) FROM app.module_dependencies md WHERE md.module_id=m.id),'[]'::jsonb) dependencias
-            FROM app.modules m LEFT JOIN app.tenant_module_contracts c ON c.tenant_id=$1 AND c.module_id=m.id ORDER BY m.ordem`,[validado.tenantId]),
+            FROM app.modules m LEFT JOIN app.tenant_module_contracts c ON c.tenant_id=$1 AND c.module_id=m.id
+            WHERE m.status='ativo' ORDER BY m.ordem`,[validado.tenantId]),
           cliente.query("SELECT max(versao) versao FROM app.module_catalog_versions WHERE status='publicada'"),
         ]);
         const p = perfil.rows[0] || { tenant_id:validado.tenantId,perfil:"publico",terminologia:{},templates:{} };
@@ -1523,14 +1628,49 @@ export function criarRepositorioPostgres({
     async obterResumoFinanceiro(contexto, filtros={}) {
       return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"financeiro.consultar"); const ano=Number(filtros.ano||new Date().getFullYear()); const b=await cliente.query("SELECT * FROM app.financial_budgets WHERE ano=$1",[ano]); const c=await cliente.query("SELECT c.* FROM app.financial_commitments c JOIN app.financial_budgets b ON b.id=c.budget_id WHERE b.ano=$1 AND c.status<>'cancelado'",[ano]); const m=c.rows.length?await cliente.query("SELECT * FROM app.financial_movements WHERE commitment_id=ANY($1::uuid[])",[c.rows.map(x=>x.id)]):{rows:[]}; const movimentos=m.rows.map(mapearMovimentoFinanceiro); const totais=c.rows.reduce((resumo,linha)=>{const item=mapearCompromissoFinanceiro(linha);const calc=calcularResumoCompromisso(item,movimentos.filter(x=>x.commitmentId===item.id));resumo.comprometido+=item.valorTotal;resumo.liquidado+=calc.liquidadoBruto;resumo.retencoes+=calc.retencoes;resumo.glosas+=calc.glosas;resumo.pago+=calc.pago;return resumo;},{comprometido:0,liquidado:0,retencoes:0,glosas:0,pago:0}); const perfil=await cliente.query("SELECT perfil FROM app.tenant_product_profiles LIMIT 1"); const tipo=perfil.rows[0]?.perfil||"publico"; const previsto=b.rows.reduce((s,x)=>s+Number(x.valor_atual),0); return{ano,perfil:tipo,terminologia:tipo==="publico"?{orçamento:"Dotação",reserva:"Reserva",compromisso:"Empenho",liquidacao:"Liquidação",pagamento:"Pagamento"}:{orçamento:"Orçamento",reserva:"Reserva",compromisso:"Compromisso",liquidacao:"Aprovação financeira",pagamento:"Pagamento"},previsto:truncarFinanceiro(previsto),disponivel:truncarFinanceiro(previsto-totais.comprometido),...Object.fromEntries(Object.entries(totais).map(([k,v])=>[k,truncarFinanceiro(v)])),capex:truncarFinanceiro(b.rows.filter(x=>x.classificacao==="capex").reduce((s,x)=>s+Number(x.valor_atual),0)),opex:truncarFinanceiro(b.rows.filter(x=>x.classificacao==="opex").reduce((s,x)=>s+Number(x.valor_atual),0))}; });
     },
+    async listarBasesContratadas(contexto, budgetId) {
+      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"orcamento.consultar"); const r=await cliente.query("SELECT * FROM app.budget_contract_baselines WHERE budget_id=$1 ORDER BY created_at DESC",[budgetId]); return r.rows.map(mapearBaseContratada); });
+    },
+    async criarBaseContratada(contexto, budgetId, dados, idempotencyKey) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado,"orcamento.contratar"); const chave=`base-contratada:${idempotencyKey}`; const idem=await obterIdempotente(cliente,validado.tenantId,chave); if(idem)return idem;
+        const o=await cliente.query("SELECT dados FROM app.orcamentos WHERE id=$1",[budgetId]); if(!o.rows[0])throw new ApiError(404,"ORCAMENTO_NAO_ENCONTRADO","Orçamento não encontrado.");
+        if(!String(o.rows[0].dados?.status||"").toLocaleLowerCase("pt-BR").includes("aprov"))throw new ApiError(422,"ORCAMENTO_NAO_APROVADO","A base contratada só pode ser criada a partir de um orçamento aprovado.");
+        let calculada; try{calculada=criarBaseContratada({...dados,orcamentoId:budgetId});}catch(error){throw new ApiError(422,"BASE_CONTRATADA_INVALIDA",error.message);}
+        const r=await cliente.query(`INSERT INTO app.budget_contract_baselines(tenant_id,id,team_id,budget_id,revision_id,procurement_process_id,contract_id,supplier_name,published_total,discount_percent,contracted_total,items,justification,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14) RETURNING *`,[validado.tenantId,randomUUID(),validado.teamId,budgetId,dados.revisaoId||null,dados.processoId||null,dados.contratoId||null,calculada.fornecedor,calculada.valorPublicado,calculada.descontoPercentual,calculada.valorContratado,JSON.stringify(calculada.itens),calculada.justificativa,validado.usuarioId]);
+        const item=mapearBaseContratada(r.rows[0]); await salvarIdempotencia(cliente,validado,chave,item); await registrarEvento(cliente,validado,{moduleId:"orcamentos",eventType:"orcamento.base-contratada-homologada",aggregateType:"base-contratada",aggregateId:item.id,payload:{budgetId,valorPublicado:item.valorPublicado,valorContratado:item.valorContratado,descontoPercentual:item.descontoPercentual},after:item}); return item;
+      });
+    },
+    async listarSolicitacoesAditivo(contexto, workId) {
+      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"obras.consultar"); const r=await cliente.query("SELECT * FROM app.work_change_requests WHERE work_id=$1 ORDER BY number DESC",[workId]); return r.rows.map(mapearSolicitacaoAditivo); });
+    },
+    async criarSolicitacaoAditivo(contexto, workId, dados, idempotencyKey) {
+      return comContexto(contexto, async (cliente, validado) => {
+        exigirPermissao(validado,"obras.solicitar-aditivo"); const chave=`solicitacao-aditivo:${idempotencyKey}`; const idem=await obterIdempotente(cliente,validado.tenantId,chave); if(idem)return idem;
+        const obra=await cliente.query("SELECT orcamento_id FROM app.empreendimentos WHERE id=$1 AND tipo='obra'",[workId]); if(!obra.rows[0])throw new ApiError(404,"OBRA_NAO_ENCONTRADA","Obra não encontrada.");
+        const base=await cliente.query("SELECT id FROM app.budget_contract_baselines WHERE budget_id=$1 ORDER BY created_at DESC LIMIT 1",[obra.rows[0].orcamento_id]); if(!base.rows[0])throw new ApiError(422,"BASE_CONTRATADA_AUSENTE","Homologue a base contratada antes de solicitar aditivo.");
+        const n=await cliente.query("SELECT coalesce(max(number),0)+1 AS numero FROM app.work_change_requests WHERE work_id=$1",[workId]);
+        const r=await cliente.query(`INSERT INTO app.work_change_requests(tenant_id,id,team_id,work_id,baseline_id,number,type,description,justification,impact_value,impact_days,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING *`,[validado.tenantId,randomUUID(),validado.teamId,workId,base.rows[0].id,Number(n.rows[0].numero),dados.tipo,dados.descricao.trim(),dados.justificativa.trim(),truncarFinanceiro(dados.impactoValor||0),Number(dados.impactoPrazoDias||0),validado.usuarioId]);
+        const item=mapearSolicitacaoAditivo(r.rows[0]); await salvarIdempotencia(cliente,validado,chave,item); await registrarEvento(cliente,validado,{moduleId:"obras",eventType:"obras.solicitacao-aditivo-criada",aggregateType:"solicitacao-aditivo",aggregateId:item.id,payload:{workId,numero:item.numero,tipo:item.tipo},after:item}); return item;
+      });
+    },
+    async decidirSolicitacaoAditivo(contexto, id, dados, versaoEsperada, idempotencyKey) {
+      return comContexto(contexto, async (cliente, validado) => {
+        const chave=`decisao-solicitacao-aditivo:${idempotencyKey}`; const idem=await obterIdempotente(cliente,validado.tenantId,chave); if(idem)return idem;
+        const r=await cliente.query("SELECT * FROM app.work_change_requests WHERE id=$1 FOR UPDATE",[id]); if(!r.rows[0])throw new ApiError(404,"SOLICITACAO_ADITIVO_NAO_ENCONTRADA","Solicitação de aditivo não encontrada."); const anterior=mapearSolicitacaoAditivo(r.rows[0]); if(anterior.versao!==versaoEsperada)throw new ApiError(412,"VERSAO_DIVERGENTE","A solicitação foi alterada por outro usuário.");
+        let transicao; try{transicao=resolverTransicaoSolicitacaoAditivo(anterior.status,dados.acao);}catch(error){throw new ApiError(422,"TRANSICAO_ADITIVO_INVALIDA",error.message);} exigirPermissao(validado,transicao.permissao); if(["aprovar","rejeitar"].includes(dados.acao)&&String(dados.parecer||"").trim().length<3)throw new ApiError(422,"PARECER_OBRIGATORIO","Informe o parecer da engenharia de custos.");
+        const u=await cliente.query("UPDATE app.work_change_requests SET status=$2,cost_opinion=coalesce(nullif($3,''),cost_opinion),version=version+1,updated_by=$4,updated_at=now() WHERE id=$1 RETURNING *",[id,transicao.para,dados.parecer||"",validado.usuarioId]); const item=mapearSolicitacaoAditivo(u.rows[0]);
+        const d=await cliente.query(`INSERT INTO app.work_change_request_decisions(tenant_id,id,team_id,request_id,action,previous_status,new_status,opinion,decided_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[validado.tenantId,randomUUID(),validado.teamId,id,dados.acao,anterior.status,item.status,dados.parecer||"",validado.usuarioId]); const decisao={id:d.rows[0].id,solicitacaoId:id,acao:d.rows[0].action,statusAnterior:d.rows[0].previous_status,statusNovo:d.rows[0].new_status,parecer:d.rows[0].opinion,decididoPor:d.rows[0].decided_by,decididoEm:d.rows[0].decided_at}; const resposta={solicitacao:item,decisao}; await salvarIdempotencia(cliente,validado,chave,resposta); await registrarEvento(cliente,validado,{moduleId:"orcamentos",eventType:`orcamento.aditivo-${dados.acao}`,aggregateType:"solicitacao-aditivo",aggregateId:id,payload:{parecer:dados.parecer||""},before:anterior,after:item}); return resposta;
+      });
+    },
     async listarObrasCorporativas(contexto, filtros={}) {
-      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"obras.consultar"); const r=await cliente.query("SELECT * FROM app.empreendimentos WHERE tipo='obra' AND ($1::text IS NULL OR status=$1) ORDER BY atualizado_em DESC",[filtros.status||null]); const medicoes=r.rows.length?await cliente.query("SELECT * FROM app.medicoes WHERE obra_id=ANY($1::uuid[])",[r.rows.map(x=>x.id)]):{rows:[]}; return r.rows.map((linha)=>{const item=mapearEmpreendimento(linha);return{...item,resumo:calcularProgressoObra(item,medicoes.rows.filter(x=>x.obra_id===linha.id).map(mapearMedicao))};}); });
+      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"obras.consultar"); const r=await cliente.query("SELECT * FROM app.empreendimentos WHERE tipo='obra' AND ($1::text IS NULL OR status=$1) ORDER BY atualizado_em DESC",[filtros.status||null]); const medicoes=r.rows.length?await cliente.query("SELECT * FROM app.medicoes WHERE obra_id=ANY($1::uuid[])",[r.rows.map(x=>x.id)]):{rows:[]}; const ids=[...new Set(r.rows.map(x=>x.orcamento_id).filter(Boolean))]; const bases=ids.length?await cliente.query("SELECT DISTINCT ON(budget_id) * FROM app.budget_contract_baselines WHERE budget_id=ANY($1::uuid[]) ORDER BY budget_id,created_at DESC",[ids]):{rows:[]}; return r.rows.map((linha)=>{const item=mapearEmpreendimento(linha);const baseLinha=bases.rows.find(x=>x.budget_id===linha.orcamento_id);const base=baseLinha?mapearBaseContratada(baseLinha):null;const obraMedivel=base?{...item,valorPrevisto:base.valorContratado}:item;return{...item,baseContratada:base,resumo:calcularProgressoObra(obraMedivel,medicoes.rows.filter(x=>x.obra_id===linha.id).map(mapearMedicao))};}); });
     },
     async obterObraCorporativa(contexto, id) {
-      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"obras.consultar"); const r=await cliente.query("SELECT * FROM app.empreendimentos WHERE id=$1 AND tipo='obra'",[id]); if(!r.rows[0])throw new ApiError(404,"OBRA_NAO_ENCONTRADA","Obra não encontrada."); const item=mapearEmpreendimento(r.rows[0]); const [c,d,m]=await Promise.all([cliente.query("SELECT * FROM app.work_schedule_items WHERE work_id=$1 ORDER BY data_inicio,codigo",[id]),cliente.query("SELECT * FROM app.work_diary_entries WHERE work_id=$1 ORDER BY data_registro DESC,registrado_em DESC",[id]),cliente.query("SELECT * FROM app.medicoes WHERE obra_id=$1 ORDER BY numero DESC",[id])]); return{...item,resumo:calcularProgressoObra(item,m.rows.map(mapearMedicao)),cronograma:c.rows.map(x=>({id:x.id,workId:x.work_id,codigo:x.codigo,titulo:x.titulo,dataInicio:x.data_inicio,dataFim:x.data_fim,peso:Number(x.peso),progresso:Number(x.progresso),valorPrevisto:Number(x.valor_previsto),status:x.status,dados:x.dados||{}})),diario:d.rows.map(x=>({id:x.id,workId:x.work_id,dataRegistro:x.data_registro,clima:x.clima,efetivo:Number(x.efetivo),atividades:x.atividades,ocorrencias:x.ocorrencias,evidencias:x.evidencias||[],registradoPor:x.registrado_por,registradoEm:x.registrado_em})),medicoes:m.rows.map(mapearMedicao)}; });
+      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"obras.consultar"); const r=await cliente.query("SELECT * FROM app.empreendimentos WHERE id=$1 AND tipo='obra'",[id]); if(!r.rows[0])throw new ApiError(404,"OBRA_NAO_ENCONTRADA","Obra não encontrada."); const item=mapearEmpreendimento(r.rows[0]); const [c,d,m,b,s]=await Promise.all([cliente.query("SELECT * FROM app.work_schedule_items WHERE work_id=$1 ORDER BY data_inicio,codigo",[id]),cliente.query("SELECT * FROM app.work_diary_entries WHERE work_id=$1 ORDER BY data_registro DESC,registrado_em DESC",[id]),cliente.query("SELECT * FROM app.medicoes WHERE obra_id=$1 ORDER BY numero DESC",[id]),cliente.query("SELECT * FROM app.budget_contract_baselines WHERE budget_id=$1 ORDER BY created_at DESC LIMIT 1",[item.orcamentoId||null]),cliente.query("SELECT * FROM app.work_change_requests WHERE work_id=$1 ORDER BY number DESC",[id])]); const base=b.rows[0]?mapearBaseContratada(b.rows[0]):null;const obraMedivel=base?{...item,valorPrevisto:base.valorContratado}:item;return{...item,baseContratada:base,resumo:calcularProgressoObra(obraMedivel,m.rows.map(mapearMedicao)),cronograma:c.rows.map(x=>({id:x.id,workId:x.work_id,codigo:x.codigo,titulo:x.titulo,dataInicio:x.data_inicio,dataFim:x.data_fim,peso:Number(x.peso),progresso:Number(x.progresso),valorPrevisto:Number(x.valor_previsto),status:x.status,dados:x.dados||{}})),diario:d.rows.map(x=>({id:x.id,workId:x.work_id,dataRegistro:x.data_registro,clima:x.clima,efetivo:Number(x.efetivo),atividades:x.atividades,ocorrencias:x.ocorrencias,evidencias:x.evidencias||[],registradoPor:x.registrado_por,registradoEm:x.registrado_em})),medicoes:m.rows.map(mapearMedicao),solicitacoesAditivo:s.rows.map(mapearSolicitacaoAditivo)}; });
     },
     async criarObraCorporativa(contexto, dados, idempotencyKey) {
-      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"obras.editar"); const chave=`obra:${idempotencyKey}`; const idem=await obterIdempotente(cliente,validado.tenantId,chave); if(idem)return idem; validarPeriodoObra(dados.dataInicio,dados.dataFimPrevista); const unidade=await cliente.query("SELECT id FROM app.patrimonial_units WHERE id=$1",[dados.patrimonioUnidadeId]); if(!unidade.rows[0])throw new ApiError(422,"LOCAL_OBRA_INVALIDO","Selecione um local da estrutura patrimonial."); const r=await cliente.query(`INSERT INTO app.empreendimentos (tenant_id,id,team_id,patrimonio_unidade_id,contrato_id,orcamento_id,codigo,nome,tipo,status,responsavel,data_inicio,data_fim_prevista,valor_previsto,progresso_fisico,dados,criado_por,atualizado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'obra','planejamento',$9,$10,$11,$12,$13,$14,$15,$15) RETURNING *`,[validado.tenantId,randomUUID(),validado.teamId,dados.patrimonioUnidadeId,dados.contractId||null,dados.orcamentoId||null,dados.codigo.trim(),dados.nome.trim(),dados.responsavel||"",dados.dataInicio,dados.dataFimPrevista,truncarFinanceiro(dados.valorPrevisto),Number(dados.progressoFisico||0),dados.dados||{},validado.usuarioId]); const item=mapearEmpreendimento(r.rows[0]); const resposta={...item,resumo:calcularProgressoObra(item,[])}; await salvarIdempotencia(cliente,validado,chave,resposta); await registrarEvento(cliente,validado,{moduleId:"obras",eventType:"obras.criada",aggregateType:"obra",aggregateId:item.id,payload:{codigo:item.codigo,valorPrevisto:item.valorPrevisto},after:item}); return resposta; });
+      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"obras.editar"); const chave=`obra:${idempotencyKey}`; const idem=await obterIdempotente(cliente,validado.tenantId,chave); if(idem)return idem; validarPeriodoObra(dados.dataInicio,dados.dataFimPrevista); const [unidade,contrato,orcamento]=await Promise.all([cliente.query("SELECT id FROM app.patrimonial_units WHERE id=$1",[dados.patrimonioUnidadeId]),cliente.query("SELECT id FROM app.contracts WHERE id=$1",[dados.contractId]),cliente.query("SELECT id FROM app.orcamentos WHERE id=$1",[dados.orcamentoId])]); if(!unidade.rows[0])throw new ApiError(422,"LOCAL_OBRA_INVALIDO","Selecione um local da estrutura patrimonial.");if(!contrato.rows[0]||!orcamento.rows[0])throw new ApiError(422,"VINCULOS_OBRA_OBRIGATORIOS","A obra deve estar vinculada a um contrato e a um orçamento válidos."); const r=await cliente.query(`INSERT INTO app.empreendimentos (tenant_id,id,team_id,patrimonio_unidade_id,contrato_id,orcamento_id,codigo,nome,tipo,status,responsavel,data_inicio,data_fim_prevista,valor_previsto,progresso_fisico,dados,criado_por,atualizado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'obra','planejamento',$9,$10,$11,$12,$13,$14,$15,$15) RETURNING *`,[validado.tenantId,randomUUID(),validado.teamId,dados.patrimonioUnidadeId,dados.contractId,dados.orcamentoId,dados.codigo.trim(),dados.nome.trim(),dados.responsavel||"",dados.dataInicio,dados.dataFimPrevista,truncarFinanceiro(dados.valorPrevisto),Number(dados.progressoFisico||0),dados.dados||{},validado.usuarioId]); const item=mapearEmpreendimento(r.rows[0]); const resposta={...item,resumo:calcularProgressoObra(item,[])}; await salvarIdempotencia(cliente,validado,chave,resposta); await registrarEvento(cliente,validado,{moduleId:"obras",eventType:"obras.criada",aggregateType:"obra",aggregateId:item.id,payload:{codigo:item.codigo,valorPrevisto:item.valorPrevisto},after:item}); return resposta; });
     },
     async atualizarObraCorporativa(contexto, id, dados, versaoEsperada) {
       return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"obras.editar"); validarPeriodoObra(dados.dataInicio,dados.dataFimPrevista); const anterior=await cliente.query("SELECT * FROM app.empreendimentos WHERE id=$1",[id]); if(!anterior.rows[0])throw new ApiError(404,"OBRA_NAO_ENCONTRADA","Obra não encontrada."); const antes=mapearEmpreendimento(anterior.rows[0]); if(antes.versao!==versaoEsperada)throw new ApiError(412,"VERSAO_DIVERGENTE","A obra foi alterada por outro usuário."); if(!["planejamento","em_andamento","suspensa"].includes(antes.status))throw new ApiError(422,"OBRA_NAO_EDITAVEL","A obra não pode ser editada neste estágio."); const r=await cliente.query(`UPDATE app.empreendimentos SET patrimonio_unidade_id=$2,contrato_id=$3,orcamento_id=$4,codigo=$5,nome=$6,responsavel=$7,data_inicio=$8,data_fim_prevista=$9,valor_previsto=$10,progresso_fisico=$11,dados=$12,versao=versao+1,atualizado_por=$13,atualizado_em=now() WHERE id=$1 RETURNING *`,[id,dados.patrimonioUnidadeId,dados.contractId||null,dados.orcamentoId||null,dados.codigo.trim(),dados.nome.trim(),dados.responsavel||"",dados.dataInicio,dados.dataFimPrevista,truncarFinanceiro(dados.valorPrevisto),Number(dados.progressoFisico||0),dados.dados||{},validado.usuarioId]); const item=mapearEmpreendimento(r.rows[0]); await registrarEvento(cliente,validado,{moduleId:"obras",eventType:"obras.atualizada",aggregateType:"obra",aggregateId:id,payload:{codigo:item.codigo},before:antes,after:item}); return item; });
@@ -1548,7 +1688,7 @@ export function criarRepositorioPostgres({
       return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"medicao.consultar"); const m=await cliente.query("SELECT * FROM app.medicoes WHERE obra_id=$1 ORDER BY numero DESC",[workId]); if(!m.rows.length)return[]; const ids=m.rows.map(x=>x.id); const [i,d]=await Promise.all([cliente.query("SELECT * FROM app.measurement_items WHERE measurement_id=ANY($1::uuid[]) ORDER BY codigo",[ids]),cliente.query("SELECT * FROM app.measurement_decisions WHERE measurement_id=ANY($1::uuid[]) ORDER BY decidido_em DESC",[ids])]); return m.rows.map((linha)=>({...mapearMedicao(linha),itens:i.rows.filter(x=>x.measurement_id===linha.id).map(x=>({id:x.id,codigo:x.codigo,descricao:x.descricao,unidade:x.unidade,quantidadePrevista:Number(x.quantidade_prevista),quantidadePeriodo:Number(x.quantidade_periodo),quantidadeAcumulada:Number(x.quantidade_acumulada),valorUnitario:Number(x.valor_unitario),valorPeriodo:Number(x.valor_periodo)})),decisoes:d.rows.filter(x=>x.measurement_id===linha.id).map(x=>({id:x.id,acao:x.acao,statusAnterior:x.status_anterior,statusNovo:x.status_novo,justificativa:x.justificativa,decididoPor:x.decidido_por,decididoEm:x.decidido_em}))})); });
     },
     async criarMedicaoObra(contexto, workId, dados, idempotencyKey) {
-      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"medicao.registrar"); const chave=`medicao-obra:${idempotencyKey}`; const idem=await obterIdempotente(cliente,validado.tenantId,chave); if(idem)return idem; validarPeriodoObra(dados.periodoInicio,dados.periodoFim,"PERIODO_MEDICAO_INVALIDO"); const o=await cliente.query("SELECT * FROM app.empreendimentos WHERE id=$1 FOR UPDATE",[workId]); if(!o.rows[0])throw new ApiError(404,"OBRA_NAO_ENCONTRADA","Obra não encontrada."); const obra=mapearEmpreendimento(o.rows[0]); const anteriores=await cliente.query("SELECT * FROM app.medicoes WHERE obra_id=$1",[workId]); const resumo=calcularProgressoObra(obra,anteriores.rows.map(mapearMedicao)); const calculo=calcularMedicao(dados,resumo.saldoMedir); const r=await cliente.query(`INSERT INTO app.medicoes (tenant_id,id,team_id,orcamento_id,obra_id,contrato_id,numero,status,periodo_inicio,periodo_fim,valor_bruto,retencoes,multas,glosas,dados,criado_por,atualizado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,'rascunho',$8,$9,$10,$11,$12,$13,$14,$15,$15) RETURNING *`,[validado.tenantId,randomUUID(),validado.teamId,obra.orcamentoId||null,workId,obra.contractId||null,Number(dados.numero),dados.periodoInicio,dados.periodoFim,calculo.valorBruto,calculo.retencoes,calculo.multas,calculo.glosas,dados.dados||{},validado.usuarioId]); const item=mapearMedicao(r.rows[0]); for(const x of dados.itens||[]){await cliente.query(`INSERT INTO app.measurement_items (tenant_id,id,team_id,measurement_id,codigo,descricao,unidade,quantidade_prevista,quantidade_periodo,quantidade_acumulada,valor_unitario,dados,criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,[validado.tenantId,randomUUID(),validado.teamId,item.id,x.codigo,x.descricao,x.unidade||"",Number(x.quantidadePrevista||0),Number(x.quantidadePeriodo||0),Number(x.quantidadeAcumulada||0),Number(x.valorUnitario||0),x.dados||{},validado.usuarioId]);} await salvarIdempotencia(cliente,validado,chave,item); await registrarEvento(cliente,validado,{moduleId:"medicoes",eventType:"medicao.criada",aggregateType:"medicao",aggregateId:item.id,payload:{obraId:workId,numero:item.numero,valorBruto:item.valorBruto},after:item}); return item; });
+      return comContexto(contexto, async (cliente, validado) => { exigirPermissao(validado,"medicao.registrar"); const chave=`medicao-obra:${idempotencyKey}`; const idem=await obterIdempotente(cliente,validado.tenantId,chave); if(idem)return idem; validarPeriodoObra(dados.periodoInicio,dados.periodoFim,"PERIODO_MEDICAO_INVALIDO"); const o=await cliente.query("SELECT * FROM app.empreendimentos WHERE id=$1 FOR UPDATE",[workId]); if(!o.rows[0])throw new ApiError(404,"OBRA_NAO_ENCONTRADA","Obra não encontrada."); const obra=mapearEmpreendimento(o.rows[0]); const [anteriores,b]=await Promise.all([cliente.query("SELECT * FROM app.medicoes WHERE obra_id=$1",[workId]),cliente.query("SELECT * FROM app.budget_contract_baselines WHERE budget_id=$1 ORDER BY created_at DESC LIMIT 1",[obra.orcamentoId||null])]); if(!b.rows[0])throw new ApiError(422,"BASE_CONTRATADA_AUSENTE","A medição exige uma base contratada homologada."); const base=mapearBaseContratada(b.rows[0]); const saldo=calcularSaldoBaseContratada(base,anteriores.rows.map(mapearMedicao)); const calculo=calcularMedicao(dados,saldo.saldo); const dadosMedicao={...(dados.dados||{}),baseContratadaId:base.id}; const r=await cliente.query(`INSERT INTO app.medicoes (tenant_id,id,team_id,orcamento_id,obra_id,contrato_id,numero,status,periodo_inicio,periodo_fim,valor_bruto,retencoes,multas,glosas,dados,criado_por,atualizado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,'rascunho',$8,$9,$10,$11,$12,$13,$14,$15,$15) RETURNING *`,[validado.tenantId,randomUUID(),validado.teamId,obra.orcamentoId,workId,obra.contractId,Number(dados.numero),dados.periodoInicio,dados.periodoFim,calculo.valorBruto,calculo.retencoes,calculo.multas,calculo.glosas,dadosMedicao,validado.usuarioId]); const item=mapearMedicao(r.rows[0]); for(const x of dados.itens||[]){await cliente.query(`INSERT INTO app.measurement_items (tenant_id,id,team_id,measurement_id,codigo,descricao,unidade,quantidade_prevista,quantidade_periodo,quantidade_acumulada,valor_unitario,dados,criado_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,[validado.tenantId,randomUUID(),validado.teamId,item.id,x.codigo,x.descricao,x.unidade||"",Number(x.quantidadePrevista||0),Number(x.quantidadePeriodo||0),Number(x.quantidadeAcumulada||0),Number(x.valorUnitario||0),x.dados||{},validado.usuarioId]);} await salvarIdempotencia(cliente,validado,chave,item); await registrarEvento(cliente,validado,{moduleId:"medicoes",eventType:"medicao.criada",aggregateType:"medicao",aggregateId:item.id,payload:{obraId:workId,numero:item.numero,valorBruto:item.valorBruto,baseContratadaId:base.id},after:item}); return item; });
     },
     async decidirMedicaoObra(contexto, measurementId, dados, versaoEsperada, idempotencyKey) {
       return comContexto(contexto, async (cliente, validado) => { const chave=`decisao-medicao:${idempotencyKey}`; const idem=await obterIdempotente(cliente,validado.tenantId,chave); if(idem)return idem; const r=await cliente.query("SELECT * FROM app.medicoes WHERE id=$1 AND obra_id IS NOT NULL FOR UPDATE",[measurementId]); if(!r.rows[0])throw new ApiError(404,"MEDICAO_NAO_ENCONTRADA","Medição não encontrada."); const antes=mapearMedicao(r.rows[0]); if(antes.versao!==versaoEsperada)throw new ApiError(412,"VERSAO_DIVERGENTE","A medição foi alterada por outro usuário."); const transicao=resolverTransicaoMedicao(antes.status,dados.acao); exigirPermissao(validado,transicao.permissao); if(["glosar","devolver","cancelar"].includes(dados.acao)&&String(dados.justificativa||"").trim().length<3)throw new ApiError(422,"JUSTIFICATIVA_OBRIGATORIA","Informe a justificativa da decisão."); const agora=new Date().toISOString(); const d=await cliente.query(`INSERT INTO app.measurement_decisions (tenant_id,id,team_id,measurement_id,acao,status_anterior,status_novo,justificativa,decidido_por) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[validado.tenantId,randomUUID(),validado.teamId,measurementId,dados.acao,antes.status,transicao.para,dados.justificativa||"",validado.usuarioId]); const u=await cliente.query(`UPDATE app.medicoes SET status=$2,enviado_em=CASE WHEN $3='enviar' THEN $4 ELSE enviado_em END,aprovado_por=CASE WHEN $3='aprovar' THEN $5 ELSE aprovado_por END,aceite_em=CASE WHEN $3='aceitar' THEN $4 ELSE aceite_em END,versao=versao+1,atualizado_por=$5,atualizado_em=now() WHERE id=$1 RETURNING *`,[measurementId,transicao.para,dados.acao,agora,validado.usuarioId]); const medicao=mapearMedicao(u.rows[0]); const x=d.rows[0]; const decisao={id:x.id,acao:x.acao,statusAnterior:x.status_anterior,statusNovo:x.status_novo,justificativa:x.justificativa,decididoPor:x.decidido_por,decididoEm:x.decidido_em}; const resposta={medicao,decisao}; await salvarIdempotencia(cliente,validado,chave,resposta); await registrarEvento(cliente,validado,{moduleId:"medicoes",eventType:`medicao.${dados.acao}`,aggregateType:"medicao",aggregateId:measurementId,payload:decisao,before:antes,after:medicao}); return resposta; });
@@ -1597,6 +1737,22 @@ export function criarRepositorioPostgres({
 
     async listarRequisitosCompliance(contexto,filtros={}) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"regularidade.consultar");const r=await cliente.query(`SELECT *,CASE WHEN status IN('dispensado','cancelado') THEN status WHEN data_validade<current_date THEN 'vencido' WHEN data_validade<=current_date+60 THEN 'a_vencer' WHEN numero_documento<>'' THEN 'regular' ELSE status END AS status_calculado FROM app.compliance_requirements ORDER BY data_validade NULLS LAST,codigo`);return r.rows.map(x=>({...mapearLinhaGenerica(x),status:x.status_calculado})).filter(x=>!filtros.status||x.status===filtros.status);}); },
     async criarRequisitoCompliance(contexto,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"regularidade.editar");const r=await cliente.query(`INSERT INTO app.compliance_requirements(tenant_id,id,team_id,patrimonio_unidade_id,codigo,tipo,titulo,orgao_emissor,numero_documento,data_emissao,data_validade,responsavel,status,criticidade,documento_id,dados,criado_por,atualizado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17) RETURNING *`,[c.tenantId,randomUUID(),c.teamId,dados.patrimonioUnidadeId,dados.codigo.trim(),dados.tipo,dados.titulo.trim(),dados.orgaoEmissor||"",dados.numeroDocumento||"",dados.dataEmissao||null,dados.dataValidade||null,dados.responsavel||"",dados.status||"pendente",dados.criticidade||"media",dados.documentoId||null,dados.dados||{},c.usuarioId]);return mapearLinhaGenerica(r.rows[0]);}); },
+    async listarPpcis(contexto,filtros={}) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"ppci.consultar");const r=await cliente.query(`SELECT p.*,u.nome local,u.codigo local_codigo,u.nivel local_nivel,CASE WHEN p.status IN('dispensado','cancelado') THEN p.status WHEN p.data_validade<current_date THEN 'vencido' WHEN p.data_validade<=current_date+60 THEN 'a_vencer' WHEN p.status='aprovado' THEN 'regular' ELSE p.status END status_calculado FROM app.fire_safety_plans p JOIN app.patrimonial_units u ON u.tenant_id=p.tenant_id AND u.id=p.patrimonio_unidade_id WHERE ($1::text IS NULL OR (CASE WHEN p.status IN('dispensado','cancelado') THEN p.status WHEN p.data_validade<current_date THEN 'vencido' WHEN p.data_validade<=current_date+60 THEN 'a_vencer' WHEN p.status='aprovado' THEN 'regular' ELSE p.status END)=$1) AND ($2::uuid IS NULL OR p.patrimonio_unidade_id=$2) ORDER BY p.data_validade NULLS LAST,p.codigo`,[filtros.status||null,filtros.patrimonioUnidadeId||null]);return r.rows.map(mapearLinhaGenerica);}); },
+    async obterPpci(contexto,id) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"ppci.consultar");const r=await cliente.query(`SELECT p.*,u.nome local,u.codigo local_codigo,u.nivel local_nivel,CASE WHEN p.status IN('dispensado','cancelado') THEN p.status WHEN p.data_validade<current_date THEN 'vencido' WHEN p.data_validade<=current_date+60 THEN 'a_vencer' WHEN p.status='aprovado' THEN 'regular' ELSE p.status END status_calculado FROM app.fire_safety_plans p JOIN app.patrimonial_units u ON u.tenant_id=p.tenant_id AND u.id=p.patrimonio_unidade_id WHERE p.id=$1`,[id]);if(!r.rows[0])throw new ApiError(404,"PPCI_NAO_ENCONTRADO","PPCI não encontrado.");const [s,i]=await Promise.all([cliente.query("SELECT * FROM app.fire_safety_systems WHERE plan_id=$1 AND status='ativo' ORDER BY tipo,descricao",[id]),cliente.query("SELECT * FROM app.fire_safety_inspections WHERE plan_id=$1 ORDER BY data_inspecao DESC,registrado_em DESC",[id])]);return{...mapearLinhaGenerica(r.rows[0]),sistemas:s.rows.map(mapearLinhaGenerica),inspecoes:i.rows.map(mapearLinhaGenerica)};}); },
+    async criarPpci(contexto,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"ppci.editar");const chave=`ppci:${idempotencyKey}`;const idem=await obterIdempotente(cliente,c.tenantId,chave);if(idem)return idem;const local=await cliente.query("SELECT nivel,status FROM app.patrimonial_units WHERE id=$1",[dados.patrimonioUnidadeId]);if(!local.rows[0]||!["site","predio","sala"].includes(local.rows[0].nivel)||local.rows[0].status!=="ativo")throw new ApiError(422,"LOCAL_PPCI_INVALIDO","O PPCI deve estar vinculado a um Site, Prédio ou Sala ativo.");const r=await cliente.query(`INSERT INTO app.fire_safety_plans(tenant_id,id,team_id,patrimonio_unidade_id,codigo,numero_processo,titulo,ocupacao,classificacao_risco,area_protegida_m2,orgao_responsavel,fase,status,data_protocolo,data_aprovacao,data_validade,responsavel,proximo_passo,documento_id,dados,criado_por,atualizado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$21) RETURNING *`,[c.tenantId,randomUUID(),c.teamId,dados.patrimonioUnidadeId,dados.codigo.trim(),dados.numeroProcesso||"",dados.titulo.trim(),dados.ocupacao||"",dados.classificacaoRisco||"medio",dados.areaProtegidaM2??null,dados.orgaoResponsavel||"",dados.fase||"levantamento",dados.status||"em_elaboracao",dados.dataProtocolo||null,dados.dataAprovacao||null,dados.dataValidade||null,dados.responsavel||"",dados.proximoPasso||"",dados.documentoId||null,dados.dados||{},c.usuarioId]);const item=mapearLinhaGenerica(r.rows[0]);await salvarIdempotencia(cliente,c,chave,item);await registrarAuditoria(cliente,c,{moduleId:"regularidade",action:"ppci.criado",entityType:"ppci",entityId:item.id,after:item});return item;}); },
+    async atualizarPpci(contexto,id,dados,versao) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"ppci.editar");const anterior=await cliente.query("SELECT * FROM app.fire_safety_plans WHERE id=$1",[id]);if(!anterior.rows[0])throw new ApiError(404,"PPCI_NAO_ENCONTRADO","PPCI não encontrado.");const r=await cliente.query(`UPDATE app.fire_safety_plans SET patrimonio_unidade_id=$2,codigo=$3,numero_processo=$4,titulo=$5,ocupacao=$6,classificacao_risco=$7,area_protegida_m2=$8,orgao_responsavel=$9,fase=$10,status=$11,data_protocolo=$12,data_aprovacao=$13,data_validade=$14,responsavel=$15,proximo_passo=$16,documento_id=$17,dados=$18,versao=versao+1,atualizado_por=$19,atualizado_em=now() WHERE id=$1 AND versao=$20 RETURNING *`,[id,dados.patrimonioUnidadeId,dados.codigo.trim(),dados.numeroProcesso||"",dados.titulo.trim(),dados.ocupacao||"",dados.classificacaoRisco||"medio",dados.areaProtegidaM2??null,dados.orgaoResponsavel||"",dados.fase||"levantamento",dados.status||"em_elaboracao",dados.dataProtocolo||null,dados.dataAprovacao||null,dados.dataValidade||null,dados.responsavel||"",dados.proximoPasso||"",dados.documentoId||null,dados.dados||{},c.usuarioId,versao]);if(!r.rows[0])throw new ApiError(412,"VERSAO_DIVERGENTE","O PPCI foi alterado por outro usuário.");const item=mapearLinhaGenerica(r.rows[0]);await registrarAuditoria(cliente,c,{moduleId:"regularidade",action:"ppci.atualizado",entityType:"ppci",entityId:id,before:mapearLinhaGenerica(anterior.rows[0]),after:item});return item;}); },
+    async criarSistemaPpci(contexto,planId,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"ppci.editar");const escopo=await cliente.query(`WITH RECURSIVE arvore AS(SELECT id,parent_id FROM app.patrimonial_units WHERE id=$2 UNION ALL SELECT p.id,p.parent_id FROM app.patrimonial_units p JOIN arvore a ON a.parent_id=p.id) SELECT EXISTS(SELECT 1 FROM app.fire_safety_plans f WHERE f.id=$1 AND f.patrimonio_unidade_id IN(SELECT id FROM arvore)) pertence`,[planId,dados.patrimonioUnidadeId]);if(!escopo.rows[0]?.pertence)throw new ApiError(422,"REFERENCIA_SISTEMA_PPCI_INVALIDA","O local ou ativo de segurança não pertence ao escopo patrimonial do PPCI.");if(dados.ativoId){const ativo=await cliente.query("SELECT id FROM app.patrimonial_assets WHERE id=$1 AND sala_id=$2",[dados.ativoId,dados.patrimonioUnidadeId]);if(!ativo.rows[0])throw new ApiError(422,"REFERENCIA_SISTEMA_PPCI_INVALIDA","O ativo não pertence à Sala informada.");}const r=await cliente.query(`INSERT INTO app.fire_safety_systems(tenant_id,id,team_id,plan_id,patrimonio_unidade_id,ativo_id,tipo,descricao,quantidade,unidade,conformidade,ultima_inspecao,proxima_inspecao,responsavel,dados,criado_por,atualizado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16) RETURNING *`,[c.tenantId,randomUUID(),c.teamId,planId,dados.patrimonioUnidadeId,dados.ativoId||null,dados.tipo,dados.descricao.trim(),Number(dados.quantidade||0),dados.unidade||"un",dados.conformidade||"nao_avaliado",dados.ultimaInspecao||null,dados.proximaInspecao||null,dados.responsavel||"",dados.dados||{},c.usuarioId]);return mapearLinhaGenerica(r.rows[0]);}); },
+    async atualizarSistemaPpci(contexto,planId,id,dados,versao) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"ppci.editar");const anterior=await cliente.query("SELECT * FROM app.fire_safety_systems WHERE id=$1 AND plan_id=$2 AND status='ativo'",[id,planId]);if(!anterior.rows[0])throw new ApiError(404,"SISTEMA_PPCI_NAO_ENCONTRADO","Sistema PPCI não encontrado.");const r=await cliente.query(`UPDATE app.fire_safety_systems SET patrimonio_unidade_id=$3,ativo_id=$4,tipo=$5,descricao=$6,quantidade=$7,unidade=$8,conformidade=$9,ultima_inspecao=$10,proxima_inspecao=$11,responsavel=$12,dados=$13,versao=versao+1,atualizado_por=$14,atualizado_em=now() WHERE id=$1 AND plan_id=$2 AND versao=$15 AND status='ativo' RETURNING *`,[id,planId,dados.patrimonioUnidadeId,dados.ativoId||null,dados.tipo,dados.descricao.trim(),Number(dados.quantidade||0),dados.unidade||"un",dados.conformidade||"nao_avaliado",dados.ultimaInspecao||null,dados.proximaInspecao||null,dados.responsavel||"",dados.dados||{},c.usuarioId,versao]);if(!r.rows[0])throw new ApiError(412,"VERSAO_DIVERGENTE","O sistema PPCI foi alterado por outro usuário.");const item=mapearLinhaGenerica(r.rows[0]);await registrarAuditoria(cliente,c,{moduleId:"regularidade",action:"ppci.sistema-atualizado",entityType:"sistema-ppci",entityId:id,before:mapearLinhaGenerica(anterior.rows[0]),after:item});return item;}); },
+    async removerSistemaPpci(contexto,planId,id,dados,versao) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"ppci.editar");const anterior=await cliente.query("SELECT * FROM app.fire_safety_systems WHERE id=$1 AND plan_id=$2 AND status='ativo'",[id,planId]);if(!anterior.rows[0])throw new ApiError(404,"SISTEMA_PPCI_NAO_ENCONTRADO","Sistema PPCI não encontrado.");if(Number(anterior.rows[0].versao)!==versao)throw new ApiError(412,"VERSAO_DIVERGENTE","O sistema PPCI foi alterado por outro usuário.");const historico=await cliente.query("SELECT EXISTS(SELECT 1 FROM app.fire_safety_inspections WHERE system_id=$1) possui",[id]);let modo="excluido",depois=null;if(historico.rows[0].possui){const r=await cliente.query("UPDATE app.fire_safety_systems SET status='inativo',removido_motivo=$3,removido_por=$4,removido_em=now(),versao=versao+1,atualizado_por=$4,atualizado_em=now() WHERE id=$1 AND plan_id=$2 RETURNING *",[id,planId,dados.motivo,c.usuarioId]);depois=mapearLinhaGenerica(r.rows[0]);modo="inativado";}else await cliente.query("DELETE FROM app.fire_safety_systems WHERE id=$1 AND plan_id=$2",[id,planId]);await registrarAuditoria(cliente,c,{moduleId:"regularidade",action:`ppci.sistema-${modo}`,entityType:"sistema-ppci",entityId:id,before:mapearLinhaGenerica(anterior.rows[0]),after:depois,reason:dados.motivo});return{removido:true,modo};}); },
+    async registrarInspecaoPpci(contexto,planId,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"ppci.editar");if(dados.systemId){const sistema=await cliente.query("SELECT id FROM app.fire_safety_systems WHERE id=$1 AND plan_id=$2",[dados.systemId,planId]);if(!sistema.rows[0])throw new ApiError(422,"SISTEMA_PPCI_INVALIDO","O sistema não pertence ao PPCI informado.");}const r=await cliente.query(`INSERT INTO app.fire_safety_inspections(tenant_id,id,team_id,plan_id,system_id,data_inspecao,tipo,resultado,inspetor,observacoes,evidencias,registrado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,[c.tenantId,randomUUID(),c.teamId,planId,dados.systemId||null,dados.dataInspecao,dados.tipo,dados.resultado,dados.inspetor.trim(),dados.observacoes||"",dados.evidencias||[],c.usuarioId]);const item=mapearLinhaGenerica(r.rows[0]);await registrarAuditoria(cliente,c,{moduleId:"regularidade",action:"ppci.inspecao-registrada",entityType:"inspecao-ppci",entityId:item.id,after:item});return item;}); },
+    async obterResumoPpci(contexto) { return resumirPpcis(await this.listarPpcis(contexto)); },
+    async listarResponsaveisCorporativos(contexto) { return comContexto(contexto,async(cliente)=>{const r=await cliente.query("SELECT * FROM app.listar_responsaveis_corporativos()");return{usuarios:r.rows.filter(x=>x.tipo==="usuario").map(x=>({id:x.id,tipo:x.tipo,nome:x.nome,perfilId:x.perfil_id})),equipes:r.rows.filter(x=>x.tipo==="equipe").map(x=>({id:x.id,tipo:x.tipo,nome:x.nome}))};}); },
+    async listarMedidoresUtilidades(contexto,filtros={}) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"utilidades.consultar");const r=await cliente.query(`SELECT m.*,u.nome local,u.codigo local_codigo,u.nivel local_nivel FROM app.utility_meters m JOIN app.patrimonial_units u ON u.tenant_id=m.tenant_id AND u.id=m.patrimonio_unidade_id WHERE ($1::text IS NULL OR m.recurso=$1) AND ($2::text IS NULL OR m.status=$2) AND ($3::uuid IS NULL OR m.patrimonio_unidade_id=$3) ORDER BY m.recurso,m.codigo`,[filtros.recurso||null,filtros.status||null,filtros.patrimonioUnidadeId||null]);return r.rows.map(x=>({...mapearLinhaGenerica(x),multiplicador:Number(x.multiplicador)}));}); },
+    async obterMedidorUtilidade(contexto,id) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"utilidades.consultar");const r=await cliente.query(`SELECT m.*,u.nome local,u.codigo local_codigo,u.nivel local_nivel FROM app.utility_meters m JOIN app.patrimonial_units u ON u.tenant_id=m.tenant_id AND u.id=m.patrimonio_unidade_id WHERE m.id=$1`,[id]);if(!r.rows[0])throw new ApiError(404,"MEDIDOR_NAO_ENCONTRADO","Medidor não encontrado.");const l=await cliente.query("SELECT * FROM app.utility_readings WHERE meter_id=$1 ORDER BY data_leitura DESC,registrado_em DESC",[id]);return{...mapearLinhaGenerica(r.rows[0]),multiplicador:Number(r.rows[0].multiplicador),leituras:l.rows.map(x=>({...mapearLinhaGenerica(x),valor:Number(x.valor)}))};}); },
+    async criarMedidorUtilidade(contexto,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"utilidades.editar");const r=await cliente.query(`INSERT INTO app.utility_meters(tenant_id,id,team_id,patrimonio_unidade_id,ativo_id,codigo,nome,recurso,unidade,direcao,multiplicador,identificador_externo,status,responsavel,dados,criado_por,atualizado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16) RETURNING *`,[c.tenantId,randomUUID(),c.teamId,dados.patrimonioUnidadeId,dados.ativoId||null,dados.codigo.trim(),dados.nome.trim(),dados.recurso,dados.unidade.trim(),dados.direcao||"consumo",Number(dados.multiplicador||1),dados.identificadorExterno||"",dados.status||"ativo",dados.responsavel||"",dados.dados||{},c.usuarioId]);const item=mapearLinhaGenerica(r.rows[0]);await registrarAuditoria(cliente,c,{moduleId:"utilidades",action:"medidor.criado",entityType:"medidor-utilidade",entityId:item.id,after:item});return item;}); },
+    async atualizarMedidorUtilidade(contexto,id,dados,versao) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"utilidades.editar");const anterior=await cliente.query("SELECT * FROM app.utility_meters WHERE id=$1",[id]);if(!anterior.rows[0])throw new ApiError(404,"MEDIDOR_NAO_ENCONTRADO","Medidor não encontrado.");const r=await cliente.query(`UPDATE app.utility_meters SET patrimonio_unidade_id=$2,ativo_id=$3,codigo=$4,nome=$5,recurso=$6,unidade=$7,direcao=$8,multiplicador=$9,identificador_externo=$10,status=$11,responsavel=$12,dados=$13,versao=versao+1,atualizado_por=$14,atualizado_em=now() WHERE id=$1 AND versao=$15 RETURNING *`,[id,dados.patrimonioUnidadeId,dados.ativoId||null,dados.codigo.trim(),dados.nome.trim(),dados.recurso,dados.unidade.trim(),dados.direcao||"consumo",Number(dados.multiplicador||1),dados.identificadorExterno||"",dados.status||"ativo",dados.responsavel||"",dados.dados||{},c.usuarioId,versao]);if(!r.rows[0])throw new ApiError(412,"VERSAO_DIVERGENTE","O medidor foi alterado por outro usuário.");const item=mapearLinhaGenerica(r.rows[0]);await registrarAuditoria(cliente,c,{moduleId:"utilidades",action:"medidor.atualizado",entityType:"medidor-utilidade",entityId:id,before:mapearLinhaGenerica(anterior.rows[0]),after:item});return item;}); },
+    async removerMedidorUtilidade(contexto,id,versao) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"utilidades.editar");const anterior=await cliente.query("SELECT * FROM app.utility_meters WHERE id=$1",[id]);if(!anterior.rows[0])throw new ApiError(404,"MEDIDOR_NAO_ENCONTRADO","Medidor não encontrado.");if(Number(anterior.rows[0].versao)!==versao)throw new ApiError(412,"VERSAO_DIVERGENTE","O medidor foi alterado por outro usuário.");const historico=await cliente.query("SELECT EXISTS(SELECT 1 FROM app.utility_readings WHERE meter_id=$1) possui",[id]);let modo="excluido",depois=null;if(historico.rows[0].possui){const r=await cliente.query("UPDATE app.utility_meters SET status='inativo',versao=versao+1,atualizado_por=$2,atualizado_em=now() WHERE id=$1 RETURNING *",[id,c.usuarioId]);depois=mapearLinhaGenerica(r.rows[0]);modo="inativado";}else await cliente.query("DELETE FROM app.utility_meters WHERE id=$1",[id]);await registrarAuditoria(cliente,c,{moduleId:"utilidades",action:`medidor.${modo}`,entityType:"medidor-utilidade",entityId:id,before:mapearLinhaGenerica(anterior.rows[0]),after:depois});return{removido:true,modo};}); },
+    async registrarLeituraUtilidade(contexto,meterId,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"utilidades.registrar-leitura");const r=await cliente.query(`INSERT INTO app.utility_readings(tenant_id,id,team_id,meter_id,data_leitura,valor,natureza,origem,observacoes,documento_id,registrado_por) SELECT $1,$2,team_id,id,$3,$4,$5,$6,$7,$8,$9 FROM app.utility_meters WHERE id=$10 AND status='ativo' RETURNING *`,[c.tenantId,randomUUID(),dados.dataLeitura,Number(dados.valor),dados.natureza||"leitura",dados.origem||"manual",dados.observacoes||"",dados.documentoId||null,c.usuarioId,meterId]);if(!r.rows[0])throw new ApiError(404,"MEDIDOR_NAO_ENCONTRADO","Medidor ativo não encontrado.");const item={...mapearLinhaGenerica(r.rows[0]),valor:Number(r.rows[0].valor)};await registrarAuditoria(cliente,c,{moduleId:"utilidades",action:"leitura.registrada",entityType:"leitura-utilidade",entityId:item.id,after:item});return item;}); },
     async listarRiscosCompliance(contexto) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"regularidade.consultar");const r=await cliente.query("SELECT * FROM app.compliance_risks ORDER BY nivel DESC,codigo");return r.rows.map(mapearLinhaGenerica);}); },
     async criarRiscoCompliance(contexto,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"regularidade.editar");calcularNivelRisco(dados.probabilidade,dados.impacto);const r=await cliente.query(`INSERT INTO app.compliance_risks(tenant_id,id,team_id,requirement_id,codigo,titulo,descricao,probabilidade,impacto,controle,responsavel,status,dados,criado_por,atualizado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING *`,[c.tenantId,randomUUID(),c.teamId,dados.requirementId||null,dados.codigo.trim(),dados.titulo.trim(),dados.descricao.trim(),Number(dados.probabilidade),Number(dados.impacto),dados.controle||"",dados.responsavel||"",dados.status||"aberto",dados.dados||{},c.usuarioId]);return mapearLinhaGenerica(r.rows[0]);}); },
     async criarAcaoCompliance(contexto,riskId,dados,idempotencyKey) { return comContexto(contexto,async(cliente,c)=>{exigirPermissao(c,"regularidade.editar");const r=await cliente.query(`INSERT INTO app.compliance_actions(tenant_id,id,team_id,risk_id,titulo,descricao,responsavel,prazo,percentual,status,evidencia_documento_id,dados,criado_por,atualizado_por) SELECT $1,$2,team_id,id,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11 FROM app.compliance_risks WHERE id=$12 RETURNING *`,[c.tenantId,randomUUID(),dados.titulo.trim(),dados.descricao.trim(),dados.responsavel.trim(),dados.prazo,Number(dados.percentual||0),dados.status||"aberta",dados.evidenciaDocumentoId||null,dados.dados||{},c.usuarioId,riskId]);if(!r.rows[0])throw new ApiError(404,"RISCO_NAO_ENCONTRADO","Risco não encontrado.");return mapearLinhaGenerica(r.rows[0]);}); },
@@ -2797,15 +2953,48 @@ export function criarRepositorioPostgres({
       return comContexto(contexto, async (cliente, validado) => {
         exigirPermissao(validado, "migracao.administrar");
         const resultado = await cliente.query(
-          `SELECT tenant_id, team_id, dominio_id, modo, batch_id,
-                  sincronizado_em, ativado_por, ativado_em, atualizado_em
-             FROM app.repository_transitions
-            ORDER BY dominio_id`,
+          `SELECT t.tenant_id,t.team_id,t.dominio_id,t.modo,t.batch_id,t.sincronizado_em,
+                  t.ativado_por,t.ativado_em,t.atualizado_em,t.verificacao_id,t.verificado_em,
+                  t.motivo_retorno,t.versao,v.status AS verificacao_status,v.local_total,
+                  v.corporate_total,v.local_hash,v.corporate_hash,v.divergencias,
+                  v.verificado_por,v.verificado_em AS verificacao_em
+             FROM app.repository_transitions t
+             LEFT JOIN app.repository_transition_verifications v
+               ON v.tenant_id=t.tenant_id AND v.id=t.verificacao_id
+            ORDER BY t.dominio_id`,
         );
         return resultado.rows.map(mapearTransicao);
       });
     },
-    async alterarTransicaoRepositorio(contexto, dominioId, modo) {
+    async verificarTransicaoRepositorio(contexto, dominioId, manifestoBruto) {
+      if (dominioId !== "orcamentos") throw new ApiError(422,"VERIFICACAO_NAO_IMPLEMENTADA","A verificação definitiva está disponível inicialmente para Orçamentos.");
+      return comContexto(contexto,async(cliente,validado)=>{
+        exigirPermissao(validado,"repositorio.transicionar");
+        let manifestoLocal;
+        try { manifestoLocal=validarManifestoLocal(manifestoBruto); }
+        catch(erro){ throw new ApiError(422,"MANIFESTO_LOCAL_INVALIDO",erro.message); }
+        const transicao=await cliente.query("SELECT * FROM app.repository_transitions WHERE dominio_id=$1 FOR UPDATE",[dominioId]);
+        if(!transicao.rows[0])throw new ApiError(409,"DOMINIO_NAO_HOMOLOGADO","Homologue o domínio antes de verificar sua promoção.");
+        if(transicao.rows[0].modo!=="hibrido")throw new ApiError(409,"VERIFICACAO_FORA_DO_HIBRIDO","A paridade deve ser verificada enquanto o domínio está em modo híbrido.");
+        const corporativos=await cliente.query("SELECT id,nome,dados FROM app.orcamentos ORDER BY id");
+        const manifestoCorporativo=criarManifestoCorporativoOrcamentos(corporativos.rows);
+        const comparacao=compararManifestosRepositorio(manifestoLocal,manifestoCorporativo);
+        const id=randomUUID(),status=comparacao.conforme?"conforme":"divergente";
+        const verificacaoResultado=await cliente.query(`INSERT INTO app.repository_transition_verifications
+          (tenant_id,id,team_id,dominio_id,local_total,corporate_total,local_hash,corporate_hash,status,divergencias,verificado_por)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[
+          validado.tenantId,id,validado.teamId||null,dominioId,manifestoLocal.total,manifestoCorporativo.total,
+          manifestoLocal.hash,manifestoCorporativo.hash,status,comparacao,validado.usuarioId,
+        ]);
+        const atualizada=await cliente.query(`UPDATE app.repository_transitions SET verificacao_id=$2,verificado_em=now(),
+          versao=versao+1,atualizado_em=now() WHERE dominio_id=$1 RETURNING *`,[dominioId,id]);
+        const verificacao=verificacaoResultado.rows[0];
+        await registrarAuditoria(cliente,validado,{moduleId:"administracao",action:"repositorio.paridade-verificada",entityType:"transicao-repositorio",entityId:dominioId,metadata:{status,localTotal:manifestoLocal.total,corporativoTotal:manifestoCorporativo.total,divergencias:comparacao}});
+        return {transicao:mapearTransicao({...atualizada.rows[0],verificacao_status:status,local_total:verificacao.local_total,corporate_total:verificacao.corporate_total,local_hash:verificacao.local_hash,corporate_hash:verificacao.corporate_hash,divergencias:verificacao.divergencias,verificado_por:verificacao.verificado_por,verificacao_em:verificacao.verificado_em}),verificacao:{id,status,localTotal:manifestoLocal.total,corporativoTotal:manifestoCorporativo.total,localHash:manifestoLocal.hash,corporativoHash:manifestoCorporativo.hash,divergencias:comparacao,verificadoPor:validado.usuarioId,verificadoEm:verificacao.verificado_em}};
+      });
+    },
+    async alterarTransicaoRepositorio(contexto, dominioId, dados, versaoConhecida) {
+      const modo=dados.modo;
       const dominios = new Set([
         "orcamentos",
         "composicoes-proprias",
@@ -2818,8 +3007,8 @@ export function criarRepositorioPostgres({
       return comContexto(contexto, async (cliente, validado) => {
         exigirPermissao(validado, "repositorio.transicionar");
         const atual = await cliente.query(
-          `SELECT tenant_id, team_id, dominio_id, modo, batch_id,
-                  sincronizado_em, ativado_por, ativado_em, atualizado_em
+          `SELECT tenant_id,team_id,dominio_id,modo,batch_id,sincronizado_em,ativado_por,
+                  ativado_em,atualizado_em,verificacao_id,verificado_em,motivo_retorno,versao
              FROM app.repository_transitions
             WHERE dominio_id = $1
             FOR UPDATE`,
@@ -2832,6 +3021,7 @@ export function criarRepositorioPostgres({
             "Homologue o domínio antes de alterar sua fonte de dados.",
           );
         }
+        if(Number(atual.rows[0].versao)!==versaoConhecida)throw new ApiError(412,"VERSAO_DIVERGENTE","A transição foi alterada por outro administrador.");
         const permitidas = {
           local: ["hibrido"],
           hibrido: ["local", "corporativo"],
@@ -2840,15 +3030,25 @@ export function criarRepositorioPostgres({
         if (modo !== atual.rows[0].modo && !permitidas[atual.rows[0].modo]?.includes(modo)) {
           throw new ApiError(409, "TRANSICAO_INVALIDA", "A mudança de fonte solicitada não é segura.");
         }
+        if(atual.rows[0].modo==="corporativo"&&modo==="hibrido"&&String(dados.justificativa||"").trim().length<10)throw new ApiError(422,"JUSTIFICATIVA_OBRIGATORIA","Informe a justificativa para retornar ao modo híbrido.");
+        if(modo==="corporativo"){
+          const verificacao=await cliente.query(`SELECT status,verificado_em,local_hash FROM app.repository_transition_verifications
+            WHERE id=$1 AND dominio_id=$2`,[atual.rows[0].verificacao_id,dominioId]);
+          if(verificacao.rows[0]?.status!=="conforme"||Date.now()-new Date(verificacao.rows[0]?.verificado_em||0).getTime()>86_400_000)throw new ApiError(409,"PARIDADE_NAO_COMPROVADA","Execute uma verificação de paridade válida antes da promoção.");
+          if(dados.manifestoHash!==verificacao.rows[0].local_hash)throw new ApiError(409,"MANIFESTO_LOCAL_ALTERADO","Os dados locais mudaram depois da verificação. Execute a paridade novamente.");
+        }
         const resultado = await cliente.query(
           `UPDATE app.repository_transitions
-              SET modo = $2, ativado_por = $3, atualizado_em = now()
+              SET modo=$2,ativado_por=$3,motivo_retorno=CASE WHEN $2='hibrido' THEN $4 ELSE '' END,
+                  versao=versao+1,atualizado_em=now()
             WHERE dominio_id = $1
-          RETURNING tenant_id, team_id, dominio_id, modo, batch_id,
-                    sincronizado_em, ativado_por, ativado_em, atualizado_em`,
-          [dominioId, modo, validado.usuarioId],
+          RETURNING tenant_id,team_id,dominio_id,modo,batch_id,sincronizado_em,ativado_por,
+                    ativado_em,atualizado_em,verificacao_id,verificado_em,motivo_retorno,versao`,
+          [dominioId,modo,validado.usuarioId,dados.justificativa||""],
         );
-        return mapearTransicao(resultado.rows[0]);
+        const resposta=mapearTransicao(resultado.rows[0]);
+        await registrarAuditoria(cliente,validado,{moduleId:"administracao",action:modo==="corporativo"?"repositorio.promovido":"repositorio.retorno-hibrido",entityType:"transicao-repositorio",entityId:dominioId,before:mapearTransicao(atual.rows[0]),after:resposta,metadata:{justificativa:dados.justificativa||""}});
+        return resposta;
       });
     },
     async fechar() {

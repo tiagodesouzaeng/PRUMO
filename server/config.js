@@ -35,6 +35,13 @@ export function carregarConfiguracaoServidor(ambiente = process.env) {
     oidcIssuer: texto(ambiente, "PRUMO_OIDC_ISSUER"),
     oidcAudience: texto(ambiente, "PRUMO_OIDC_AUDIENCE"),
     oidcJwksUrl: texto(ambiente, "PRUMO_OIDC_JWKS_URL"),
+    localAdminEnabled: texto(ambiente, "PRUMO_LOCAL_ADMIN_ENABLED", "false") === "true",
+    localAdminUser: texto(ambiente, "PRUMO_LOCAL_ADMIN_USER", "admin"),
+    localAdminSubject: texto(ambiente, "PRUMO_LOCAL_ADMIN_SUBJECT", "local-admin"),
+    localAdminPasswordHash: texto(ambiente, "PRUMO_LOCAL_ADMIN_PASSWORD_HASH"),
+    localAdminPasswordSalt: texto(ambiente, "PRUMO_LOCAL_ADMIN_PASSWORD_SALT"),
+    localAdminSessionSecret: texto(ambiente, "PRUMO_LOCAL_ADMIN_SESSION_SECRET"),
+    localAdminSessionMinutes: inteiro(ambiente, "PRUMO_LOCAL_ADMIN_SESSION_MINUTES", "30"),
     storageProvider: texto(ambiente, "PRUMO_OBJECT_STORAGE_PROVIDER", "disabled").toLowerCase(),
     storageRegion: texto(ambiente, "PRUMO_OBJECT_STORAGE_REGION"),
     storageBucket: texto(ambiente, "PRUMO_OBJECT_STORAGE_BUCKET"),
@@ -73,6 +80,13 @@ export function carregarConfiguracaoServidor(ambiente = process.env) {
     || !configuracao.oidcJwksUrl
   )) {
     throw new Error("O modo de produção exige OIDC issuer, audience e JWKS URL.");
+  }
+  if (configuracao.localAdminEnabled && (
+    !configuracao.localAdminPasswordHash
+    || !configuracao.localAdminPasswordSalt
+    || !configuracao.localAdminSessionSecret
+  )) {
+    throw new Error("A conta administrativa local exige hash, salt e segredo de sessão.");
   }
   if (nodeEnv === "production" && configuracao.storageProvider !== "s3") {
     throw new Error("O modo de produção exige storage GED S3 compatível.");

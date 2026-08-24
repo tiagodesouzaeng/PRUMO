@@ -8,7 +8,7 @@ const arquivo = new URL("../src/pages/Administracao.jsx", import.meta.url);
 test("Administração expõe somente áreas operacionais na navegação", async () => {
   const codigo = await readFile(arquivo, "utf8");
   const abas = codigo.match(/const ABAS_ADMIN = \[([\s\S]*?)\];/)?.[1] || "";
-  for (const aba of ["Visão operacional", "Módulos e produto", "Perfis e permissões", "Integrações", "Bases de preços", "Operação técnica", "Auditoria"]) assert.match(abas, new RegExp(aba));
+  for (const aba of ["Visão operacional", "Módulos e produto", "Perfis e permissões", "Integrações", "Publicação de bases", "Operação técnica", "Auditoria"]) assert.match(abas, new RegExp(aba));
   for (const demonstracao of ["Empresas e equipes", "Fontes de dados", "Cadastros mestres", "Parâmetros"]) assert.doesNotMatch(abas, new RegExp(demonstracao));
   assert.match(codigo, /Nenhum arquivo foi importado por esta ação/);
   assert.match(codigo, /PERMISSOES_PADRAO_POR_PERFIL/);

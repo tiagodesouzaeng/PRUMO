@@ -11,17 +11,17 @@ test("catálogo corporativo mantém todos os módulos previstos no PRUMO", () =>
   [
     "obras",
     "orcamentos",
-    "bases-precos",
     "suprimentos",
     "contratos",
     "medicoes",
     "manutencao",
-    "ppci",
     "utilidades",
     "documentos",
     "relatorios",
     "administracao",
   ].forEach((id) => assert.equal(ids.has(id), true, `Módulo ausente: ${id}`));
+  assert.equal(ids.has("bases-precos"), false);
+  assert.equal(ids.has("ppci"), false);
 });
 
 test("módulos visíveis são derivados das permissões do perfil", () => {

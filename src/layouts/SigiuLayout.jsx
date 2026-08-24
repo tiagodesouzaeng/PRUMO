@@ -15,6 +15,8 @@ export default function SigiuLayout({
   setPaginaAtiva,
   ultimaAtualizacao,
   modulosPermitidos,
+  sessao,
+  onSair,
 }) {
   const [menuRecolhido, setMenuRecolhido] = useState(() => {
     try {
@@ -51,6 +53,8 @@ export default function SigiuLayout({
           paginaAtiva={paginaAtiva}
           setPaginaAtiva={setPaginaAtiva}
           ultimaAtualizacao={ultimaAtualizacao}
+          sessao={sessao}
+          onSair={onSair}
         />
 
         <main className="sigiu-content">{children}</main>

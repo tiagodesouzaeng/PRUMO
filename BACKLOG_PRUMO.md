@@ -487,6 +487,89 @@ critérios mínimos de aceite e manter o histórico de situação.
   funcionam de ponta a ponta, os painéis apresentam dados coerentes e nenhuma
   empresa consegue consultar ou alterar registros das outras duas.
 
+### BL-014 — Ciclo do orçamento contratado e aditivos
+
+- **Situação:** Concluído na Sprint 27
+- **Prioridade:** Crítica
+- **Módulos afetados:** Orçamentos, Suprimentos, Contratos, Obras, Medições e Auditoria
+- **Resultado:** o orçamento publicado permanece imutável; a proposta vencedora
+  gera preços unitários contratados por desconto linear; as medições consomem o
+  saldo homologado; e alterações originadas na obra tramitam como solicitações
+  de aditivo analisadas pela engenharia de custos.
+- **Critério de aceite:** nenhuma operação da obra reescreve o orçamento e uma
+  medição não pode ultrapassar a base contratada vigente.
+
+### BL-015 — Governança documental por entidade
+
+- **Situação:** Concluído na Sprint 28
+- **Prioridade:** Alta
+- **Módulos afetados:** Patrimônio, Solicitações, Orçamentos, Suprimentos,
+  Contratos, Obras, Medições, Manutenção, Regularidade, Convênios e GED
+- **Resultado:** documentos novos não podem existir sem uma origem corporativa;
+  a origem é escolhida entre registros reais e acessíveis, relações adicionais
+  reutilizam o mesmo arquivo e o ciclo de revisão, aprovação e arquivamento é
+  versionado, protegido contra concorrência e auditado.
+- **Critério de aceite:** a API rejeita origens inexistentes ou fora da equipe,
+  o PostgreSQL preserva um vínculo principal e todas as versões aprovadas
+  permanecem rastreáveis sem duplicação do arquivo.
+
+### BL-016 — Promoção verificável dos repositórios
+
+- **Situação:** Concluído na Sprint 29 para Orçamentos
+- **Prioridade:** Crítica
+- **Módulos afetados:** Administração, Orçamentos e Auditoria
+- **Resultado:** a fonte principal de Orçamentos somente muda para PostgreSQL
+  após comparação íntegra de quantidade, identificadores e hashes; a decisão é
+  versionada, auditada e pode retornar ao híbrido mediante justificativa.
+- **Continuidade:** criar normalizadores e critérios de paridade próprios para
+  composições próprias, bases de preços e configurações antes de promovê-las.
+- **Critério de aceite:** promoção sem evidência recente é recusada, divergências
+  são identificadas e o retorno preserva todos os dados.
+
+### BL-017 — PPCI local consolidado em Regularidade
+
+- **Situação:** Concluído na Sprint 30
+- **Prioridade:** Alta
+- **Módulos afetados:** Regularidade, Patrimônio, Ativos, GED, Auditoria e Visão geral
+- **Resultado:** a fonte externa foi eliminada; processos PPCI, sistemas
+  preventivos e inspeções são persistidos no PostgreSQL e vinculados à árvore
+  Cliente > Site > Prédio > Sala, com vínculo opcional a ativos da Sala.
+- **Critério de aceite:** nenhum PPCI pode apontar para Cliente ou local inativo,
+  sistemas não atravessam o ramo patrimonial do processo, inspeções são
+  imutáveis e equipes distintas não visualizam os mesmos registros.
+
+### BL-018 — PPCI operacional e Utilidades persistidas
+
+- **Situação:** Concluído na Sprint 31
+- **Prioridade:** Alta
+- **Módulos afetados:** Regularidade, GED, Utilidades, Patrimônio, Solicitações e Auditoria
+- **Resultado:** sistemas PPCI podem ser editados e removidos sem apagar
+  inspeções; responsáveis vêm do cliente ativo; documentos abrem no contexto
+  correto; medidores e leituras deixam os dados demonstrativos do frontend e
+  passam ao PostgreSQL sob RLS.
+- **Critério de aceite:** edição e remoção respeitam concorrência e histórico;
+  medidores e leituras não atravessam equipes; falhas de cadastro permanecem
+  visíveis no formulário; itens de Carteiras abrem a Solicitação completa.
+
+### BL-019 — Operação de campo, endereço herdado e manutenção preventiva
+
+- **Situação:** Planejado para a Sprint 32
+- **Prioridade:** Alta
+- **Módulos afetados:** Regularidade, Utilidades, Patrimônio, Ativos,
+  Manutenção, GED, Visão Geral e Auditoria
+- **Necessidade:** corrigir os fluxos de exclusão e o diálogo do PPCI; oferecer
+  coleta de consumo direta ou por diferença de relógio; simplificar a interface
+  usada em campo; impedir divergência de endereço entre Site, Prédio e Sala; e
+  transformar a periodicidade dos ativos em manutenções rastreáveis.
+- **Resultado esperado:** sistemas são removidos com retorno confiável;
+  inspeções podem ser anuladas sem perda de evidência; leituras acumuladas
+  possuem memória de cálculo; equipes de campo dispõem de uma página objetiva;
+  endereço patrimonial é resolvido pelo Site; e planos dos ativos alimentam o
+  módulo Manutenção e o histórico do equipamento sem duplicidade.
+- **Critério de aceite:** todos os cenários, regras e testes descritos em
+  `docs/SPRINT_32.md` devem estar concluídos, incluindo RLS, auditoria,
+  acessibilidade essencial e build de produção.
+
 ## Histórico
 
 | Data | Item | Alteração |
@@ -513,3 +596,9 @@ critérios mínimos de aceite e manter o histórico de situação.
 | 11/08/2026 | BL-011 | Corrigida a exclusão de Sites com diagnóstico dos vínculos e mensagem no diálogo. |
 | 11/08/2026 | BL-012 | Criada a massa homologação-v22 com três empresas, perfis e fluxos integrados fictícios. |
 | 11/08/2026 | BL-013 | Concluída a fundação do piloto v23 com OIDC obrigatório, storage GED S3, prontidão, runbook e publicação controlada. |
+| 18/08/2026 | BL-014 | Concluído o ciclo de base contratada, medição por saldo e solicitação de aditivo governada. |
+| 19/08/2026 | BL-015 | Concluída a origem documental obrigatória, catálogo de entidades e aprovação governada. |
+| 19/08/2026 | BL-016 | Concluída a promoção verificável de Orçamentos com paridade, concorrência e retorno auditado. |
+| 19/08/2026 | BL-017 | PPCI migrado para PostgreSQL local e consolidado em Regularidade com vínculo patrimonial. |
+| 24/08/2026 | BL-018 | PPCI operacional, GED contextual, Utilidades persistidas e correções de Patrimônio e Solicitações concluídos. |
+| 24/08/2026 | BL-019 | Planejadas as melhorias de PPCI, leituras de campo, endereço herdado e manutenção preventiva dos ativos para a Sprint 32. |

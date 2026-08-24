@@ -8,6 +8,7 @@ async function criarApi() {
     repository: criarRepositorioMemoria({
       tenants: [{ id: "EMP-1", nome: "Órgão público", status: "ativo" }],
       memberships: [{ tenantId: "EMP-1", subject: "ADMIN", perfilId: "administrador", teamIds: ["EQ-1"], status: "ativo" }],
+      orcamentos: [{ id:"ORC-1",tenantId:"EMP-1",teamId:"EQ-1",nome:"Orçamento da obra" }],
     }),
     authenticate: async () => ({ subject: "ADMIN" }),
   });
@@ -30,17 +31,17 @@ async function aguardarTrabalho(app, id) {
 
 test("GED cria documento e preserva versão com hash de integridade", async (t) => {
   const app = await criarApi(); t.after(() => app.close());
-  const criado = await app.inject({ method: "POST", url: "/v1/documentos", headers: headers("DOC-1"), payload: { titulo: "Projeto executivo" } });
+  const criado = await app.inject({ method: "POST", url: "/v1/documentos", headers: headers("DOC-1"), payload: { titulo: "Projeto executivo",vinculo:{moduleId:"orcamentos",entidadeTipo:"orcamento",entidadeId:"ORC-1"} } });
   assert.equal(criado.statusCode, 201);
   const versao = await app.inject({ method: "POST", url: `/v1/documentos/${criado.json().id}/versoes`, headers: headers(), payload: { nomeArquivo: "projeto.pdf", tipoMime: "application/pdf", tamanhoBytes: 1234, sha256: "a".repeat(64), storageKey: "tenant/EMP-1/documentos/projeto.pdf" } });
   assert.equal(versao.statusCode, 200);
   assert.equal(versao.json().versaoAtual, 1);
   const lista = await app.inject({ method: "GET", url: "/v1/documentos", headers: headers() });
   assert.equal(lista.json()[0].versoes[0].sha256, "a".repeat(64));
-  const vinculo = await app.inject({ method: "POST", url: `/v1/documentos/${criado.json().id}/vinculos`, headers: headers(), payload: { moduleId: "medicoes", entidadeTipo: "medicao", entidadeId: "MED-1" } });
+  const vinculo = await app.inject({ method: "POST", url: `/v1/documentos/${criado.json().id}/vinculos`, headers: headers(), payload: { moduleId: "orcamentos", entidadeTipo: "orcamento", entidadeId: "ORC-1" } });
   assert.equal(vinculo.statusCode, 200);
   const vinculados = await app.inject({ method: "GET", url: "/v1/documentos", headers: headers() });
-  assert.equal(vinculados.json()[0].vinculos[0].entidadeId, "MED-1");
+  assert.equal(vinculados.json()[0].vinculos[0].entidadeId, "ORC-1");
 });
 
 test("integração usa referência de credencial e registra execução auditável", async (t) => {

@@ -76,6 +76,34 @@ A migração `029_prontidao_piloto_v25.sql` adiciona as permissões administrati
 do piloto. O estado e as evidências ficam em `app.tenant_settings`, sob a mesma
 RLS da organização, e as decisões relevantes são registradas na Auditoria.
 
+O marco `030_acesso_e_consolidacao_modular_v26.sql` incorpora PPCI em
+Regularidade, bases de preços em Orçamentos/Administração, renomeia Solicitações
+e amplia Utilidades. Os identificadores legados permanecem inativos para não
+romper dados históricos.
+
+As migrações `031` e `032` implantam o ciclo contratado da Sprint 27: base
+homologada imutável, solicitações de aditivo, decisões da engenharia de custos,
+RLS, permissões segregadas e limpeza restrita às organizações de integração.
+
+As migrações `033` e `034` implantam a governança documental da Sprint 28:
+origem obrigatória, vínculo principal único, fluxo versionado de aprovação,
+índices por entidade e limpeza de integração restrita ao migrador.
+
+As migrações `035` e `036` implantam a promoção verificável da Sprint 29:
+manifestos de paridade imutáveis, barreira de 24 horas para ativação corporativa,
+retorno justificado, concorrência otimista e limpeza de integração compatível
+com o isolamento por equipe.
+
+As migrações `037` e `038` implantam o PPCI local da Sprint 30: processos,
+sistemas e inspeções sob RLS; vínculo obrigatório a Site, Prédio ou Sala;
+descendência patrimonial dos sistemas; ativos restritos à Sala; inspeções
+imutáveis e limpeza técnica disponível somente ao migrador.
+
+As migrações `039` a `042` concluem a Sprint 31: edição e remoção rastreável
+dos sistemas PPCI, medidores e leituras de utilidades sob RLS, permissões
+segregadas, catálogo seguro de responsáveis do cliente ativo e limpeza de
+integração restrita ao migrador.
+
 ## Backup e restauração
 
 A identidade da API não deve receber `BYPASSRLS` apenas para viabilizar cópias

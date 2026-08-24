@@ -39,6 +39,7 @@ import {
 } from "../services/migracaoCorporativa";
 import { carregarOrcamentos } from "../services/orcamentoRepository";
 import { listarComposicoesProprias } from "../services/composicoesPropriasRepository";
+import { criarManifestoLocalOrcamentos } from "../services/repositorioCorporativo";
 import {
   MODULOS_PLATAFORMA,
   PERMISSOES_PADRAO_POR_PERFIL,
@@ -55,7 +56,7 @@ const ABAS_ADMIN = [
   { id: "produto", label: "Módulos e produto" },
   { id: "usuarios", label: "Perfis e permissões" },
   { id: "sync", label: "Integrações" },
-  { id: "bases-precos", label: "Bases de preços" },
+  { id: "bases-precos", label: "Publicação de bases" },
   { id: "infraestrutura", label: "Operação técnica" },
   { id: "auditoria", label: "Auditoria" },
 ];
@@ -114,7 +115,8 @@ function ConfigResumo() {
   const pendencias = [
     !configuracao.autenticacaoConfigurada && "Provedor de identidade ainda não configurado",
     !estado.integracoes.length && "Nenhuma integração corporativa cadastrada",
-    modulos.some((item) => !item.capacidades?.length) && "Há módulos legados sem capacidades catalogadas",
+    modulos.some((item) => item.id !== "visao-geral" && !item.capacidades?.length)
+      && "Há módulos operacionais sem capacidades catalogadas",
   ].filter(Boolean);
 
   return (
@@ -313,10 +315,37 @@ function InfraestruturaCorporativa({ basesPrecos }) {
     }
   }
 
-  async function alterarModoRepositorio(dominioId, modo) {
+  async function verificarParidadeRepositorio(transicao) {
     setMensagemGovernanca("");
     try {
-      await cliente.alterarTransicaoRepositorio(dominioId, modo);
+      const manifesto = await criarManifestoLocalOrcamentos(dadosMigracao.orcamentos);
+      const resultadoVerificacao = await cliente.verificarTransicaoRepositorio(transicao.dominioId, manifesto);
+      await carregarGovernanca();
+      setMensagemGovernanca(
+        resultadoVerificacao.verificacao.status === "conforme"
+          ? `Paridade comprovada: ${manifesto.total} orçamento(s), sem divergências.`
+          : "A promoção foi bloqueada porque existem divergências entre o navegador e o PostgreSQL.",
+      );
+    } catch (erro) {
+      setMensagemGovernanca(erro.message);
+    }
+  }
+
+  async function alterarModoRepositorio(transicao, modo) {
+    setMensagemGovernanca("");
+    try {
+      const manifestoAtual = modo === "corporativo"
+        ? await criarManifestoLocalOrcamentos(dadosMigracao.orcamentos)
+        : null;
+      await cliente.alterarTransicaoRepositorio(
+        transicao.dominioId,
+        {
+          modo,
+          ...(manifestoAtual ? { manifestoHash: manifestoAtual.hash } : {}),
+          ...(modo === "hibrido" ? { justificativa: "Retorno administrativo para validação segura." } : {}),
+        },
+        transicao.versao,
+      );
       await carregarGovernanca();
       setMensagemGovernanca(
         modo === "corporativo"
@@ -652,21 +681,38 @@ function InfraestruturaCorporativa({ basesPrecos }) {
                     ? `sincronizado em ${new Date(transicao.sincronizadoEm).toLocaleString("pt-BR")}`
                     : "aguardando primeira sincronização"}
                 </small>
+                {transicao.verificacao && (
+                  <small>
+                    Paridade {transicao.verificacao.status}: {transicao.verificacao.localTotal} local / {transicao.verificacao.corporativoTotal} PostgreSQL
+                  </small>
+                )}
               </div>
               <div className="sigiu-repository-transition-actions">
                 {transicao.modo === "hibrido" ? (
-                  <button
-                    type="button"
-                    className="sigiu-btn sigiu-btn--primary"
-                    onClick={() => alterarModoRepositorio(transicao.dominioId, "corporativo")}
-                  >
-                    Ativar corporativo
-                  </button>
+                  <>
+                    {transicao.dominioId === "orcamentos" && (
+                      <button
+                        type="button"
+                        className="sigiu-btn"
+                        onClick={() => verificarParidadeRepositorio(transicao)}
+                      >
+                        Verificar paridade
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="sigiu-btn sigiu-btn--primary"
+                      disabled={transicao.dominioId !== "orcamentos" || transicao.verificacao?.status !== "conforme"}
+                      onClick={() => alterarModoRepositorio(transicao, "corporativo")}
+                    >
+                      Ativar corporativo
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
                     className="sigiu-btn"
-                    onClick={() => alterarModoRepositorio(transicao.dominioId, "hibrido")}
+                    onClick={() => alterarModoRepositorio(transicao, "hibrido")}
                   >
                     Voltar ao híbrido
                   </button>
@@ -690,7 +736,8 @@ function InfraestruturaCorporativa({ basesPrecos }) {
             <h2>Transição sem perda de dados</h2>
             <p>
               O modo híbrido preserva o cache local e sincroniza o PostgreSQL. A troca para o modo
-              corporativo exige uma confirmação administrativa e pode retornar ao híbrido.
+              corporativo exige paridade comprovada por quantidade, identificadores e hashes nas últimas
+              24 horas. O retorno ao híbrido é justificado e auditado, sem excluir o cache local.
             </p>
           </div>
         </header>
@@ -878,8 +925,8 @@ function GerenciarBasesPrecos({ basesPrecos }) {
       <section className="sigiu-card sigiu-admin-card">
         <header className="sigiu-card-header-row">
           <div>
-            <h2>Governança das bases de preços</h2>
-            <p>Arquive, restaure ou exclua unitariamente publicações importadas.</p>
+            <h2>Publicação central das bases de preços</h2>
+            <p>Administre SINAPI, SICRO, SBC e todas as demais bases oficiais, comerciais ou próprias com versão, competência, UF e auditoria.</p>
           </div>
           <StatusChip status={`${basesAtivas.length} ativas`} />
         </header>

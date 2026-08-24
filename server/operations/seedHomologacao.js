@@ -5,6 +5,7 @@ import { criarRepositorioPostgres } from "../db/postgresRepository.js";
 const { Client } = pg;
 const VERSAO_MASSA = "homologacao-v22";
 const IDENTIDADE = process.env.PRUMO_SEED_SUBJECT || "homologacao@prumo.local";
+const IDENTIDADE_CONTINGENCIA = process.env.PRUMO_LOCAL_ADMIN_SUBJECT || "local-admin";
 
 export const EMPRESAS_HOMOLOGACAO = [
   {
@@ -69,6 +70,14 @@ async function prepararEmpresa(admin, empresa) {
     await admin.query(
       "INSERT INTO app.team_memberships(tenant_id,team_id,identity_subject) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
       [empresa.tenantId, empresa.teamId, IDENTIDADE],
+    );
+    await admin.query(
+      "INSERT INTO app.memberships(tenant_id,identity_subject,perfil_id) VALUES($1,$2,'administrador') ON CONFLICT(tenant_id,identity_subject) DO UPDATE SET perfil_id='administrador',status='ativo'",
+      [empresa.tenantId, IDENTIDADE_CONTINGENCIA],
+    );
+    await admin.query(
+      "INSERT INTO app.team_memberships(tenant_id,team_id,identity_subject) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+      [empresa.tenantId, empresa.teamId, IDENTIDADE_CONTINGENCIA],
     );
     await admin.query("SELECT app.ativar_contexto($1,$2,$3)", [empresa.tenantId, IDENTIDADE, empresa.teamId]);
     const existe = await admin.query(
@@ -218,12 +227,14 @@ async function popularEmpresa(repository, empresa) {
     await repository.registrarRepasseConvenio(contexto, convenio.id, { tipo: "repasse", parcela: "1", dataPrevista: "2027-02-01", valor: valor(250000), status: "previsto", dados: dadosMassa }, chave("repasse"));
   }
 
-  const requisitoExistente = (await repository.listarRequisitosCompliance(contexto)).find((item) => item.codigo === "REG-PPCI-01");
+  const requisitoExistente = (await repository.listarRequisitosCompliance(contexto)).find((item) => item.codigo === "REG-ALV-01");
   if (!requisitoExistente) await repository.criarRequisitoCompliance(contexto, {
-    patrimonioUnidadeId: predio.id, codigo: "REG-PPCI-01", tipo: "ppci", titulo: "Plano de prevenção e proteção contra incêndio",
-    orgaoEmissor: "Órgão licenciador modelo", numeroDocumento: "PPCI-2027-001", dataEmissao: "2027-01-10",
-    dataValidade: "2028-01-10", responsavel: "Coordenação de Segurança", status: "regular", criticidade: "alta", dados: dadosMassa,
+    patrimonioUnidadeId: predio.id, codigo: "REG-ALV-01", tipo: "alvara", titulo: "Alvará de localização e funcionamento",
+    orgaoEmissor: "Órgão licenciador modelo", numeroDocumento: "ALV-2027-001", dataEmissao: "2027-01-10",
+    dataValidade: "2028-01-10", responsavel: "Coordenação de Regularidade", status: "regular", criticidade: "alta", dados: dadosMassa,
   }, chave("requisito"));
+  await garantirPpciHomologacao(repository, contexto, predio, sala, dadosMassa, chave);
+  await garantirUtilidadesHomologacao(repository, contexto, predio, dadosMassa, chave);
   const riscoExistente = (await repository.listarRiscosCompliance(contexto)).find((item) => item.codigo === "RSC-01");
   const risco = riscoExistente || await repository.criarRiscoCompliance(contexto, {
     codigo: "RSC-01", titulo: "Atraso na renovação de licenças", descricao: "Risco de descontinuidade por vencimento documental.",
@@ -236,14 +247,18 @@ async function popularEmpresa(repository, empresa) {
 
   const documentoExistente = (await repository.listarDocumentos(contexto)).find((item) => item.metadados?.massa === VERSAO_MASSA);
   const documento = documentoExistente || await repository.criarDocumento(contexto, {
-    titulo: "Termo de referência da modernização", tipo: "termo_referencia", status: "aprovado", metadados: dadosMassa,
+    titulo: "Termo de referência da modernização", tipo: "termo_referencia", status: "rascunho", metadados: dadosMassa,
+    vinculo: { moduleId: "obras", entidadeTipo: "obra", entidadeId: obra.id },
   }, chave("documento"));
   if (!documentoExistente) await repository.adicionarVersaoDocumento(contexto, documento.id, {
     nomeArquivo: "termo-referencia-modelo.pdf", tipoMime: "application/pdf", tamanhoBytes: 245760,
     sha256: "b7f48c9d1f93c221775d02f0c2e77068f7703a90039240ef46f80a29f2c0189b",
     storageKey: `homologacao/${empresa.tenantId}/termo-referencia-modelo.pdf`, metadados: dadosMassa,
   });
-  if (!documentoExistente) await repository.vincularDocumento(contexto, documento.id, { moduleId: "obras", entidadeTipo: "obra", entidadeId: obra.id });
+  if (!documentoExistente) {
+    const submetido = await repository.decidirDocumento(contexto, documento.id, { acao: "submeter" }, documento.versao);
+    await repository.decidirDocumento(contexto, documento.id, { acao: "aprovar" }, submetido.versao);
+  }
   const relatorioExistente = (await repository.listarDefinicoesRelatorios(contexto)).some((item) => item.codigo === "REL-EXEC-01");
   if (!relatorioExistente) await repository.criarDefinicaoRelatorio(contexto, {
     codigo: "REL-EXEC-01", nome: "Painel executivo de homologação", descricao: "Visão integrada dos dados fictícios.",
@@ -255,7 +270,44 @@ async function popularEmpresa(repository, empresa) {
     configuracaoPublica: { ambiente: "homologacao", autenticacao: "referencia-externa", massa: VERSAO_MASSA }, segredoReferencia: "",
   }, chave("integracao"));
 
-  return { nome: empresa.nome, tenantId: empresa.tenantId, teamId: empresa.teamId, registrosPrincipais: 20 };
+  return { nome: empresa.nome, tenantId: empresa.tenantId, teamId: empresa.teamId, registrosPrincipais: 23 };
+}
+
+async function garantirPpciHomologacao(repository, contexto, predio, sala, dadosMassa, chave) {
+  let ppci = (await repository.listarPpcis(contexto)).find((item) => item.codigo === "PPCI-01");
+  if (!ppci) ppci = await repository.criarPpci(contexto, {
+    patrimonioUnidadeId: predio.id, codigo: "PPCI-01", numeroProcesso: "CBM-2027-001",
+    titulo: "PPCI do edifício principal", ocupacao: "Administrativo", classificacaoRisco: "medio",
+    areaProtegidaM2: predio.areaM2 || 4800, orgaoResponsavel: "Corpo de Bombeiros",
+    fase: "concluido", status: "aprovado", dataProtocolo: "2027-01-10", dataAprovacao: "2027-02-15",
+    dataValidade: "2028-02-15", responsavel: "Coordenação de Segurança", proximoPasso: "Programar renovação anual", dados: dadosMassa,
+  }, chave("ppci"));
+  const detalhe = await repository.obterPpci(contexto, ppci.id);
+  if (!detalhe.sistemas.some((item) => item.tipo === "alarme")) await repository.criarSistemaPpci(contexto, ppci.id, {
+    patrimonioUnidadeId: sala.id, tipo: "alarme", descricao: "Central de detecção e alarme de incêndio",
+    quantidade: 1, unidade: "un", conformidade: "conforme", ultimaInspecao: "2027-02-15", proximaInspecao: "2027-08-15",
+    responsavel: "Equipe de Facilities", dados: dadosMassa,
+  }, chave("ppci-sistema"));
+  if (!detalhe.inspecoes.length) await repository.registrarInspecaoPpci(contexto, ppci.id, {
+    dataInspecao: "2027-02-15", tipo: "bombeiros", resultado: "conforme", inspetor: "Vistoria técnica modelo",
+    observacoes: "Sistemas preventivos aptos para homologação.", evidencias: [],
+  }, chave("ppci-inspecao"));
+  return ppci;
+}
+
+async function garantirUtilidadesHomologacao(repository, contexto, predio, dadosMassa, chave) {
+  let medidor = (await repository.listarMedidoresUtilidades(contexto)).find((item) => item.codigo === "MED-001");
+  if (!medidor) medidor = await repository.criarMedidorUtilidade(contexto, {
+    patrimonioUnidadeId: predio.id, codigo: "MED-001", nome: "Entrada geral de energia",
+    recurso: "energia", unidade: "kWh", direcao: "bidirecional", multiplicador: 1,
+    identificadorExterno: "MEDIDOR-MODELO", responsavel: "Equipe de Facilities", dados: dadosMassa,
+  }, chave("medidor-utilidade"));
+  const detalhe = await repository.obterMedidorUtilidade(contexto, medidor.id);
+  if (!detalhe.leituras.length) await repository.registrarLeituraUtilidade(contexto, medidor.id, {
+    dataLeitura: "2027-02-28T12:00:00.000Z", valor: 18452.75, natureza: "leitura",
+    origem: "manual", observacoes: "Leitura fictícia inicial de homologação.",
+  }, chave("leitura-utilidade"));
+  return medidor;
 }
 
 export async function criarMassaHomologacao({ apiUrl, migrationUrl } = {}) {
@@ -272,9 +324,18 @@ export async function criarMassaHomologacao({ apiUrl, migrationUrl } = {}) {
     await admin.connect();
     for (const empresa of EMPRESAS_HOMOLOGACAO) {
       const existente = await prepararEmpresa(admin, empresa);
-      resultados.push(existente
-        ? { nome: empresa.nome, tenantId: empresa.tenantId, teamId: empresa.teamId, status: "já existente" }
-        : { ...(await popularEmpresa(repository, empresa)), status: "criada" });
+      if (existente) {
+        const contexto = { identity: { subject: IDENTIDADE }, tenantId: empresa.tenantId, teamId: empresa.teamId };
+        const unidades = await repository.listarUnidadesPatrimoniais(contexto);
+        const predio = unidades.find((item) => item.codigo === "P-01"), sala = unidades.find((item) => item.codigo === "SL-01");
+        if (predio && sala) {
+          const dados = { massa: VERSAO_MASSA, ficticio: true };
+          const chave = (item) => `${VERSAO_MASSA}:${empresa.tenantId}:${item}`;
+          await garantirPpciHomologacao(repository, contexto, predio, sala, dados, chave);
+          await garantirUtilidadesHomologacao(repository, contexto, predio, dados, chave);
+        }
+        resultados.push({ nome: empresa.nome, tenantId: empresa.tenantId, teamId: empresa.teamId, status: "atualizada" });
+      } else resultados.push({ ...(await popularEmpresa(repository, empresa)), status: "criada" });
     }
     return { versao: VERSAO_MASSA, identidade: IDENTIDADE, empresas: resultados };
   } finally {

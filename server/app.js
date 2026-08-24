@@ -4,6 +4,7 @@ import { ApiError, asApiError } from "./errors.js";
 import { criarWorkerTrabalhos } from "./workers/jobWorker.js";
 import { exportarAuditoriaCsv } from "./domain/audit.js";
 import { criarArmazenamentoDesabilitado } from "./storage/objectStorage.js";
+import { extrairTokenBearer } from "./auth/localAdmin.js";
 
 const esquemaOrcamento = {
   type: "object",
@@ -150,6 +151,31 @@ const esquemaTransicaoRepositorio = {
   additionalProperties: false,
   properties: {
     modo: { enum: ["local", "hibrido", "corporativo"] },
+    justificativa: { type: "string", maxLength: 2000 },
+    manifestoHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+  },
+};
+
+const esquemaManifestoRepositorio = {
+  type: "object",
+  required: ["total", "hash", "registros"],
+  additionalProperties: false,
+  properties: {
+    total: { type: "integer", minimum: 0 },
+    hash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+    registros: {
+      type: "array",
+      maxItems: 10000,
+      items: {
+        type: "object",
+        required: ["id", "hash"],
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 240 },
+          hash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+        },
+      },
+    },
   },
 };
 
@@ -355,11 +381,14 @@ const esquemaFonteFinanceira = { type:"object",required:["codigo","nome"],additi
 const esquemaOrcamentoFinanceiro = { type:"object",required:["costCenterId","fundingSourceId","codigo","descricao","ano","classificacao","valorInicial"],additionalProperties:false,properties:{ costCenterId:{type:"string",minLength:1},fundingSourceId:{type:"string",minLength:1},codigo:{type:"string",minLength:1,maxLength:80},descricao:{type:"string",minLength:2,maxLength:500},ano:{type:"integer",minimum:2000,maximum:2200},classificacao:{enum:["capex","opex"]},valorInicial:{type:"number",minimum:0},ajustes:{type:"number"},status:{enum:["ativo","bloqueado","encerrado"]},dados:{type:"object",additionalProperties:true} } };
 const esquemaCompromissoFinanceiro = { type:"object",required:["budgetId","codigo","descricao","competencia","valorTotal"],additionalProperties:false,properties:{ budgetId:{type:"string",minLength:1},codigo:{type:"string",minLength:1,maxLength:80},descricao:{type:"string",minLength:2,maxLength:1000},origemTipo:{enum:["manual","pedido","contrato","medicao"]},origemId:{type:"string",maxLength:240},beneficiario:{type:"string",maxLength:240},competencia:{type:"string",format:"date"},dataVencimento:{type:"string",format:"date"},valorTotal:{type:"number",exclusiveMinimum:0},referenciaExterna:{type:"string",maxLength:240},dados:{type:"object",additionalProperties:true} } };
 const esquemaMovimentoFinanceiro = { type:"object",required:["tipo"],additionalProperties:false,properties:{ tipo:{enum:["reserva","compromisso","liquidacao","pagamento","cancelamento"]},dataMovimento:{type:"string",format:"date"},valor:{type:"number",minimum:0},retencoes:{type:"number",minimum:0},glosas:{type:"number",minimum:0},documento:{type:"string",maxLength:240},referenciaExterna:{type:"string",maxLength:240},justificativa:{type:"string",maxLength:4000},dados:{type:"object",additionalProperties:true} } };
-const esquemaObraCorporativa = { type:"object",required:["patrimonioUnidadeId","codigo","nome","dataInicio","dataFimPrevista","valorPrevisto"],additionalProperties:false,properties:{ patrimonioUnidadeId:{type:"string",minLength:1},contractId:{type:"string"},orcamentoId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},responsavel:{type:"string",maxLength:240},dataInicio:{type:"string",format:"date"},dataFimPrevista:{type:"string",format:"date"},valorPrevisto:{type:"number",minimum:0},progressoFisico:{type:"number",minimum:0,maximum:100},dados:{type:"object",additionalProperties:true} } };
+const esquemaObraCorporativa = { type:"object",required:["patrimonioUnidadeId","contractId","orcamentoId","codigo","nome","dataInicio","dataFimPrevista","valorPrevisto"],additionalProperties:false,properties:{ patrimonioUnidadeId:{type:"string",minLength:1},contractId:{type:"string",minLength:1},orcamentoId:{type:"string",minLength:1},codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},responsavel:{type:"string",maxLength:240},dataInicio:{type:"string",format:"date"},dataFimPrevista:{type:"string",format:"date"},valorPrevisto:{type:"number",minimum:0},progressoFisico:{type:"number",minimum:0,maximum:100},dados:{type:"object",additionalProperties:true} } };
 const esquemaDecisaoObra = { type:"object",required:["acao"],additionalProperties:false,properties:{ acao:{enum:["iniciar","suspender","retomar","concluir","cancelar"]},justificativa:{type:"string",maxLength:4000} } };
 const esquemaCronogramaObra = { type:"object",required:["codigo","titulo","dataInicio","dataFim"],additionalProperties:false,properties:{ codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},dataInicio:{type:"string",format:"date"},dataFim:{type:"string",format:"date"},peso:{type:"number",minimum:0,maximum:100},progresso:{type:"number",minimum:0,maximum:100},valorPrevisto:{type:"number",minimum:0},status:{enum:["planejado","em_andamento","concluido","atrasado","cancelado"]},dados:{type:"object",additionalProperties:true} } };
 const esquemaDiarioObra = { type:"object",required:["dataRegistro","atividades"],additionalProperties:false,properties:{ dataRegistro:{type:"string",format:"date"},clima:{type:"string",maxLength:120},efetivo:{type:"integer",minimum:0},atividades:{type:"string",minLength:3,maxLength:8000},ocorrencias:{type:"string",maxLength:8000},evidencias:{type:"array",maxItems:50,items:{type:"object",additionalProperties:true}} } };
 const esquemaMedicaoObra = { type:"object",required:["numero","periodoInicio","periodoFim","valorBruto"],additionalProperties:false,properties:{ numero:{type:"integer",minimum:1},periodoInicio:{type:"string",format:"date"},periodoFim:{type:"string",format:"date"},valorBruto:{type:"number",exclusiveMinimum:0},retencoes:{type:"number",minimum:0},glosas:{type:"number",minimum:0},multas:{type:"number",minimum:0},itens:{type:"array",maxItems:1000,items:{type:"object",additionalProperties:true}},dados:{type:"object",additionalProperties:true} } };
+const esquemaBaseContratada = { type:"object",required:["fornecedor","descontoPercentual","justificativa","itens"],additionalProperties:false,properties:{ revisaoId:{type:"string"},processoId:{type:"string"},contratoId:{type:"string"},fornecedor:{type:"string",minLength:2,maxLength:240},descontoPercentual:{type:"number",minimum:0,exclusiveMaximum:100},justificativa:{type:"string",minLength:3,maxLength:4000},itens:{type:"array",minItems:1,maxItems:5000,items:{type:"object",additionalProperties:true}} } };
+const esquemaSolicitacaoAditivo = { type:"object",required:["tipo","descricao","justificativa"],additionalProperties:false,properties:{ tipo:{enum:["aditivo_valor","supressao","prazo","reequilibrio","outro"]},descricao:{type:"string",minLength:3,maxLength:1000},justificativa:{type:"string",minLength:3,maxLength:4000},impactoValor:{type:"number"},impactoPrazoDias:{type:"integer"} } };
+const esquemaDecisaoSolicitacaoAditivo = { type:"object",required:["acao"],additionalProperties:false,properties:{ acao:{enum:["submeter","iniciar_analise","aprovar","rejeitar","converter"]},parecer:{type:"string",maxLength:4000} } };
 const esquemaDecisaoMedicao = { type:"object",required:["acao"],additionalProperties:false,properties:{ acao:{enum:["enviar","aprovar","glosar","devolver","aceitar","cancelar"]},justificativa:{type:"string",maxLength:4000} } };
 const esquemaPlanoManutencao = { type:"object",required:["codigo","nome","periodicidadeDias","proximaExecucao"],additionalProperties:false,properties:{ patrimonioUnidadeId:{type:"string"},ativoId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},especialidade:{type:"string",maxLength:120},periodicidadeDias:{type:"integer",minimum:1,maximum:3650},proximaExecucao:{type:"string",format:"date"},responsavel:{type:"string",maxLength:240},status:{enum:["ativo","suspenso","encerrado"]},dados:{type:"object",additionalProperties:true} } };
 const esquemaChamadoManutencao = { type:"object",required:["patrimonioUnidadeId","codigo","titulo","descricao","prioridade"],additionalProperties:false,properties:{ patrimonioUnidadeId:{type:"string",minLength:1},ativoId:{type:"string"},planoId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",minLength:3,maxLength:8000},tipo:{enum:["corretiva","preventiva","inspecao","melhoria"]},prioridade:{enum:["critica","alta","media","baixa"]},solicitante:{type:"string",maxLength:240},responsavel:{type:"string",maxLength:240},dados:{type:"object",additionalProperties:true} } };
@@ -376,6 +405,12 @@ const esquemaPrestacaoConvenio={type:"object",required:["periodoInicio","periodo
 const esquemaDecisaoPrestacao={type:"object",required:["acao"],additionalProperties:false,properties:{acao:{enum:["submeter","analisar","aprovar","rejeitar"]},protocolo:{type:"string",maxLength:240},parecer:{type:"string",maxLength:8000}}};
 const esquemaDiligenciaConvenio={type:"object",required:["titulo","descricao","prazo"],additionalProperties:false,properties:{accountabilityId:{type:"string"},titulo:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",minLength:3,maxLength:8000},prazo:{type:"string",format:"date"},dados:{type:"object",additionalProperties:true}}};
 const esquemaRequisitoCompliance={type:"object",required:["patrimonioUnidadeId","codigo","tipo","titulo"],additionalProperties:false,properties:{patrimonioUnidadeId:{type:"string",minLength:1},codigo:{type:"string",minLength:1,maxLength:80},tipo:{type:"string",minLength:2,maxLength:120},titulo:{type:"string",minLength:2,maxLength:240},orgaoEmissor:{type:"string",maxLength:240},numeroDocumento:{type:"string",maxLength:240},dataEmissao:{type:"string",format:"date"},dataValidade:{type:"string",format:"date"},responsavel:{type:"string",maxLength:240},status:{enum:["pendente","regular","a_vencer","vencido","dispensado","cancelado"]},criticidade:{enum:["baixa","media","alta","critica"]},documentoId:{type:"string"},dados:{type:"object",additionalProperties:true}}};
+const esquemaPpci={type:"object",required:["patrimonioUnidadeId","codigo","titulo"],additionalProperties:false,properties:{patrimonioUnidadeId:{type:"string",minLength:1},codigo:{type:"string",minLength:1,maxLength:80},numeroProcesso:{type:"string",maxLength:240},titulo:{type:"string",minLength:2,maxLength:240},ocupacao:{type:"string",maxLength:240},classificacaoRisco:{enum:["baixo","medio","alto","especial"]},areaProtegidaM2:{type:"number",minimum:0},orgaoResponsavel:{type:"string",maxLength:240},fase:{enum:["levantamento","projeto","protocolado","analise","exigencia","vistoria","concluido"]},status:{enum:["em_elaboracao","protocolado","em_analise","exigencia","aprovado","suspenso","dispensado","cancelado"]},dataProtocolo:{type:"string",format:"date"},dataAprovacao:{type:"string",format:"date"},dataValidade:{type:"string",format:"date"},responsavel:{type:"string",maxLength:240},proximoPasso:{type:"string",maxLength:4000},documentoId:{type:"string"},dados:{type:"object",additionalProperties:true}}};
+const esquemaSistemaPpci={type:"object",required:["patrimonioUnidadeId","tipo","descricao"],additionalProperties:false,properties:{patrimonioUnidadeId:{type:"string",minLength:1},ativoId:{type:"string"},tipo:{enum:["extintores","hidrantes","alarme","deteccao","iluminacao","sinalizacao","saidas","sprinklers","spda","gas","outro"]},descricao:{type:"string",minLength:2,maxLength:1000},quantidade:{type:"number",minimum:0},unidade:{type:"string",maxLength:40},conformidade:{enum:["nao_avaliado","conforme","nao_conforme","nao_aplicavel"]},ultimaInspecao:{type:"string",format:"date"},proximaInspecao:{type:"string",format:"date"},responsavel:{type:"string",maxLength:240},dados:{type:"object",additionalProperties:true}}};
+const esquemaRemocaoRastreavel={type:"object",required:["motivo"],additionalProperties:false,properties:{motivo:{type:"string",minLength:3,maxLength:1000}}};
+const esquemaMedidorUtilidade={type:"object",required:["patrimonioUnidadeId","codigo","nome","recurso","unidade"],additionalProperties:false,properties:{patrimonioUnidadeId:{type:"string",minLength:1},ativoId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},nome:{type:"string",minLength:2,maxLength:240},recurso:{enum:["energia","agua","gas","combustivel","outro"]},unidade:{type:"string",minLength:1,maxLength:40},direcao:{enum:["consumo","geracao","bidirecional"]},multiplicador:{type:"number",exclusiveMinimum:0},identificadorExterno:{type:"string",maxLength:240},status:{enum:["ativo","inativo"]},responsavel:{type:"string",maxLength:240},dados:{type:"object",additionalProperties:true}}};
+const esquemaLeituraUtilidade={type:"object",required:["dataLeitura","valor"],additionalProperties:false,properties:{dataLeitura:{type:"string",format:"date-time"},valor:{type:"number"},natureza:{enum:["leitura","consumo","geracao","credito","debito"]},origem:{enum:["manual","importacao","integracao"]},observacoes:{type:"string",maxLength:4000},documentoId:{type:"string"}}};
+const esquemaInspecaoPpci={type:"object",required:["dataInspecao","tipo","resultado","inspetor"],additionalProperties:false,properties:{systemId:{type:"string"},dataInspecao:{type:"string",format:"date"},tipo:{enum:["interna","preventiva","bombeiros","certificacao","teste"]},resultado:{enum:["conforme","ressalva","nao_conforme"]},inspetor:{type:"string",minLength:2,maxLength:240},observacoes:{type:"string",maxLength:8000},evidencias:{type:"array",maxItems:50,items:{type:"object",additionalProperties:true}}}};
 const esquemaRiscoCompliance={type:"object",required:["codigo","titulo","descricao","probabilidade","impacto"],additionalProperties:false,properties:{requirementId:{type:"string"},codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",minLength:3,maxLength:4000},probabilidade:{type:"integer",minimum:1,maximum:5},impacto:{type:"integer",minimum:1,maximum:5},controle:{type:"string",maxLength:4000},responsavel:{type:"string",maxLength:240},status:{enum:["aberto","mitigando","aceito","encerrado"]},dados:{type:"object",additionalProperties:true}}};
 const esquemaAcaoCompliance={type:"object",required:["titulo","descricao","responsavel","prazo"],additionalProperties:false,properties:{titulo:{type:"string",minLength:2,maxLength:240},descricao:{type:"string",minLength:3,maxLength:4000},responsavel:{type:"string",minLength:2,maxLength:240},prazo:{type:"string",format:"date"},percentual:{type:"number",minimum:0,maximum:100},status:{enum:["aberta","em_andamento","concluida","cancelada"]},evidenciaDocumentoId:{type:"string"},dados:{type:"object",additionalProperties:true}}};
 const esquemaAuditoriaCompliance={type:"object",required:["codigo","titulo","escopo","dataAuditoria","auditor","conclusao"],additionalProperties:false,properties:{codigo:{type:"string",minLength:1,maxLength:80},titulo:{type:"string",minLength:2,maxLength:240},escopo:{type:"string",minLength:3,maxLength:4000},dataAuditoria:{type:"string",format:"date"},auditor:{type:"string",minLength:2,maxLength:240},conclusao:{type:"string",minLength:3,maxLength:8000},classificacao:{enum:["conforme","ressalva","nao_conforme"]},evidencias:{type:"array",items:{type:"object",additionalProperties:true}},dados:{type:"object",additionalProperties:true}}};
@@ -399,14 +434,21 @@ const esquemaPoliticaAuditoria = {
 };
 
 const esquemaDocumento = {
-  type: "object", required: ["titulo"], additionalProperties: false,
+  type: "object", required: ["titulo", "vinculo"], additionalProperties: false,
   properties: {
     titulo: { type: "string", minLength: 2, maxLength: 240 },
     tipo: { type: "string", maxLength: 80 },
     status: { enum: ["rascunho", "em_revisao", "aprovado", "arquivado"] },
     metadados: { type: "object", additionalProperties: true },
+    vinculo: { type:"object",required:["moduleId","entidadeTipo","entidadeId"],additionalProperties:false,properties:{
+      moduleId:{type:"string",minLength:1,maxLength:80},entidadeTipo:{type:"string",minLength:1,maxLength:120},entidadeId:{type:"string",minLength:1,maxLength:240},
+    } },
   },
 };
+
+const esquemaDecisaoDocumento = { type:"object",required:["acao"],additionalProperties:false,properties:{
+  acao:{enum:["submeter","devolver","aprovar","arquivar"]},justificativa:{type:"string",maxLength:4000},
+} };
 
 const esquemaVersaoDocumento = {
   type: "object", required: ["nomeArquivo", "sha256", "storageKey"], additionalProperties: false,
@@ -510,6 +552,7 @@ function chaveIdempotencia(request) {
 export async function criarAplicacaoApi({
   repository,
   authenticate,
+  localAuth = { habilitada: false },
   objectStorage = criarArmazenamentoDesabilitado(),
   storageRequired = false,
   identityRequired = false,
@@ -525,6 +568,7 @@ export async function criarAplicacaoApi({
   }
 
   const app = Fastify({ logger });
+  const tentativasLogin = new Map();
   const worker = jobWorker || criarWorkerTrabalhos({
     repository,
     logger: app.log,
@@ -584,7 +628,7 @@ export async function criarAplicacaoApi({
     return {
       ok: true,
       servico: "PRUMO API",
-      versao: "25.0.0",
+      versao: "31.0.0",
       armazenamento: repository.tipo,
       banco,
     };
@@ -595,12 +639,12 @@ export async function criarAplicacaoApi({
       repository.health(),
       objectStorage.health(),
     ]);
-    const identidadeOk = !identityRequired || identityMode === "oidc";
+    const identidadeOk = !identityRequired || identityMode.startsWith("oidc");
     const ok = Boolean(banco?.ok) && (!storageRequired || Boolean(storage?.ok)) && identidadeOk;
     return reply.code(ok ? 200 : 503).send({
       ok,
       servico: "PRUMO API",
-      versao: "25.0.0",
+      versao: "31.0.0",
       componentes: {
         banco: { ok: Boolean(banco?.ok), tipo: repository.tipo },
         storage: {
@@ -611,6 +655,57 @@ export async function criarAplicacaoApi({
         identidade: { ok: identidadeOk, tipo: identityMode, obrigatorio: Boolean(identityRequired) },
       },
     });
+  });
+
+  app.get("/auth/capabilities", async () => ({
+    oidc: identityMode.startsWith("oidc"),
+    contingenciaLocal: Boolean(localAuth?.habilitada),
+  }));
+
+  app.post("/auth/local/login", {
+    schema: {
+      body: {
+        type: "object",
+        required: ["usuario", "senha"],
+        additionalProperties: false,
+        properties: {
+          usuario: { type: "string", minLength: 1, maxLength: 120 },
+          senha: { type: "string", minLength: 1, maxLength: 300 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    if (!localAuth?.habilitada) {
+      throw new ApiError(404, "ACESSO_LOCAL_DESABILITADO", "O acesso administrativo local não está habilitado.");
+    }
+    const origem = request.ip || "desconhecida";
+    const agora = Date.now();
+    const estado = tentativasLogin.get(origem) || { falhas: 0, bloqueadoAte: 0 };
+    if (estado.bloqueadoAte > agora) {
+      reply.header("Retry-After", String(Math.ceil((estado.bloqueadoAte - agora) / 1000)));
+      throw new ApiError(429, "LOGIN_TEMPORARIAMENTE_BLOQUEADO", "Muitas tentativas. Aguarde antes de tentar novamente.");
+    }
+    try {
+      const sessao = await localAuth.autenticarCredenciais(request.body.usuario, request.body.senha);
+      tentativasLogin.delete(origem);
+      request.log.warn({ origem, subject: sessao.usuario.subject }, "Acesso administrativo de contingência iniciado");
+      reply.header("Cache-Control", "no-store");
+      return sessao;
+    } catch (error) {
+      const falhas = estado.falhas + 1;
+      tentativasLogin.set(origem, {
+        falhas: falhas >= 5 ? 0 : falhas,
+        bloqueadoAte: falhas >= 5 ? agora + 15 * 60 * 1000 : 0,
+      });
+      request.log.warn({ origem, falhas }, "Tentativa de acesso administrativo local recusada");
+      throw error;
+    }
+  });
+
+  app.post("/auth/local/logout", async (request, reply) => {
+    const token = extrairTokenBearer(request.headers.authorization);
+    if (localAuth?.habilitada && token) await localAuth.revogarToken(token);
+    reply.code(204).send();
   });
 
   app.addHook("preHandler", async (request) => {
@@ -833,6 +928,9 @@ export async function criarAplicacaoApi({
   app.post("/v1/obras/:id/diario", {schema:{body:esquemaDiarioObra}}, async (request,reply) => { const item=await repository.registrarDiarioObra(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201); return item; });
   app.get("/v1/obras/:id/medicoes", async (request) => repository.listarMedicoesObra(contextoDaRequisicao(request,request.identity),request.params.id));
   app.post("/v1/obras/:id/medicoes", {schema:{body:esquemaMedicaoObra}}, async (request,reply) => { const item=await repository.criarMedicaoObra(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.get("/v1/obras/:id/solicitacoes-aditivo", async (request) => repository.listarSolicitacoesAditivo(contextoDaRequisicao(request,request.identity),request.params.id));
+  app.post("/v1/obras/:id/solicitacoes-aditivo", {schema:{body:esquemaSolicitacaoAditivo}}, async (request,reply) => { const item=await repository.criarSolicitacaoAditivo(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.versao}"`); return item; });
+  app.post("/v1/solicitacoes-aditivo/:id/decisoes", {schema:{body:esquemaDecisaoSolicitacaoAditivo}}, async (request,reply) => { const item=await repository.decidirSolicitacaoAditivo(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.solicitacao.versao}"`); return item; });
   app.post("/v1/medicoes/:id/decisoes", {schema:{body:esquemaDecisaoMedicao}}, async (request,reply) => { const item=await repository.decidirMedicaoObra(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request),chaveIdempotencia(request)); reply.code(201).header("ETag",`"${item.medicao.versao}"`); return item; });
 
   app.get("/v1/manutencao/planos", async (request) => repository.listarPlanosManutencao(contextoDaRequisicao(request,request.identity),request.query||{}));
@@ -859,6 +957,22 @@ export async function criarAplicacaoApi({
 
   app.get("/v1/regularidade/requisitos",async(request)=>repository.listarRequisitosCompliance(contextoDaRequisicao(request,request.identity),request.query||{}));
   app.post("/v1/regularidade/requisitos",{schema:{body:esquemaRequisitoCompliance}},async(request,reply)=>{const item=await repository.criarRequisitoCompliance(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.get("/v1/regularidade/ppci",async(request)=>repository.listarPpcis(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.get("/v1/regularidade/ppci/resumo",async(request)=>repository.obterResumoPpci(contextoDaRequisicao(request,request.identity)));
+  app.get("/v1/regularidade/ppci/:id",async(request,reply)=>{const item=await repository.obterPpci(contextoDaRequisicao(request,request.identity),request.params.id);reply.header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/regularidade/ppci",{schema:{body:esquemaPpci}},async(request,reply)=>{const item=await repository.criarPpci(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.put("/v1/regularidade/ppci/:id",{schema:{body:esquemaPpci}},async(request,reply)=>{const item=await repository.atualizarPpci(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request));reply.header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/regularidade/ppci/:id/sistemas",{schema:{body:esquemaSistemaPpci}},async(request,reply)=>{const item=await repository.criarSistemaPpci(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.put("/v1/regularidade/ppci/:id/sistemas/:systemId",{schema:{body:esquemaSistemaPpci}},async(request,reply)=>{const item=await repository.atualizarSistemaPpci(contextoDaRequisicao(request,request.identity),request.params.id,request.params.systemId,request.body,versaoIfMatch(request));reply.header("ETag",`"${item.versao}"`);return item;});
+  app.delete("/v1/regularidade/ppci/:id/sistemas/:systemId",{schema:{body:esquemaRemocaoRastreavel}},async(request,reply)=>repository.removerSistemaPpci(contextoDaRequisicao(request,request.identity),request.params.id,request.params.systemId,request.body,versaoIfMatch(request)));
+  app.post("/v1/regularidade/ppci/:id/inspecoes",{schema:{body:esquemaInspecaoPpci}},async(request,reply)=>{const item=await repository.registrarInspecaoPpci(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201);return item;});
+  app.get("/v1/responsaveis",async(request)=>repository.listarResponsaveisCorporativos(contextoDaRequisicao(request,request.identity)));
+  app.get("/v1/utilidades/medidores",async(request)=>repository.listarMedidoresUtilidades(contextoDaRequisicao(request,request.identity),request.query||{}));
+  app.get("/v1/utilidades/medidores/:id",async(request,reply)=>{const item=await repository.obterMedidorUtilidade(contextoDaRequisicao(request,request.identity),request.params.id);reply.header("ETag",`"${item.versao}"`);return item;});
+  app.post("/v1/utilidades/medidores",{schema:{body:esquemaMedidorUtilidade}},async(request,reply)=>{const item=await repository.criarMedidorUtilidade(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
+  app.put("/v1/utilidades/medidores/:id",{schema:{body:esquemaMedidorUtilidade}},async(request,reply)=>{const item=await repository.atualizarMedidorUtilidade(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request));reply.header("ETag",`"${item.versao}"`);return item;});
+  app.delete("/v1/utilidades/medidores/:id",async(request,reply)=>repository.removerMedidorUtilidade(contextoDaRequisicao(request,request.identity),request.params.id,versaoIfMatch(request)));
+  app.post("/v1/utilidades/medidores/:id/leituras",{schema:{body:esquemaLeituraUtilidade}},async(request,reply)=>{const item=await repository.registrarLeituraUtilidade(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201);return item;});
   app.get("/v1/regularidade/riscos",async(request)=>repository.listarRiscosCompliance(contextoDaRequisicao(request,request.identity)));
   app.post("/v1/regularidade/riscos",{schema:{body:esquemaRiscoCompliance}},async(request,reply)=>{const item=await repository.criarRiscoCompliance(contextoDaRequisicao(request,request.identity),request.body,chaveIdempotencia(request));reply.code(201).header("ETag",`"${item.versao}"`);return item;});
   app.post("/v1/regularidade/riscos/:id/acoes",{schema:{body:esquemaAcaoCompliance}},async(request,reply)=>{const item=await repository.criarAcaoCompliance(contextoDaRequisicao(request,request.identity),request.params.id,request.body,chaveIdempotencia(request));reply.code(201);return item;});
@@ -884,11 +998,11 @@ export async function criarAplicacaoApi({
       repository.health(),
       objectStorage.health(),
     ]);
-    const identidadeOk=!identityRequired||identityMode==="oidc";
+    const identidadeOk=!identityRequired||identityMode.startsWith("oidc");
     const ok=Boolean(banco?.ok)&&(!storageRequired||Boolean(storage?.ok))&&identidadeOk;
     return {
       ok,
-      versao:"25.0.0",
+      versao:"31.0.0",
       operacao,
       componentes:{
         banco:{ok:Boolean(banco?.ok),tipo:repository.tipo,latenciaMs:banco?.latenciaMs},
@@ -1131,13 +1245,24 @@ export async function criarAplicacaoApi({
     )
   ));
 
+  app.post("/v1/repositorios/transicoes/:dominioId/verificacao", {
+    schema: { body: esquemaManifestoRepositorio },
+  }, async (request) => (
+    repository.verificarTransicaoRepositorio(
+      contextoDaRequisicao(request, request.identity),
+      request.params.dominioId,
+      request.body,
+    )
+  ));
+
   app.put("/v1/repositorios/transicoes/:dominioId", {
     schema: { body: esquemaTransicaoRepositorio },
   }, async (request) => (
     repository.alterarTransicaoRepositorio(
       contextoDaRequisicao(request, request.identity),
       request.params.dominioId,
-      request.body.modo,
+      request.body,
+      versaoIfMatch(request),
     )
   ));
 
@@ -1171,6 +1296,16 @@ export async function criarAplicacaoApi({
     return exportarAuditoriaCsv(itens);
   });
 
+  app.get("/v1/orcamentos/:id/bases-contratadas", async (request) => (
+    repository.listarBasesContratadas(contextoDaRequisicao(request, request.identity), request.params.id)
+  ));
+
+  app.post("/v1/orcamentos/:id/bases-contratadas", { schema: { body: esquemaBaseContratada } }, async (request, reply) => {
+    const item = await repository.criarBaseContratada(contextoDaRequisicao(request, request.identity), request.params.id, request.body, chaveIdempotencia(request));
+    reply.code(201);
+    return item;
+  });
+
   app.get("/v1/auditoria/politica", async (request) => (
     repository.obterPoliticaAuditoria(
       contextoDaRequisicao(request, request.identity),
@@ -1186,8 +1321,11 @@ export async function criarAplicacaoApi({
     )
   ));
 
+  app.get("/v1/documentos/entidades", async (request) => (
+    repository.listarEntidadesDocumentais(contextoDaRequisicao(request, request.identity))
+  ));
   app.get("/v1/documentos", async (request) => (
-    repository.listarDocumentos(contextoDaRequisicao(request, request.identity))
+    repository.listarDocumentos(contextoDaRequisicao(request, request.identity), request.query || {})
   ));
   app.post("/v1/documentos", { schema: { body: esquemaDocumento } }, async (request, reply) => {
     const item = await repository.criarDocumento(contextoDaRequisicao(request, request.identity), request.body, chaveIdempotencia(request));
@@ -1223,6 +1361,9 @@ export async function criarAplicacaoApi({
   });
   app.post("/v1/documentos/:id/vinculos", { schema: { body: esquemaVinculoDocumento } }, async (request) => (
     repository.vincularDocumento(contextoDaRequisicao(request, request.identity), request.params.id, request.body)
+  ));
+  app.post("/v1/documentos/:id/decisoes", { schema:{body:esquemaDecisaoDocumento} }, async(request)=>(
+    repository.decidirDocumento(contextoDaRequisicao(request,request.identity),request.params.id,request.body,versaoIfMatch(request))
   ));
 
   app.get("/v1/integracoes", async (request) => (

@@ -50,6 +50,9 @@ Referências:
 | 23 | Fundação do piloto | OIDC obrigatório, GED S3, readiness, segurança e runbook operacional |
 | 24 | Ambiente corporativo | Prontidão verificável por organização, HTTPS, identidade, dados, GED, recuperação e monitoramento |
 | 25 | Migração e piloto assistido | Evidências, isolamento, transição de repositórios, retorno seguro, aceite e promoção controlada |
+| 26/26.1 | Segurança e consolidação | Acesso obrigatório, contingência protegida e módulos correlatos consolidados |
+| 27 | Execução contratual | Base contratada imutável, medições por saldo e aditivos governados |
+| 28 | Governança documental | Documentos obrigatoriamente ligados à origem, com revisão, aprovação e rastreabilidade |
 
 As Sprints 10.4 e 10.5 preservam o escopo já aprovado. A Sprint 10.6 formaliza
 a convergência comercial antes da criação dos novos domínios transacionais.
@@ -207,3 +210,91 @@ responsável e data por organização. O início do piloto é bloqueado enquanto
 Sprint 24 não estiver comprovada e a promoção é bloqueada até todos os requisitos
 da Sprint 25 serem aprovados. A contratação e a configuração dos serviços
 externos continuam sendo ações de implantação, não credenciais do código-fonte.
+
+## Sprints 26 e 26.1 — Segurança e consolidação do produto
+
+A versão `26.1.0` impede o carregamento do produto sem uma sessão válida e
+oferece contingência administrativa local protegida para homologação. A
+integração corporativa OIDC/JWT permanece a identidade principal e depende da
+configuração externa do provedor e de MFA para produção.
+
+A navegação passa a refletir o produto comercial modular: PPCI integra
+Regularidade, alertas integram a Visão geral, bases de preços integram
+Orçamentos, e sua publicação central fica na Administração. Consumos evoluem
+para Utilidades, Energia e Consumos, enquanto Demandas recebe o nome operacional
+Solicitações e Investimentos.
+
+## Sprint 27 — Orçamento contratado e aditivos governados
+
+A versão `27.0.0` separa definitivamente o orçamento publicado da execução
+contratual. A homologação do resultado da licitação cria uma base imutável com
+os preços unitários vencedores, aplicando o desconto linear informado sem
+reescrever a memória, a revisão ou os valores originais do orçamento.
+
+Obras novas passam a exigir vínculos com orçamento e contrato. Medições usam a
+base contratada e não podem superar seu saldo. Necessidades supervenientes da
+fiscalização são registradas como solicitações de aditivo e percorrem submissão,
+análise, aprovação ou rejeição pela engenharia de custos antes de qualquer
+conversão em revisão contratual.
+
+## Sprint 28 — Governança documental por entidade
+
+A versão `28.0.0` elimina a criação de registros documentais órfãos. O usuário
+seleciona uma entidade existente e acessível no PostgreSQL; esse vínculo é
+registrado como origem principal e não pode ser omitido. Relações adicionais
+permitem reutilizar o mesmo arquivo sem cópias entre patrimônio, solicitações,
+orçamentos, contratações, contratos, obras, medições, manutenção, regularidade
+e convênios. Versões permanecem imutáveis e o estado percorre rascunho, revisão,
+aprovação e arquivamento com controle de concorrência e auditoria.
+
+## Sprint 29 — Promoção verificável dos repositórios
+
+A versão `29.0.0` permite promover Orçamentos do modo híbrido para o modo
+corporativo somente depois de uma comparação integral entre o acervo do
+navegador e o PostgreSQL. A evidência registra quantidades, identificadores,
+hashes e divergências sob RLS e permanece imutável.
+
+A promoção exige evidência conforme emitida nas últimas 24 horas e a versão
+corrente da decisão administrativa. O retorno ao híbrido exige justificativa,
+é auditado e não apaga nenhuma fonte. Composições próprias, bases de preços e
+configurações continuam híbridas até receberem validadores específicos.
+
+## Sprint 30 — PPCI local e segurança predial
+
+A versão `30.0.0` substitui definitivamente a integração histórica do PPCI por
+persistência PostgreSQL própria. O cadastro de cada processo exige um Site,
+Prédio ou Sala ativo da hierarquia patrimonial; sistemas preventivos podem
+detalhar ambientes descendentes e ativos cadastrados na Sala correspondente.
+
+PPCI passa a compartilhar a experiência de Regularidade com licenças,
+ART/RRT, riscos, controles, auditorias e transparência. Inspeções são
+imutáveis, vencimentos alimentam a Visão geral e todas as tabelas aplicam RLS
+por empresa e equipe, com auditoria para criação, alteração e inspeção.
+
+## Sprint 31 — PPCI operacional e utilidades mensuráveis
+
+A versão `31.0.0` completa a operação dos sistemas preventivos: edição,
+remoção rastreável, responsáveis do cliente ativo e abertura contextual do GED.
+Inspeções continuam imutáveis e impedem a perda do sistema associado.
+
+Utilidades passa a possuir medidores patrimoniais reais para água, energia,
+gás, combustíveis e outros recursos. Leituras de consumo, geração, crédito e
+débito ficam no PostgreSQL com RLS, auditoria e permissões segregadas.
+Patrimônio passa a explicar falhas de cadastro dentro do próprio formulário e
+Solicitações/Carteiras recebem edição e detalhamento operacional.
+
+## Sprint 32 — Operação de campo e manutenção preventiva
+
+Planejada para a versão `32.0.0`, aprimora o diálogo do PPCI, corrige a
+remoção de sistemas e oferece anulação auditada de inspeções. Utilidades passa
+a aceitar consumo informado diretamente ou leitura acumulada do relógio, com
+memória do cálculo baseada na última leitura válida anterior e uma interface
+de coleta simplificada para equipes de campo.
+
+O Site torna-se a fonte única do endereço físico para seus Prédios e Salas e
+recebe a ação de copiar o endereço do Cliente. Ativos passam a possuir planos
+periódicos que geram previsões e ordens sem duplicidade no módulo Manutenção,
+com navegação entre equipamento, intervenções futuras e histórico executado.
+Metas, tarifas, faturas, alertas e importação de leituras complementam a
+evolução estratégica de Utilidades. O detalhamento e os critérios de aceite
+estão em `docs/SPRINT_32.md`.

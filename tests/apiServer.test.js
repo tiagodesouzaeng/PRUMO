@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { criarAplicacaoApi } from "../server/app.js";
 import { criarRepositorioMemoria } from "../server/db/memoryRepository.js";
 import { criarPacoteMigracao } from "../src/services/migracaoCorporativa.js";
+import { criarManifestoLocalOrcamentos } from "../src/services/repositorioCorporativo.js";
 
 async function criarApiTeste() {
   const repository = criarRepositorioMemoria({
@@ -70,7 +71,7 @@ test("API informa saúde sem exigir autenticação ou empresa", async (t) => {
   const resposta = await app.inject({ method: "GET", url: "/health" });
   assert.equal(resposta.statusCode, 200);
   assert.equal(resposta.json().armazenamento, "memory");
-  assert.equal(resposta.json().versao, "25.0.0");
+  assert.equal(resposta.json().versao, "31.0.0");
   assert.ok(resposta.headers["x-request-id"]);
   assert.equal(resposta.headers["x-content-type-options"], "nosniff");
 });
@@ -504,11 +505,34 @@ test("lote de migração é recebido, validado e homologado sem duplicação", a
   const corporativo = await app.inject({
     method: "PUT",
     url: "/v1/repositorios/transicoes/orcamentos",
-    headers: headers({ user: "USR-4" }),
+    headers: headers({ user: "USR-4", extras: { "if-match": "1" } }),
     payload: { modo: "corporativo" },
   });
-  assert.equal(corporativo.statusCode, 200);
-  assert.equal(corporativo.json().modo, "corporativo");
+  assert.equal(corporativo.statusCode, 409);
+
+  const manifesto = await criarManifestoLocalOrcamentos([
+    { id: "ORC-LOCAL", nome: "Orçamento local" },
+  ]);
+  const verificacao = await app.inject({
+    method: "POST",
+    url: "/v1/repositorios/transicoes/orcamentos/verificacao",
+    headers: headers({ user: "USR-4" }),
+    payload: manifesto,
+  });
+  assert.equal(verificacao.statusCode, 200);
+  assert.equal(verificacao.json().verificacao.status, "conforme");
+
+  const promovido = await app.inject({
+    method: "PUT",
+    url: "/v1/repositorios/transicoes/orcamentos",
+    headers: headers({
+      user: "USR-4",
+      extras: { "if-match": String(verificacao.json().transicao.versao) },
+    }),
+    payload: { modo: "corporativo", manifestoHash: manifesto.hash },
+  });
+  assert.equal(promovido.statusCode, 200);
+  assert.equal(promovido.json().modo, "corporativo");
 });
 
 test("fila executa trabalho assíncrono e registra conclusão", async (t) => {

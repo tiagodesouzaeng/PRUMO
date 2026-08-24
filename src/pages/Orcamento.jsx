@@ -40,6 +40,7 @@ import ModalComposicaoRastreavel from "../components/Orcamento/ModalComposicaoRa
 const ETAPAS = [
   { id: "visao", label: "Visão geral", icon: "⌂" },
   { id: "planilha", label: "Planilha orçamentária", icon: "▤" },
+  { id: "bases", label: "Bases e composições", icon: "◫" },
   { id: "bdi", label: "BDI e encargos", icon: "%" },
   { id: "cronograma", label: "Cronograma", icon: "◩" },
   { id: "histograma", label: "Histograma", icon: "♙" },
@@ -631,8 +632,10 @@ function Bases({ orcamento, adicionarComposicao, removerComposicao, setAviso, ba
           <header><div><span>BASE SELECIONADA</span><h3>Integridade da publicação</h3></div></header>
           {baseAtiva ? <>
             <div className="orc-quality-score"><strong>{integridadePreco.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong><span>COM PREÇO</span></div>
-            <ul><li><i>✓</i> {baseAtiva.total.toLocaleString("pt-BR")} referências de preço</li><li><i>✓</i> UF {baseAtiva.uf} · {baseAtiva.referencia}</li><li><i>✓</i> {(baseAtiva.arquivos || [baseAtiva.arquivo]).length} arquivo(s) processado(s)</li><li><i>✓</i> {(baseAtiva.itensComposicao || 0).toLocaleString("pt-BR")} vínculos analíticos</li><li><i>!</i> {baseAtiva.semPreco.toLocaleString("pt-BR")} referências sem preço</li></ul>
-            <small title={baseAtiva.hash}>SHA-256: {baseAtiva.hash.slice(0, 18)}…</small>
+            <ul><li><i>✓</i> {baseAtiva.total.toLocaleString("pt-BR")} referências de preço</li><li><i>✓</i> UF {baseAtiva.uf} · {baseAtiva.referencia}</li>{!baseAtiva.propria && <li><i>✓</i> {(baseAtiva.arquivos?.filter(Boolean) || (baseAtiva.arquivo ? [baseAtiva.arquivo] : [])).length} arquivo(s) processado(s)</li>}<li><i>✓</i> {(baseAtiva.itensComposicao || 0).toLocaleString("pt-BR")} vínculos analíticos</li><li><i>!</i> {baseAtiva.semPreco.toLocaleString("pt-BR")} referências sem preço</li></ul>
+            {baseAtiva.hash
+              ? <small title={baseAtiva.hash}>SHA-256: {String(baseAtiva.hash).slice(0, 18)}…</small>
+              : <small>Base gerenciada pelo PRUMO · sem arquivo externo</small>}
           </> : <div className="orc-no-active-base"><strong>Sem base selecionada</strong><span>A integridade será calculada após a primeira importação.</span></div>}
         </aside>
       </div>
@@ -863,9 +866,10 @@ function Medicoes({ orcamento, abrirMedicao }) {
   const retencoes = medicoes.reduce((total, medicao) => total + (medicao.retencoes || []).reduce((soma, item) => soma + Number(item.valor || 0), 0), 0);
   const multas = medicoes.reduce((total, medicao) => total + (medicao.multas || []).reduce((soma, item) => soma + Number(item.valor || 0), 0), 0);
   const totais = calcularTotais(orcamento);
+  const totalContratual = Number(orcamento.baseContratada?.valorContratado ?? totais.precoTotal);
   return (
     <>
-      <div className="orc-schedule-kpis"><div><span>TOTAL MEDIDO</span><strong>{formatarMoeda(totalMedido)}</strong></div><div><span>RETENÇÕES E MULTAS</span><strong>{formatarMoeda(retencoes + multas)}</strong></div><div><span>SALDO CONTRATUAL</span><strong>{formatarMoeda(Math.max(0, totais.precoTotal - totalMedido))}</strong></div><div><span>AVANÇO ACUMULADO</span><strong>{totais.precoTotal ? (totalMedido / totais.precoTotal).toLocaleString("pt-BR", { style: "percent", maximumFractionDigits: 1 }) : "0%"}</strong></div></div>
+      <div className="orc-schedule-kpis"><div><span>TOTAL MEDIDO</span><strong>{formatarMoeda(totalMedido)}</strong></div><div><span>RETENÇÕES E MULTAS</span><strong>{formatarMoeda(retencoes + multas)}</strong></div><div><span>SALDO CONTRATUAL</span><strong>{formatarMoeda(Math.max(0, totalContratual - totalMedido))}</strong><small>{orcamento.baseContratada ? "Base homologada da licitação" : "Sem base contratada homologada"}</small></div><div><span>AVANÇO ACUMULADO</span><strong>{totalContratual ? (totalMedido / totalContratual).toLocaleString("pt-BR", { style: "percent", maximumFractionDigits: 1 }) : "0%"}</strong></div></div>
       <article className="orc-card orc-measurements">
         <header><div><span>BOLETINS · PRÉ-PREENCHIDOS PELO CRONOGRAMA</span><h3>Medições propostas e realizadas</h3></div><button type="button" onClick={() => abrirMedicao(null)}>＋ Nova medição</button></header>
         {medicoes.map((medicao) => {
@@ -878,12 +882,24 @@ function Medicoes({ orcamento, abrirMedicao }) {
   );
 }
 
-function Licitacoes({ orcamento, gerar, gerando }) {
+function Licitacoes({ orcamento, gerar, gerando, registrarBase, avisar }) {
   const [selecionadas, setSelecionadas] = useState([
     "Instruções", "Orçamento Completo", "Proposta de Preços",
     "BDI e Encargos", "Cronograma", "Histograma",
   ]);
   const resumo = resumirPacoteLicitacao(orcamento, selecionadas);
+  const [resultadoLicitacao, setResultadoLicitacao] = useState({ fornecedor: "", processoId: "", contratoId: "", descontoPercentual: "", justificativa: "Resultado homologado conforme processo de contratação." });
+  const aprovado = String(orcamento.status || "").toLocaleLowerCase("pt-BR").includes("aprov");
+  const estimativaContratada = resumo.precoTotal * (1 - Math.max(0, Math.min(99.9999, Number(resultadoLicitacao.descontoPercentual || 0))) / 100);
+  async function homologar(event) {
+    event.preventDefault();
+    try {
+      await registrarBase({ ...resultadoLicitacao, descontoPercentual: Number(resultadoLicitacao.descontoPercentual || 0) });
+      avisar("Resultado homologado. A base contratada foi congelada para as medições.");
+    } catch (error) {
+      avisar(error.message);
+    }
+  }
   const abas = [
     ["01", "Instruções", "Instruções", "Regras de preenchimento e identificação da revisão.", "Bloqueada"],
     ["02", "Orçamento Completo", "Orçamento completo", "Memória com custos, bases, desconto, BDI e preço total.", "Bloqueada"],
@@ -937,6 +953,22 @@ function Licitacoes({ orcamento, gerar, gerando }) {
             </div>
           ))}
         </section>
+      </article>
+      <article className="orc-card orc-contract-baseline">
+        <header><div><span>RESULTADO DA LICITAÇÃO</span><h3>Base contratada para execução e medições</h3></div><b className={orcamento.baseContratada ? "approved" : ""}>{orcamento.baseContratada ? "Homologada" : "Pendente"}</b></header>
+        {orcamento.baseContratada ? <>
+          <div className="orc-bid-summary"><div><span>VENCEDOR</span><strong>{orcamento.baseContratada.fornecedor}</strong><small>{orcamento.baseContratada.processoId || "Processo não informado"}</small></div><div><span>PUBLICADO</span><strong>{formatarMoeda(orcamento.baseContratada.valorPublicado)}</strong><small>Orçamento original preservado</small></div><div><span>CONTRATADO</span><strong>{formatarMoeda(orcamento.baseContratada.valorContratado)}</strong><small>Desconto linear de {Number(orcamento.baseContratada.descontoPercentual).toLocaleString("pt-BR")}%</small></div></div>
+          <p className="orc-contract-note">Os preços unitários homologados estão congelados. Alterações solicitadas pela obra deverão tramitar como aditivo pela engenharia de custos.</p>
+        </> : <form className="orc-contract-form" onSubmit={homologar}>
+          <label><span>Empresa vencedora</span><input required value={resultadoLicitacao.fornecedor} onChange={(event) => setResultadoLicitacao((atual) => ({ ...atual, fornecedor: event.target.value }))} /></label>
+          <label><span>Processo/licitação</span><input value={resultadoLicitacao.processoId} onChange={(event) => setResultadoLicitacao((atual) => ({ ...atual, processoId: event.target.value }))} /></label>
+          <label><span>Contrato</span><input value={resultadoLicitacao.contratoId} onChange={(event) => setResultadoLicitacao((atual) => ({ ...atual, contratoId: event.target.value }))} /></label>
+          <label><span>Desconto vencedor (%)</span><input required type="number" min="0" max="99.9999" step="0.0001" value={resultadoLicitacao.descontoPercentual} onChange={(event) => setResultadoLicitacao((atual) => ({ ...atual, descontoPercentual: event.target.value }))} /></label>
+          <label className="orc-field-wide"><span>Justificativa da homologação</span><textarea required minLength="3" value={resultadoLicitacao.justificativa} onChange={(event) => setResultadoLicitacao((atual) => ({ ...atual, justificativa: event.target.value }))} /></label>
+          <div className="orc-contract-preview"><span>Referência publicada <strong>{formatarMoeda(resumo.precoTotal)}</strong></span><span>Proposta vencedora <strong>{formatarMoeda(estimativaContratada)}</strong></span></div>
+          {!aprovado && <p className="orc-measure-error">Aprove o orçamento antes de homologar o resultado da licitação.</p>}
+          <button className="orc-btn orc-btn-primary" type="submit" disabled={!aprovado}>Homologar e congelar base contratada</button>
+        </form>}
       </article>
       <article className="orc-card orc-bid-checklist">
         <header><div><span>CONTROLE DE EMISSÃO</span><h3>Verificações antes da distribuição</h3></div></header>
@@ -1892,6 +1924,7 @@ export default function Orcamento({ basesPrecos }) {
     alternarRevisaoInativa,
     excluirRevisao,
     atualizarStatusOrcamento,
+    registrarBaseContratada,
   } = useOrcamentos();
   const etapaAtual = useMemo(() => ETAPAS.find((item) => item.id === etapa), [etapa]);
   const proximoCodigo = useMemo(() => {
@@ -2099,12 +2132,13 @@ export default function Orcamento({ basesPrecos }) {
       <CabecalhoSecao etapa={etapaAtual.id} exportar={exportar} novaRevisao={adicionarRevisao} />
       {etapa === "visao" && <VisaoGeralOrcamento orcamento={orcamentoAtivo} setEtapa={setEtapa} />}
       {etapa === "planilha" && <Planilha orcamento={orcamentoAtivo} abrirNovoItem={() => { setItemEmEdicao(null); setModal("item"); }} abrirNovoGrupo={() => { setItemEmEdicao(null); setModal("grupo"); }} editarItem={abrirEdicao} abrirDetalhe={setItemDetalhe} removerItem={confirmarRemocao} duplicarItem={(item) => { duplicarItem(item.id); notificar("Item duplicado."); }} moverItem={(item, direcao) => moverItem(item.id, direcao)} importarArquivo={importarArquivo} />}
+      {etapa === "bases" && <Bases orcamento={orcamentoAtivo} adicionarComposicao={adicionarComposicao} removerComposicao={removerComposicao} setAviso={notificar} basesPrecos={basesPrecos} atualizarPrecos={aplicarPrecosBase} />}
       {etapa === "bdi" && <BdiDetalhado key={orcamentoAtivo.id} orcamento={orcamentoAtivo} salvarBdi={salvarBdi} salvarBdiDiferenciado={salvarBdiDiferenciado} salvarEncargos={salvarEncargos} />}
       {etapa === "cronograma" && <Cronograma orcamento={orcamentoAtivo} atualizarQuantidade={atualizarCronogramaQuantidade} atualizarGrupo={atualizarCronogramaGrupo} limparValores={limparCronograma} distribuirSaldos={distribuirSaldosCronograma} />}
       {etapa === "histograma" && <Histograma orcamento={orcamentoAtivo} atualizarEquipe={atualizarHistogramaEquipe} limparValores={limparHistograma} distribuirSaldos={distribuirSaldosHistograma} basesPrecos={basesPrecos} />}
       {etapa === "medicoes" && <Medicoes orcamento={orcamentoAtivo} abrirMedicao={abrirMedicao} />}
       {etapa === "comercial" && <CondicoesComerciais orcamento={orcamentoAtivo} salvarDesconto={salvarDesconto} />}
-      {etapa === "licitacoes" && <Licitacoes orcamento={orcamentoAtivo} gerar={gerarPacoteLicitacao} gerando={gerandoLicitacao} />}
+      {etapa === "licitacoes" && <Licitacoes orcamento={orcamentoAtivo} gerar={gerarPacoteLicitacao} gerando={gerandoLicitacao} registrarBase={registrarBaseContratada} avisar={notificar} />}
       {etapa === "suprimentos" && <Suprimentos orcamento={orcamentoAtivo} basesPrecos={basesPrecos} salvarConfiguracao={atualizarConfiguracaoSuprimentos} />}
       {etapa === "revisoes" && <Revisoes orcamento={orcamentoAtivo} ativarRevisao={ativarRevisao} alternarRevisaoInativa={alternarRevisaoInativa} excluirRevisao={excluirRevisao} avisar={notificar} />}
     </section>

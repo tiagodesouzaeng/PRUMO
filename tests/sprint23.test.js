@@ -61,6 +61,7 @@ test("GED autoriza upload e download somente dentro da organização", async (t)
       { tenantId: "EMP-1", subject: "USR-1", perfilId: "administrador", teamIds: ["EQ-1"], status: "ativo" },
       { tenantId: "EMP-2", subject: "USR-2", perfilId: "administrador", teamIds: ["EQ-2"], status: "ativo" },
     ],
+    orcamentos:[{id:"ORC-1",tenantId:"EMP-1",teamId:"EQ-1",nome:"Orçamento teste"}],
   });
   const storage = {
     tipo: "s3", configurado: true,
@@ -81,7 +82,7 @@ test("GED autoriza upload e download somente dentro da organização", async (t)
   const criado = await app.inject({
     method: "POST", url: "/v1/documentos",
     headers: { ...headers(), "idempotency-key": "doc-1" },
-    payload: { titulo: "Projeto executivo" },
+    payload: { titulo: "Projeto executivo",vinculo:{moduleId:"orcamentos",entidadeTipo:"orcamento",entidadeId:"ORC-1"} },
   });
   assert.equal(criado.statusCode, 201, criado.body);
   const id = criado.json().id;

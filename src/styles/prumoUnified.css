@@ -801,6 +801,29 @@ textarea {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.sigiu-document-search { display:grid; gap:6px; margin:0 0 12px; color:var(--prumo-text-muted); font-size:12px; font-weight:700; }
+.sigiu-document-search input { min-height:38px; border:1px solid var(--prumo-border); border-radius:8px; padding:0 11px; background:var(--prumo-surface); color:var(--prumo-text); }
+.sigiu-document-workflow,.sigiu-document-links { display:grid; gap:8px; margin-top:14px; padding:12px; border:1px solid var(--prumo-border); border-radius:10px; background:var(--prumo-surface-muted); }
+.sigiu-document-workflow>div { display:flex; flex-wrap:wrap; gap:8px; }
+.sigiu-document-workflow>span,.sigiu-document-links span { color:var(--prumo-text-muted); font-size:12px; text-transform:capitalize; }
+.sigiu-document-links span { display:block; padding-bottom:7px; border-bottom:1px solid var(--prumo-border); }
+.sigiu-document-links span:last-child { padding-bottom:0; border-bottom:0; }
+
+.orc-contract-baseline { margin-top: 18px; }
+.orc-contract-baseline > header > b { padding: 7px 11px; border-radius: 999px; background: #fff4d8; color: #875d00; font-size: 12px; }
+.orc-contract-baseline > header > b.approved { background: #def4e9; color: #14613f; }
+.orc-contract-form { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; padding: 18px; }
+.orc-contract-form label { display: grid; gap: 6px; color: #536477; font-size: 12px; font-weight: 700; }
+.orc-contract-form input, .orc-contract-form textarea { width: 100%; border: 1px solid #cdd7e1; border-radius: 7px; background: #fff; padding: 10px 11px; color: #1e3042; font: inherit; }
+.orc-contract-form textarea { min-height: 76px; resize: vertical; }
+.orc-contract-form .orc-field-wide, .orc-contract-preview, .orc-contract-form > p { grid-column: 1 / -1; }
+.orc-contract-preview { display: flex; justify-content: flex-end; gap: 24px; padding: 12px; border-radius: 8px; background: #f2f7f8; color: #5c6c78; }
+.orc-contract-preview span { display: grid; gap: 2px; }
+.orc-contract-preview strong { color: #163c42; font-size: 18px; }
+.orc-contract-form > button { grid-column: 1 / -1; justify-self: end; }
+.orc-contract-note { margin: 0 18px 18px; padding: 12px 14px; border-left: 3px solid #168477; background: #eef8f6; color: #365b57; }
+@media (max-width: 1000px) { .orc-contract-form { grid-template-columns: repeat(2, minmax(150px, 1fr)); } }
 .sigiu-pilot-checklist {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -868,3 +891,6 @@ textarea {
   .sigiu-pilot-checklist__heading { flex-direction: column; }
   .sigiu-pilot-checklist__heading select { width: 100%; }
 }
+.sigiu-inline-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sigiu-inline-actions button{min-height:36px}.sigiu-inline-actions .danger,.sigiu-link.danger{color:#9b2c2c;border-color:#e8b4b4}.sigiu-clickable-card{cursor:pointer}.sigiu-clickable-card:hover{border-color:var(--color-primary,#087c71);box-shadow:0 8px 22px rgba(8,124,113,.1)}.sigiu-module-kpi[onClick]{cursor:pointer}.sigiu-page-hidrico .sigiu-planning-table td:first-child span{display:block;color:var(--color-text-muted,#667785);font-size:.78rem}.sigiu-page-hidrico .sigiu-section-title{align-items:flex-start}
+/* Acesso seguro — Sprint 26 */
+.prumo-login-shell{min-height:100vh;display:grid;grid-template-columns:minmax(320px,46%) 1fr;background:#f4f7f7;color:#12323d}.prumo-login-brand{padding:clamp(36px,6vw,88px);display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(145deg,#082f3d,#0b4b57 62%,#087a72);color:#fff;overflow:hidden;position:relative}.prumo-login-brand::after{content:"";position:absolute;width:520px;height:520px;border:1px solid rgba(255,255,255,.15);border-radius:50%;right:-260px;bottom:-180px}.prumo-login-brand img{width:190px;max-width:58%;position:relative;z-index:1}.prumo-login-brand div{max-width:620px;position:relative;z-index:1}.prumo-login-brand span,.prumo-login-card header span{font-size:12px;font-weight:800;letter-spacing:.12em}.prumo-login-brand h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(34px,4vw,62px);line-height:1.03;margin:18px 0}.prumo-login-brand p{font-size:17px;line-height:1.6;max-width:520px;color:#d9eeee}.prumo-login-brand footer{font-size:12px;letter-spacing:.08em;color:#b6d9dc;position:relative;z-index:1}.prumo-login-panel{display:grid;place-items:center;padding:32px}.prumo-login-card{width:min(440px,100%);background:#fff;border:1px solid #dce6e7;border-radius:18px;padding:clamp(28px,5vw,48px);box-shadow:0 22px 60px rgba(13,53,64,.12)}.prumo-login-card header h2{font-family:Georgia,"Times New Roman",serif;font-size:32px;margin:10px 0 6px}.prumo-login-card header p{color:#687c83;margin:0 0 28px}.prumo-login-primary{width:100%;min-height:48px;border:0;border-radius:9px;background:#087c71;color:#fff;font-weight:800;cursor:pointer;padding:0 18px}.prumo-login-primary:disabled{background:#9aacae;cursor:not-allowed}.prumo-login-hint{display:block;color:#74878c;line-height:1.45;margin:10px 0 0}.prumo-login-contingencia{border-top:1px solid #e3eaeb;margin-top:26px;padding-top:20px}.prumo-login-link{border:0;background:none;padding:0;color:#375d66;font-weight:700;cursor:pointer}.prumo-login-contingencia form{display:grid;gap:14px;margin-top:18px}.prumo-login-contingencia label{display:grid;gap:6px;font-size:12px;font-weight:800;color:#425f66}.prumo-login-contingencia input{height:44px;border:1px solid #bdcdcf;border-radius:8px;padding:0 12px;background:#fbfdfd}.prumo-login-contingencia p{font-size:11px;color:#74878c;line-height:1.45;margin:0}.prumo-login-feedback{padding:12px 14px;border-radius:8px;margin-bottom:16px;display:grid;gap:3px;font-size:13px}.prumo-login-feedback.is-error{background:#fff0ee;color:#8e2d25;border:1px solid #efc2bc}.sigiu-session-button{min-height:40px;border:1px solid #d7e1e2;background:#fff;border-radius:8px;padding:5px 10px;display:grid;text-align:left;cursor:pointer}.sigiu-session-button span{font-size:10px;color:#62787e}.sigiu-session-button strong{font-size:12px;color:#0d625d}@media(max-width:800px){.prumo-login-shell{grid-template-columns:1fr}.prumo-login-brand{min-height:280px;padding:28px}.prumo-login-brand h1{font-size:34px}.prumo-login-brand footer{display:none}.prumo-login-panel{padding:18px;margin-top:-28px;position:relative}.sigiu-session-button{display:none}}

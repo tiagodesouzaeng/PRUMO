@@ -72,6 +72,7 @@ export default function Patrimonio() {
     cliente ? "Carregando cadastro patrimonial…" : "Conecte a API corporativa para usar o patrimônio.",
   );
   const [salvando, setSalvando] = useState(false);
+  const [erroFormulario, setErroFormulario] = useState("");
 
   const unidadeSelecionada = unidades.find((item) => item.id === unidadeSelecionadaId) || null;
   const salaSelecionada = unidades.find((item) => item.id === selecao.sala) || null;
@@ -157,6 +158,7 @@ export default function Patrimonio() {
     const nivelPai = PAI_ESPERADO[nivel];
     const parentId = nivelPai ? selecao[nivelPai] : "";
     setEdicaoUnidadeId("");
+    setErroFormulario("");
     setFormUnidade({
       ...NOVA_UNIDADE,
       nivel,
@@ -167,6 +169,7 @@ export default function Patrimonio() {
   }
 
   function editarUnidade(item) {
+    setErroFormulario("");
     setEdicaoUnidadeId(item.id);
     setUnidadeSelecionadaId(item.id);
     setFormUnidade({
@@ -181,7 +184,11 @@ export default function Patrimonio() {
     event.preventDefault();
     if (!cliente) return;
     setSalvando(true);
+    setErroFormulario("");
     try {
+      if (formUnidade.nivel !== "cliente" && !formUnidade.parentId) {
+        throw new Error(`Selecione o ${ROTULOS[PAI_ESPERADO[formUnidade.nivel]].toLocaleLowerCase("pt-BR")} ao qual este ${ROTULOS[formUnidade.nivel].toLocaleLowerCase("pt-BR")} pertence.`);
+      }
       const dados = { ...formUnidade, areaM2: formUnidade.areaM2 === "" ? null : Number(formUnidade.areaM2) };
       const atual = unidades.find((item) => item.id === edicaoUnidadeId);
       const salva = edicaoUnidadeId
@@ -192,7 +199,7 @@ export default function Patrimonio() {
       await carregar(salva.id);
       await contextoPatrimonial.recarregar();
       setMensagem(`${ROTULOS[salva.nivel]} salvo com sucesso.`);
-    } catch (error) { setMensagem(error.message); }
+    } catch (error) { setErroFormulario(error.message); }
     finally { setSalvando(false); }
   }
 
@@ -347,6 +354,7 @@ export default function Patrimonio() {
       {modalUnidadeAberto && (
         <Modal titulo={edicaoUnidadeId ? `Editar ${ROTULOS[formUnidade.nivel]}` : `Novo ${ROTULOS[formUnidade.nivel]}`} descricao="Preencha a identificação, localização e responsabilidade da unidade." onClose={() => setModalUnidadeAberto(false)}>
           <form className="sigiu-simple-form sigiu-patrimonio-modal-form" onSubmit={salvarUnidade}>
+            {erroFormulario && <p className="sigiu-patrimonio-delete-error" role="alert">Não foi possível salvar: {erroFormulario}</p>}
             <div className="sigiu-patrimonio-modal-grid">
               <label><span>Nível</span><select value={formUnidade.nivel} disabled={!edicaoUnidadeId} onChange={(e) => setFormUnidade((atual) => ({ ...atual, nivel: e.target.value, parentId: "" }))}>{NIVEIS.map((nivel) => <option key={nivel} value={nivel}>{ROTULOS[nivel]}</option>)}</select>{edicaoUnidadeId && <small>O nível pode ser corrigido quando não há registros dependentes.</small>}</label>
               <label><span>Código</span><input required maxLength={80} value={formUnidade.codigo} onChange={(e) => setFormUnidade((atual) => ({ ...atual, codigo: e.target.value.toUpperCase() }))} placeholder={`Ex.: ${sugerirCodigoPatrimonial(formUnidade.nivel, formUnidade.parentId, unidades)}`} />{!edicaoUnidadeId && <small>Sugestão sequencial automática; o código permanece editável.</small>}</label>

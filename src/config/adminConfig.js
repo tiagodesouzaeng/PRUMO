@@ -40,7 +40,7 @@ export const SIGIU_ADMIN_USUARIOS = [
     email: "administracao@prumo.local",
     perfil: "Administrador Geral",
     unidade: "Todas",
-    modulos: ["PPCI", "Consumo Hídrico", "Obras", "Orçamentos", "Manutenção", "Administração"],
+    modulos: ["Regularidade", "Utilidades", "Obras", "Orçamentos", "Manutenção", "Administração"],
     status: "Ativo",
     ultimoAcesso: "Aguardando autenticação real",
   },
@@ -50,7 +50,7 @@ export const SIGIU_ADMIN_USUARIOS = [
     email: "infraestrutura@prumo.local",
     perfil: "Gestor de Infraestrutura",
     unidade: "Campus Canoas",
-    modulos: ["PPCI", "Consumo Hídrico", "Obras", "Orçamentos", "Relatórios"],
+    modulos: ["Regularidade", "Utilidades", "Obras", "Orçamentos", "Relatórios"],
     status: "Ativo",
     ultimoAcesso: "Perfil estrutural",
   },
@@ -60,7 +60,7 @@ export const SIGIU_ADMIN_USUARIOS = [
     email: "operacao.predial@prumo.local",
     perfil: "Operador",
     unidade: "Campus Canoas",
-    modulos: ["Consumo Hídrico", "Manutenção"],
+    modulos: ["Utilidades", "Manutenção"],
     status: "Planejado",
     ultimoAcesso: "Pendente cadastro real",
   },
@@ -69,18 +69,18 @@ export const SIGIU_ADMIN_USUARIOS = [
 export const SIGIU_ADMIN_FONTES_DADOS = [
   {
     id: "ppci",
-    modulo: "PPCI",
-    tipo: "Google Apps Script",
-    url: "https://script.google.com/macros/s/AKfycbz0bKVJ6Fc8UL7hFv9gAzdDlKyLHIE9Vskwuwydd3uJ9DSdoFt82OZ69ZB_sOwRZn2PlA/exec",
-    planilha: "Painel PPCI",
+    modulo: "Regularidade e Segurança Predial",
+    tipo: "PostgreSQL local do PRUMO",
+    url: "API corporativa /v1/regularidade/ppci",
+    planilha: "Não aplicável",
     status: "Ativo",
-    sincronizacao: "Consulta direta atual",
-    cache: "Previsto",
-    ultimaValidacao: "Base operacional existente",
+    sincronizacao: "Persistência transacional",
+    cache: "Não utilizado para dados PPCI",
+    ultimaValidacao: "Migração local concluída",
   },
   {
     id: "hidrico",
-    modulo: "Consumo Hídrico",
+    modulo: "Utilidades, Energia e Consumos",
     tipo: "Google Forms + Apps Script",
     url: "Integração pendente",
     planilha: "Base_Hidrico_SIGIU",
@@ -149,7 +149,7 @@ export const SIGIU_ADMIN_CADASTROS_MESTRES = [
 
 export const SIGIU_ADMIN_PARAMETROS_ALERTA = [
   {
-    modulo: "PPCI",
+    modulo: "Regularidade — PPCI",
     parametros: [
       { nome: "Alerta crítico", valor: "PPCI vencido ou até 30 dias" },
       { nome: "Alerta de atenção", valor: "31 a 90 dias" },
@@ -176,10 +176,10 @@ export const SIGIU_ADMIN_PARAMETROS_ALERTA = [
 
 export const SIGIU_ADMIN_SYNC_STATUS = [
   {
-    modulo: "PPCI",
-    modo: "Completo",
-    ultimaSincronizacao: "Consulta em tempo real",
-    incremental: "Previsto por updatedAt/hash",
+    modulo: "Regularidade — PPCI",
+    modo: "Corporativo local",
+    ultimaSincronizacao: "Persistência imediata no PostgreSQL",
+    incremental: "Não aplicável",
     status: "Operacional",
   },
   {

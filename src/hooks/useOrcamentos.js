@@ -10,11 +10,13 @@ import {
   distribuirSaldoNosVazios,
   normalizarPlanejamentoObra,
   normalizarOrcamento,
+  obterBdiItem,
   numeroSeguro,
   REGRA_CALCULO_ATUAL,
   truncarMoeda,
   validarMedicaoAcumulada,
 } from "../domain/orcamento";
+import { criarBaseContratada, truncarValorContratual } from "../../shared/budgetContracting";
 import {
   descendentesEap,
   moverItemEap,
@@ -29,6 +31,7 @@ import {
 } from "../services/orcamentoRepository";
 import {
   carregarOrcamentosCorporativosSeAtivo,
+  homologarBaseContratadaCorporativa,
   sincronizarOrcamentosCorporativos,
 } from "../services/repositorioCorporativo";
 
@@ -104,8 +107,8 @@ export default function useOrcamentos() {
   );
 
   useEffect(() => {
-    salvarOrcamentos(orcamentos);
-  }, [orcamentos]);
+    if (modoRepositorio !== "corporativo") salvarOrcamentos(orcamentos);
+  }, [modoRepositorio, orcamentos]);
 
   useEffect(() => {
     let ativo = true;
@@ -123,7 +126,7 @@ export default function useOrcamentos() {
       })
       .catch((erro) => {
         console.warn("O repositório corporativo não pôde ser consultado; o cache local foi mantido.", erro);
-        if (ativo) setModoRepositorio("local");
+        if (ativo) setModoRepositorio("indisponivel");
       })
       .finally(() => {
         if (ativo) setRepositorioVerificado(true);
@@ -134,7 +137,7 @@ export default function useOrcamentos() {
   }, []);
 
   useEffect(() => {
-    if (!repositorioVerificado || modoRepositorio === "local") return undefined;
+    if (!repositorioVerificado || !["hibrido", "corporativo"].includes(modoRepositorio)) return undefined;
     const temporizador = globalThis.setTimeout(() => {
       sincronizarOrcamentosCorporativos(orcamentos).catch((erro) => {
         console.warn("A sincronização corporativa será repetida após uma nova alteração.", erro);
@@ -776,6 +779,27 @@ export default function useOrcamentos() {
     });
   }
 
+  async function registrarBaseContratada(dados) {
+    const orcamento = orcamentoAtivo;
+    if (!String(orcamento.status || "").toLocaleLowerCase("pt-BR").includes("aprov")) throw new Error("A base contratada só pode ser homologada após a aprovação do orçamento.");
+    const descontos = calcularDistribuicaoDesconto(orcamento);
+    const itensPublicados = (orcamento.itens || []).filter((item) => item.tipo !== "grupo").map((item) => {
+      const quantidade = numeroSeguro(item.quantidade);
+      const totalDireto = truncarMoeda(quantidade * numeroSeguro(item.unitario));
+      const liquido = Math.max(0, truncarMoeda(totalDireto - numeroSeguro(descontos.porItem.get(item.id))));
+      const totalPublicado = truncarMoeda(liquido + truncarMoeda(liquido * obterBdiItem(orcamento, item) / 100));
+      return { ...item, itemId: item.id, precoPublicadoUnitario: quantidade ? truncarValorContratual(totalPublicado / quantidade, 4) : 0 };
+    });
+    const base = { id: criarId("base-contratada"), ...criarBaseContratada({ ...dados, orcamentoId: orcamento.id, revisaoId: orcamento.revisao, itens: itensPublicados }), criadoPor: "Usuário atual" };
+    let basePersistida = base;
+    if (modoRepositorio !== "local") {
+      const resposta = await homologarBaseContratadaCorporativa(orcamento, { revisaoId: "", processoId: dados.processoId || "", contratoId: dados.contratoId || "", fornecedor: base.fornecedor, descontoPercentual: base.descontoPercentual, justificativa: base.justificativa, itens: itensPublicados });
+      if (resposta.base) basePersistida = { ...base, ...resposta.base };
+    }
+    atualizarAtivo((atual) => ({ ...atual, baseContratada: basePersistida, historicoBasesContratadas: [basePersistida, ...(atual.historicoBasesContratadas || [])], historicoCalculo: [{ id: criarId("calc"), acao: "base_contratada_homologada", data: basePersistida.criadoEm, usuario: "Usuário atual", descontoPercentual: basePersistida.descontoPercentual, valorPublicado: basePersistida.valorPublicado, valorContratado: basePersistida.valorContratado, versaoRegra: REGRA_CALCULO_ATUAL }, ...(atual.historicoCalculo || [])] }));
+    return basePersistida;
+  }
+
   function restaurarDados() {
     const iniciais = restaurarOrcamentos();
     setOrcamentos(iniciais);
@@ -816,6 +840,7 @@ export default function useOrcamentos() {
     alternarRevisaoInativa,
     excluirRevisao,
     atualizarStatusOrcamento,
+    registrarBaseContratada,
     restaurarDados,
   };
 }

@@ -1,9 +1,20 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { ApiError } from "../errors.js";
+import { extrairTokenBearer } from "./localAdmin.js";
 
 function tokenBearer(cabecalho = "") {
-  const correspondencia = String(cabecalho).match(/^Bearer\s+(.+)$/i);
-  return correspondencia?.[1] || "";
+  return extrairTokenBearer(cabecalho);
+}
+
+export function criarAutenticadorComposto({ oidc, local }) {
+  if (typeof oidc !== "function") throw new Error("O autenticador OIDC é obrigatório.");
+  return async (request) => {
+    const token = tokenBearer(request.headers.authorization);
+    if (local?.habilitada && token && local.reconheceToken(token)) {
+      return local.verificarToken(token);
+    }
+    return oidc(request);
+  };
 }
 export function criarAutenticadorOidc({ issuer, audience, jwksUrl } = {}) {
   if (!issuer || !audience || !jwksUrl) {

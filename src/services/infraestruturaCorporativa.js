@@ -1,4 +1,5 @@
 const API_TIMEOUT_MS = 8000;
+import { carregarSessao } from "./sessaoPrumo.js";
 
 function lerVariavel(nome, ambiente = import.meta.env || {}) {
   return String(ambiente[nome] || "").trim();
@@ -22,12 +23,13 @@ export function obterContextoDesenvolvimento(ambiente = import.meta.env || {}) {
   const tenantId = lerVariavel("VITE_PRUMO_TENANT_ID", ambiente);
   const teamId = lerVariavel("VITE_PRUMO_TEAM_ID", ambiente);
   const devUser = lerVariavel("VITE_PRUMO_DEV_USER", ambiente);
-  if (!tenantId || !devUser) return null;
+  const sessao = carregarSessao();
+  if (!tenantId || (!devUser && !sessao?.accessToken)) return null;
   return {
     tenantId,
     teamId,
-    devUser,
-    usuarioId: devUser,
+    ...(sessao?.accessToken ? { accessToken: sessao.accessToken } : { devUser }),
+    usuarioId: sessao?.usuario?.subject || devUser,
   };
 }
 
@@ -141,6 +143,7 @@ export function criarClientePrumo({
     verificarSaude: () => requisitar("health"),
     verificarProntidaoPublica: () => requisitar("ready", { exigirEmpresa: false }),
     obterContextoCorporativo: () => requisitar("v1/context"),
+    listarOrcamentos: () => requisitar("v1/orcamentos"),
     listarModulos: () => requisitar("v1/modules"),
     listarUnidadesPatrimoniais: (filtros = {}) => requisitar(
       `v1/patrimonio/unidades?${new URLSearchParams(filtros)}`,
@@ -233,6 +236,11 @@ export function criarClientePrumo({
     listarMedicoesObra: (id) => requisitar(`v1/obras/${encodeURIComponent(id)}/medicoes`),
     criarMedicaoObra: (id, dados, idempotencyKey) => requisitar(`v1/obras/${encodeURIComponent(id)}/medicoes`, { method:"POST",body:JSON.stringify(dados),idempotencyKey }),
     decidirMedicaoObra: (id, dados, versao, idempotencyKey) => requisitar(`v1/medicoes/${encodeURIComponent(id)}/decisoes`, { method:"POST",body:JSON.stringify(dados),versao,idempotencyKey }),
+    listarBasesContratadas: (id) => requisitar(`v1/orcamentos/${encodeURIComponent(id)}/bases-contratadas`),
+    criarBaseContratada: (id, dados, idempotencyKey) => requisitar(`v1/orcamentos/${encodeURIComponent(id)}/bases-contratadas`, { method:"POST",body:JSON.stringify(dados),idempotencyKey }),
+    listarSolicitacoesAditivo: (id) => requisitar(`v1/obras/${encodeURIComponent(id)}/solicitacoes-aditivo`),
+    criarSolicitacaoAditivo: (id, dados, idempotencyKey) => requisitar(`v1/obras/${encodeURIComponent(id)}/solicitacoes-aditivo`, { method:"POST",body:JSON.stringify(dados),idempotencyKey }),
+    decidirSolicitacaoAditivo: (id, dados, versao, idempotencyKey) => requisitar(`v1/solicitacoes-aditivo/${encodeURIComponent(id)}/decisoes`, { method:"POST",body:JSON.stringify(dados),versao,idempotencyKey }),
     listarPlanosManutencao: (filtros = {}) => requisitar(`v1/manutencao/planos?${new URLSearchParams(filtros)}`),
     criarPlanoManutencao: (dados, idempotencyKey) => requisitar("v1/manutencao/planos", { method:"POST",body:JSON.stringify(dados),idempotencyKey }),
     listarChamadosManutencao: (filtros = {}) => requisitar(`v1/manutencao/chamados?${new URLSearchParams(filtros)}`),
@@ -255,6 +263,22 @@ export function criarClientePrumo({
     criarDiligenciaConvenio: (id,dados,idempotencyKey) => requisitar(`v1/convenios/${encodeURIComponent(id)}/diligencias`,{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
     listarRequisitosCompliance: (filtros={}) => requisitar(`v1/regularidade/requisitos?${new URLSearchParams(filtros)}`),
     criarRequisitoCompliance: (dados,idempotencyKey) => requisitar("v1/regularidade/requisitos",{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
+    listarPpcis: (filtros={}) => requisitar(`v1/regularidade/ppci?${new URLSearchParams(filtros)}`),
+    obterPpci: (id) => requisitar(`v1/regularidade/ppci/${encodeURIComponent(id)}`),
+    criarPpci: (dados,idempotencyKey) => requisitar("v1/regularidade/ppci",{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
+    atualizarPpci: (id,dados,versao) => requisitar(`v1/regularidade/ppci/${encodeURIComponent(id)}`,{method:"PUT",body:JSON.stringify(dados),versao}),
+    criarSistemaPpci: (id,dados,idempotencyKey) => requisitar(`v1/regularidade/ppci/${encodeURIComponent(id)}/sistemas`,{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
+    atualizarSistemaPpci: (id,systemId,dados,versao) => requisitar(`v1/regularidade/ppci/${encodeURIComponent(id)}/sistemas/${encodeURIComponent(systemId)}`,{method:"PUT",body:JSON.stringify(dados),versao}),
+    removerSistemaPpci: (id,systemId,motivo,versao) => requisitar(`v1/regularidade/ppci/${encodeURIComponent(id)}/sistemas/${encodeURIComponent(systemId)}`,{method:"DELETE",body:JSON.stringify({motivo}),versao}),
+    registrarInspecaoPpci: (id,dados,idempotencyKey) => requisitar(`v1/regularidade/ppci/${encodeURIComponent(id)}/inspecoes`,{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
+    obterResumoPpci: () => requisitar("v1/regularidade/ppci/resumo"),
+    listarResponsaveisCorporativos: () => requisitar("v1/responsaveis"),
+    listarMedidoresUtilidades: (filtros={}) => requisitar(`v1/utilidades/medidores?${new URLSearchParams(filtros)}`),
+    obterMedidorUtilidade: (id) => requisitar(`v1/utilidades/medidores/${encodeURIComponent(id)}`),
+    criarMedidorUtilidade: (dados,idempotencyKey) => requisitar("v1/utilidades/medidores",{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
+    atualizarMedidorUtilidade: (id,dados,versao) => requisitar(`v1/utilidades/medidores/${encodeURIComponent(id)}`,{method:"PUT",body:JSON.stringify(dados),versao}),
+    removerMedidorUtilidade: (id,versao) => requisitar(`v1/utilidades/medidores/${encodeURIComponent(id)}`,{method:"DELETE",versao}),
+    registrarLeituraUtilidade: (id,dados,idempotencyKey) => requisitar(`v1/utilidades/medidores/${encodeURIComponent(id)}/leituras`,{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
     listarRiscosCompliance: () => requisitar("v1/regularidade/riscos"),
     criarRiscoCompliance: (dados,idempotencyKey) => requisitar("v1/regularidade/riscos",{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
     criarAcaoCompliance: (id,dados,idempotencyKey) => requisitar(`v1/regularidade/riscos/${encodeURIComponent(id)}/acoes`,{method:"POST",body:JSON.stringify(dados),idempotencyKey}),
@@ -361,11 +385,19 @@ export function criarClientePrumo({
       { method: "POST" },
     ),
     listarTransicoesRepositorio: () => requisitar("v1/repositorios/transicoes"),
-    alterarTransicaoRepositorio: (dominioId, modo) => requisitar(
+    verificarTransicaoRepositorio: (dominioId, manifesto) => requisitar(
+      `v1/repositorios/transicoes/${encodeURIComponent(dominioId)}/verificacao`,
+      {
+        method: "POST",
+        body: JSON.stringify(manifesto),
+      },
+    ),
+    alterarTransicaoRepositorio: (dominioId, dados, versao) => requisitar(
       `v1/repositorios/transicoes/${encodeURIComponent(dominioId)}`,
       {
         method: "PUT",
-        body: JSON.stringify({ modo }),
+        body: JSON.stringify(dados),
+        versao,
       },
     ),
     listarAuditoria: (filtros = {}) => requisitar(
@@ -380,12 +412,14 @@ export function criarClientePrumo({
       method: "PUT",
       body: JSON.stringify(dados),
     }),
-    listarDocumentos: () => requisitar("v1/documentos"),
+    listarDocumentos: (filtros = {}) => requisitar(`v1/documentos?${new URLSearchParams(filtros)}`),
+    listarEntidadesDocumentais: () => requisitar("v1/documentos/entidades"),
     criarDocumento: (dados, idempotencyKey) => requisitar("v1/documentos", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
     adicionarVersaoDocumento: (id, dados) => requisitar(`v1/documentos/${encodeURIComponent(id)}/versoes`, { method: "POST", body: JSON.stringify(dados) }),
     solicitarUploadDocumento: (id, dados) => requisitar(`v1/documentos/${encodeURIComponent(id)}/uploads`, { method: "POST", body: JSON.stringify(dados) }),
     solicitarDownloadDocumento: (id, numero) => requisitar(`v1/documentos/${encodeURIComponent(id)}/versoes/${encodeURIComponent(numero)}/download`),
     vincularDocumento: (id, dados) => requisitar(`v1/documentos/${encodeURIComponent(id)}/vinculos`, { method: "POST", body: JSON.stringify(dados) }),
+    decidirDocumento: (id, dados, versao) => requisitar(`v1/documentos/${encodeURIComponent(id)}/decisoes`, { method:"POST",body:JSON.stringify(dados),versao }),
     listarIntegracoes: () => requisitar("v1/integracoes"),
     criarIntegracao: (dados, idempotencyKey) => requisitar("v1/integracoes", { method: "POST", body: JSON.stringify(dados), idempotencyKey }),
     registrarExecucaoIntegracao: (id, dados) => requisitar(`v1/integracoes/${encodeURIComponent(id)}/execucoes`, { method: "POST", body: JSON.stringify(dados) }),
