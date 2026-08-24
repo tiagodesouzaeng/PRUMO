@@ -1,108 +1,26 @@
-/* =====================================================
-   RELEASE........: v7.5 + v7.6 RC1
-   ARQUIVO........: src/pages/Relatorios.jsx
-   DESCRIÇÃO......: Central visual de relatórios do SIGIU.
-===================================================== */
+import { useEffect,useMemo,useState } from "react";
+import { criarClientePrumo,obterConfiguracaoInfraestrutura,obterContextoDesenvolvimento } from "../services/infraestruturaCorporativa";
+const moeda=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});const chave=()=>crypto.randomUUID();const titulo=v=>String(v||"").replaceAll("_"," ").replace(/^./,x=>x.toUpperCase());
 
-const RELATORIOS = [
-  {
-    grupo: "PPCI",
-    itens: [
-      { titulo: "Listagem atual", detalhe: "Exportação operacional por filtros aplicados", status: "Disponível" },
-      { titulo: "Alertas operacionais", detalhe: "Prazos, vencidos, críticos e sem responsável", status: "Disponível" },
-      { titulo: "Ranking de risco", detalhe: "Score operacional dos PPCIs", status: "Disponível" },
-    ],
-  },
-  {
-    grupo: "Consumo Hídrico",
-    itens: [
-      { titulo: "Leituras mensais", detalhe: "Consumo por poço, hidrômetro e unidade", status: "Previsto" },
-      { titulo: "Anomalias de consumo", detalhe: "Variações acima da média e alertas", status: "Previsto" },
-    ],
-  },
-  {
-    grupo: "Obras e Manutenção",
-    itens: [
-      { titulo: "Obras em andamento", detalhe: "Cronograma, progresso, status e marcos", status: "Previsto" },
-      { titulo: "Ordens de serviço", detalhe: "Backlog, prioridade e atendimento", status: "Previsto" },
-    ],
-  },
-];
-
-function RelatorioItem({ item }) {
-  const disponivel = item.status === "Disponível";
-  return (
-    <article className={`sigiu-relatorios-item ${disponivel ? "is-disponivel" : "is-previsto"}`}>
-      <div>
-        <strong>{item.titulo}</strong>
-        <small>{item.detalhe}</small>
-      </div>
-      <span>{item.status}</span>
-    </article>
-  );
-}
-
-export default function Relatorios({ dadosPPCI }) {
-  const totalPPCI = dadosPPCI?.ppcis?.length || 0;
-
-  return (
-    <section className="sigiu-page sigiu-page-modulo sigiu-page-relatorios">
-      <div className="sigiu-page-heading sigiu-page-heading--modulo">
-        <div>
-          <span className="sigiu-page-eyebrow">Central SIGIU</span>
-          <h1>Relatórios</h1>
-          <p>
-            Área preparada para consolidar exportações e indicadores executivos por módulo.
-          </p>
-        </div>
-        <div className="sigiu-page-heading__meta">
-          <strong>{totalPPCI}</strong>
-          <span>PPCIs na base atual</span>
-        </div>
-      </div>
-
-      <div className="sigiu-module-kpis">
-        <article className="sigiu-module-kpi sigiu-module-kpi--primary">
-          <span>CSV</span>
-          <small>Relatórios PPCI</small>
-          <strong>3</strong>
-          <em>disponíveis no módulo PPCI</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--info">
-          <span>▦</span>
-          <small>Módulos previstos</small>
-          <strong>4</strong>
-          <em>hídrico, obras, manutenção e alertas</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--warning">
-          <span>⌛</span>
-          <small>Integrações futuras</small>
-          <strong>Push</strong>
-          <em>redução da dependência de planilhas</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--success">
-          <span>✓</span>
-          <small>Estrutura</small>
-          <strong>OK</strong>
-          <em>central pronta para expansão</em>
-        </article>
-      </div>
-
-      <div className="sigiu-relatorios-modulos">
-        {RELATORIOS.map((grupo) => (
-          <section key={grupo.grupo} className="sigiu-card sigiu-relatorios-grupo">
-            <header className="sigiu-card-header-row">
-              <div>
-                <h2>{grupo.grupo}</h2>
-                <p>Relatórios e exportações do módulo.</p>
-              </div>
-            </header>
-            <div className="sigiu-relatorios-lista">
-              {grupo.itens.map((item) => <RelatorioItem key={item.titulo} item={item} />)}
-            </div>
-          </section>
-        ))}
-      </div>
-    </section>
-  );
+export default function Relatorios(){
+ const cliente=useMemo(()=>{const c=obterConfiguracaoInfraestrutura();return c.apiConfigurada?criarClientePrumo({baseUrl:c.apiUrl,obterContexto:()=>obterContextoDesenvolvimento()}):null;},[]);
+ const [dados,setDados]=useState({painel:null,relatorios:[],portais:[],canais:[],operacao:null}),[aba,setAba]=useState("executivo"),[modal,setModal]=useState(""),[mensagem,setMensagem]=useState(""),[credencial,setCredencial]=useState("");
+ async function carregar(){if(!cliente)return;try{const [painel,relatorios,portais,canais,operacao]=await Promise.all([cliente.obterPainelExecutivo(),cliente.listarDefinicoesRelatorios(),cliente.listarAcessosPortais(),cliente.listarCanaisIntegracao(),cliente.obterObservabilidade()]);setDados({painel,relatorios,portais,canais,operacao});setMensagem("");}catch(e){setMensagem(e.message);}}
+ useEffect(()=>{carregar();},[]);
+ async function salvar(e){e.preventDefault();const f=Object.fromEntries(new FormData(e.currentTarget));try{
+  if(modal==="relatorio")await cliente.criarDefinicaoRelatorio({...f,modulos:f.modulos.split(",").map(x=>x.trim()).filter(Boolean),configuracao:{periodicidade:f.periodicidade},compartilhado:Boolean(f.compartilhado)},chave());
+  if(modal==="portal"){const x=await cliente.criarAcessoPortal({...f,escopo:{},expiraEm:new Date(`${f.expiraEm}T23:59:59-03:00`).toISOString()},chave());setCredencial(x.token||"");}
+  if(modal==="canal")await cliente.criarCanalIntegracao({...f,configuracaoPublica:{ambiente:f.ambiente},segredoReferencia:f.segredoReferencia||""},chave());
+  setModal("");await carregar();
+ }catch(err){setMensagem(err.message);}}
+ async function revogar(x){try{await cliente.revogarAcessoPortal(x.id,x.versao);await carregar();}catch(e){setMensagem(e.message);}}
+ const p=dados.painel||{carteira:{},financeiro:{},convenios:{},compliance:{},manutencao:{},seguranca:{}};
+ return <div className="sigiu-page sigiu-page-relatorios"><header className="sigiu-page-heading sigiu-page-heading--modulo"><div><span className="sigiu-page-eyebrow">Inteligência e integração</span><h1>BI, relatórios e portais</h1><p>Indicadores executivos, relatórios configuráveis, acessos externos, integrações e prontidão operacional.</p></div><button className="sigiu-primary" onClick={()=>setModal("relatorio")}>+ Novo relatório</button></header>{mensagem&&<div className="sigiu-feedback">{mensagem}</div>}{credencial&&<div className="sigiu-feedback"><b>Credencial gerada (exibida uma única vez):</b> <code>{credencial}</code> <button className="sigiu-link" onClick={()=>setCredencial("")}>Ocultar</button></div>}
+ <section className="sigiu-module-kpis"><article className="sigiu-module-kpi"><small>Obras em andamento</small><strong>{p.carteira.obrasEmAndamento||0}</strong><em>{moeda(p.carteira.valorObras)}</em></article><article className="sigiu-module-kpi"><small>Contratos vigentes</small><strong>{p.carteira.contratosVigentes||0}</strong><em>{moeda(p.carteira.valorContratos)}</em></article><article className="sigiu-module-kpi"><small>Convênios</small><strong>{p.convenios.total||0}</strong><em>{moeda(p.convenios.valorTotal)}</em></article><article className="sigiu-module-kpi"><small>Regularidade vencida</small><strong>{p.compliance.vencidos||0}</strong><em>{p.manutencao.abertos||0} chamados abertos</em></article></section>
+ <nav className="sigiu-tabs"><button className={`sigiu-tab ${aba==="executivo"?"is-active":""}`} onClick={()=>setAba("executivo")}>Painel executivo</button><button className={`sigiu-tab ${aba==="relatorios"?"is-active":""}`} onClick={()=>setAba("relatorios")}>Relatórios</button><button className={`sigiu-tab ${aba==="portais"?"is-active":""}`} onClick={()=>setAba("portais")}>Portais</button><button className={`sigiu-tab ${aba==="integracoes"?"is-active":""}`} onClick={()=>setAba("integracoes")}>Integrações e operação</button></nav>
+ {aba==="executivo"&&<><section className="sigiu-contract-summary"><article><span>Carteira de obras</span><strong>{p.carteira.obras||0}</strong></article><article><span>Carteira contratual</span><strong>{p.carteira.contratos||0}</strong></article><article><span>Planejamento financeiro</span><strong>{moeda(p.financeiro.previsto)}</strong></article><article><span>Chamados de manutenção</span><strong>{p.manutencao.abertos||0}</strong></article></section><div className="sigiu-planning-cards"><article><span>ISOLAMENTO</span><h3>{p.seguranca.isolamento||"RLS"}</h3><p>Dados filtrados por organização e equipe em todas as consultas consolidadas.</p></article><article><span>AUDITORIA</span><h3>{titulo(p.seguranca.auditoria||"encadeada")}</h3><p>Eventos críticos preservados com integridade e autoria.</p></article><article><span>SEGREDOS</span><h3>{titulo(p.seguranca.segredos||"referenciados")}</h3><p>Credenciais não são retornadas em consultas ou armazenadas em texto aberto.</p></article></div></>}
+ {aba==="relatorios"&&<section><div className="sigiu-section-title"><div><h2>Definições configuráveis</h2><p>Filtros e módulos autorizados por perfil.</p></div><button onClick={()=>setModal("relatorio")}>+ Novo relatório</button></div><div className="sigiu-planning-table"><table><thead><tr><th>Relatório</th><th>Módulos</th><th>Compartilhamento</th><th>Status</th></tr></thead><tbody>{dados.relatorios.map(x=><tr key={x.id}><td><b>{x.codigo}</b><span>{x.nome}<br/><small>{x.descricao}</small></span></td><td>{x.modulos?.join(", ")||"Consolidado"}</td><td>{x.compartilhado?"Equipe":"Pessoal"}</td><td>{titulo(x.status)}</td></tr>)}</tbody></table>{!dados.relatorios.length&&<div className="sigiu-empty">Nenhuma definição salva.</div>}</div></section>}
+ {aba==="portais"&&<section><div className="sigiu-section-title"><div><h2>Acessos externos segregados</h2><p>Cliente, fornecedor e fiscalização recebem apenas o escopo autorizado.</p></div><button onClick={()=>setModal("portal")}>+ Novo acesso</button></div><div className="sigiu-planning-table"><table><thead><tr><th>Usuário externo</th><th>Tipo</th><th>Expiração</th><th>Token</th><th>Status</th><th></th></tr></thead><tbody>{dados.portais.map(x=><tr key={x.id}><td><b>{x.nome}</b><span>{x.email}</span></td><td>{titulo(x.tipo)}</td><td>{String(x.expiraEm||"").slice(0,10)}</td><td>{x.tokenPrefixo}…</td><td>{titulo(x.status)}</td><td>{x.status==="ativo"&&<button className="sigiu-link" onClick={()=>revogar(x)}>Revogar</button>}</td></tr>)}</tbody></table>{!dados.portais.length&&<div className="sigiu-empty">Nenhum acesso externo ativo.</div>}</div></section>}
+ {aba==="integracoes"&&<><section className="sigiu-contract-summary"><article><span>Operação</span><strong>{titulo(dados.operacao?.status||"verificando")}</strong></article><article><span>Banco / RLS</span><strong>{dados.operacao?.banco||"—"} · {dados.operacao?.rls||"—"}</strong></article><article><span>Fila</span><strong>{dados.operacao?.fila?.pendentes||0} pendentes</strong></article><article><span>Integrações com erro</span><strong>{dados.operacao?.integracoes?.comErro||0}</strong></article></section><div className="sigiu-section-title"><div><h2>Canais de integração</h2><p>Contábil, bancária, oficial, webhook ou arquivo.</p></div><button onClick={()=>setModal("canal")}>+ Novo canal</button></div><div className="sigiu-planning-table"><table><thead><tr><th>Canal</th><th>Tipo</th><th>Direção</th><th>Segredo</th><th>Status</th></tr></thead><tbody>{dados.canais.map(x=><tr key={x.id}><td><b>{x.codigo}</b><span>{x.nome}</span></td><td>{titulo(x.tipo)}</td><td>{titulo(x.direcao)}</td><td>{x.segredoReferencia?"Referenciado":"Pendente"}</td><td>{titulo(x.status)}</td></tr>)}</tbody></table></div></>}
+ {modal&&<div className="sigiu-modal-backdrop"><form className="sigiu-modal sigiu-planning-small" onSubmit={salvar}><header><div><span className="sigiu-page-eyebrow">BI e portais</span><h2>{{relatorio:"Novo relatório",portal:"Novo acesso externo",canal:"Novo canal de integração"}[modal]}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header><div className="sigiu-form-grid">{modal==="relatorio"&&<><label>Código<input name="codigo" required defaultValue={`REL-${String(dados.relatorios.length+1).padStart(3,"0")}`}/></label><label className="span-2">Nome<input name="nome" required/></label><label className="span-2">Descrição<textarea name="descricao"/></label><label>Módulos<input name="modulos" placeholder="obras, contratos, financeiro"/></label><label>Periodicidade<select name="periodicidade"><option value="sob_demanda">Sob demanda</option><option value="diaria">Diária</option><option value="mensal">Mensal</option></select></label><label><input name="compartilhado" type="checkbox" value="sim"/> Compartilhar com a equipe</label></>}{modal==="portal"&&<><label>Tipo<select name="tipo"><option value="cliente">Cliente</option><option value="fornecedor">Fornecedor</option><option value="fiscalizacao">Fiscalização</option></select></label><label className="span-2">Nome<input name="nome" required/></label><label className="span-2">E-mail<input name="email" type="email" required/></label><label>Expira em<input name="expiraEm" type="date" required/></label></>}{modal==="canal"&&<><label>Código<input name="codigo" required defaultValue={`INT-${String(dados.canais.length+1).padStart(3,"0")}`}/></label><label className="span-2">Nome<input name="nome" required/></label><label>Tipo<select name="tipo"><option value="contabil">Contábil</option><option value="bancaria">Bancária</option><option value="oficial">Sistema oficial</option><option value="webhook">Webhook</option><option value="arquivo">Arquivo</option></select></label><label>Direção<select name="direcao"><option value="bidirecional">Bidirecional</option><option value="entrada">Entrada</option><option value="saida">Saída</option></select></label><label>Ambiente<select name="ambiente"><option value="homologacao">Homologação</option><option value="producao">Produção</option></select></label><label className="span-2">Referência do segredo<input name="segredoReferencia" placeholder="vault://prumo/integracao/..."/></label></>}</div><footer><button type="button" onClick={()=>setModal("")}>Cancelar</button><button className="sigiu-primary">Confirmar</button></footer></form></div>}</div>;
 }

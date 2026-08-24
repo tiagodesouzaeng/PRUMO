@@ -10,7 +10,7 @@ export const SIGIU_ADMIN_PERFIS = [
   {
     id: "admin-geral",
     nome: "Administrador Geral",
-    descricao: "Acesso completo ao SIGIU, configurações, fontes de dados, usuários e módulos.",
+    descricao: "Acesso completo ao PRUMO, configurações, fontes de dados, usuários e módulos.",
     nivel: 100,
   },
   {
@@ -36,11 +36,11 @@ export const SIGIU_ADMIN_PERFIS = [
 export const SIGIU_ADMIN_USUARIOS = [
   {
     id: "USR-001",
-    nome: "Administrador SIGIU",
+    nome: "Administrador PRUMO",
     email: "administracao@prumo.local",
     perfil: "Administrador Geral",
     unidade: "Todas",
-    modulos: ["PPCI", "Consumo Hídrico", "Obras", "Orçamentos", "Manutenção", "Administração"],
+    modulos: ["Regularidade", "Utilidades", "Obras", "Orçamentos", "Manutenção", "Administração"],
     status: "Ativo",
     ultimoAcesso: "Aguardando autenticação real",
   },
@@ -50,7 +50,7 @@ export const SIGIU_ADMIN_USUARIOS = [
     email: "infraestrutura@prumo.local",
     perfil: "Gestor de Infraestrutura",
     unidade: "Campus Canoas",
-    modulos: ["PPCI", "Consumo Hídrico", "Obras", "Orçamentos", "Relatórios"],
+    modulos: ["Regularidade", "Utilidades", "Obras", "Orçamentos", "Relatórios"],
     status: "Ativo",
     ultimoAcesso: "Perfil estrutural",
   },
@@ -60,7 +60,7 @@ export const SIGIU_ADMIN_USUARIOS = [
     email: "operacao.predial@prumo.local",
     perfil: "Operador",
     unidade: "Campus Canoas",
-    modulos: ["Consumo Hídrico", "Manutenção"],
+    modulos: ["Utilidades", "Manutenção"],
     status: "Planejado",
     ultimoAcesso: "Pendente cadastro real",
   },
@@ -69,20 +69,20 @@ export const SIGIU_ADMIN_USUARIOS = [
 export const SIGIU_ADMIN_FONTES_DADOS = [
   {
     id: "ppci",
-    modulo: "PPCI",
-    tipo: "Google Apps Script",
-    url: "https://script.google.com/macros/s/AKfycbz0bKVJ6Fc8UL7hFv9gAzdDlKyLHIE9Vskwuwydd3uJ9DSdoFt82OZ69ZB_sOwRZn2PlA/exec",
-    planilha: "Painel PPCI",
+    modulo: "Regularidade e Segurança Predial",
+    tipo: "PostgreSQL local do PRUMO",
+    url: "API corporativa /v1/regularidade/ppci",
+    planilha: "Não aplicável",
     status: "Ativo",
-    sincronizacao: "Consulta direta atual",
-    cache: "Previsto",
-    ultimaValidacao: "Base operacional existente",
+    sincronizacao: "Persistência transacional",
+    cache: "Não utilizado para dados PPCI",
+    ultimaValidacao: "Migração local concluída",
   },
   {
     id: "hidrico",
-    modulo: "Consumo Hídrico",
+    modulo: "Utilidades, Energia e Consumos",
     tipo: "Google Forms + Apps Script",
-    url: "A configurar na Sprint 9",
+    url: "Integração pendente",
     planilha: "Base_Hidrico_SIGIU",
     status: "Previsto",
     sincronizacao: "Incremental por nova leitura",
@@ -143,13 +143,13 @@ export const SIGIU_ADMIN_CADASTROS_MESTRES = [
   {
     grupo: "Pontos de medição",
     total: 0,
-    itens: ["A iniciar na Sprint 9", "Poços", "Hidrômetros", "Corsan", "Pontos internos"],
+    itens: ["Cadastro pendente", "Poços", "Hidrômetros", "Corsan", "Pontos internos"],
   },
 ];
 
 export const SIGIU_ADMIN_PARAMETROS_ALERTA = [
   {
-    modulo: "PPCI",
+    modulo: "Regularidade — PPCI",
     parametros: [
       { nome: "Alerta crítico", valor: "PPCI vencido ou até 30 dias" },
       { nome: "Alerta de atenção", valor: "31 a 90 dias" },
@@ -176,10 +176,10 @@ export const SIGIU_ADMIN_PARAMETROS_ALERTA = [
 
 export const SIGIU_ADMIN_SYNC_STATUS = [
   {
-    modulo: "PPCI",
-    modo: "Completo",
-    ultimaSincronizacao: "Consulta em tempo real",
-    incremental: "Previsto por updatedAt/hash",
+    modulo: "Regularidade — PPCI",
+    modo: "Corporativo local",
+    ultimaSincronizacao: "Persistência imediata no PostgreSQL",
+    incremental: "Não aplicável",
     status: "Operacional",
   },
   {
@@ -200,30 +200,30 @@ export const SIGIU_ADMIN_SYNC_STATUS = [
 
 export const SIGIU_ADMIN_AUDITORIA = [
   {
-    data: "Sprint 8.0",
+    data: "Implantação inicial",
     usuario: "Sistema",
     acao: "Criado módulo Administração",
     detalhe: "Base visual para governança, usuários e configurações.",
   },
   {
-    data: "Sprint 8.1",
+    data: "Evolução administrativa",
     usuario: "Sistema",
     acao: "Criada estrutura de Fontes de Dados",
     detalhe: "URLs, status, sincronização, cache e validação por módulo.",
   },
   {
     data: "Futuro",
-    usuario: "Backend SIGIU",
+    usuario: "Backend PRUMO",
     acao: "Registrar alterações reais",
     detalhe: "Usuário, data, módulo, antes/depois e IP/sessão quando houver autenticação.",
   },
 ];
 
 export const SIGIU_ADMIN_CONFIG_GERAL = {
-  versaoBase: "SIGIU v8.1.0 RC1",
+  versaoBase: "PRUMO v23.0.0",
   ambiente: "Desenvolvimento",
-  autenticacao: "Estrutural / pendente backend",
-  cacheNavegador: "Previsto",
-  sincronizacaoIncremental: "Prevista",
+  autenticacao: "Perfis e sessão em memória / pendente provedor",
+  cacheNavegador: "Compatibilidade durante migração",
+  sincronizacaoIncremental: "Fundação em desenvolvimento",
   moduloPadrao: "Visão Geral",
 };

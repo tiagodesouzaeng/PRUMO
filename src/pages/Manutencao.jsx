@@ -1,102 +1,55 @@
-/* =====================================================
-   RELEASE........: v7.5 + v7.6 RC1
-   ARQUIVO........: src/pages/Manutencao.jsx
-   DESCRIÇÃO......: Estrutura visual do módulo Manutenção.
-===================================================== */
+import { useEffect, useMemo, useState } from "react";
+import { criarClientePrumo, obterConfiguracaoInfraestrutura, obterContextoDesenvolvimento } from "../services/infraestruturaCorporativa";
+import { useContextoPatrimonial } from "../contexts/ContextoPatrimonialContext";
 
-const OS_PRIORITARIAS = [
-  { titulo: "Vazamento em sanitário", local: "Bloco B · Térreo", status: "Crítico", classe: "danger" },
-  { titulo: "Revisão de bomba", local: "Casa de máquinas · Poço 02", status: "Atenção", classe: "warning" },
-  { titulo: "Troca de luminárias", local: "Corredor Bloco A", status: "Programado", classe: "info" },
-  { titulo: "Inspeção preventiva", local: "Ginásio Poliesportivo", status: "Normal", classe: "success" },
-];
+const hoje=()=>new Date().toISOString().slice(0,10);
+const chave=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random()}`;
+const moeda=(valor)=>Number(valor||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const titulo=(valor)=>String(valor||"").replaceAll("_"," ").replace(/^./,x=>x.toUpperCase());
+const proximo=(prefixo,itens)=>`${prefixo}-${String(itens.reduce((m,x)=>Math.max(m,Number(String(x.codigo||"").match(/(\d+)$/)?.[1])||0),0)+1).padStart(3,"0")}`;
+const caminho=(item)=>item?.caminho?.map(x=>x.nome).join(" › ")||item?.nome||"Local não identificado";
 
-function StatusChip({ children, classe = "neutral" }) {
-  return <span className={`sigiu-status-chip sigiu-status-chip--${classe}`}>{children}</span>;
-}
-
-export default function Manutencao() {
-  return (
-    <section className="sigiu-page sigiu-page-modulo sigiu-page-manutencao">
-      <div className="sigiu-page-heading sigiu-page-heading--modulo">
-        <div>
-          <span className="sigiu-page-eyebrow">Módulo operacional</span>
-          <h1>Manutenção</h1>
-          <p>
-            Base para ordens de serviço, manutenção preventiva, corretiva, pendências prediais e indicadores de atendimento.
-          </p>
-        </div>
-        <div className="sigiu-page-heading__meta">
-          <strong>36</strong>
-          <span>OS abertas</span>
-        </div>
-      </div>
-
-      <div className="sigiu-module-kpis">
-        <article className="sigiu-module-kpi sigiu-module-kpi--danger">
-          <span>!</span>
-          <small>Críticas</small>
-          <strong>5</strong>
-          <em>requerem prioridade</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--warning">
-          <span>⌛</span>
-          <small>Em atendimento</small>
-          <strong>18</strong>
-          <em>equipes acionadas</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--success">
-          <span>✓</span>
-          <small>Concluídas</small>
-          <strong>42</strong>
-          <em>últimos 30 dias</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--primary">
-          <span>▣</span>
-          <small>Preventivas</small>
-          <strong>14</strong>
-          <em>programadas</em>
-        </article>
-      </div>
-
-      <div className="sigiu-module-grid sigiu-module-grid--main-side">
-        <section className="sigiu-card sigiu-module-card">
-          <header className="sigiu-card-header-row">
-            <div>
-              <h2>Ordens prioritárias</h2>
-              <p>Modelo de fila operacional para integração futura com GLPI ou sistema interno.</p>
-            </div>
-          </header>
-
-          <div className="sigiu-module-list">
-            {OS_PRIORITARIAS.map((item) => (
-              <article key={item.titulo} className="sigiu-module-list-row">
-                <div>
-                  <strong>{item.titulo}</strong>
-                  <small>{item.local}</small>
-                </div>
-                <StatusChip classe={item.classe}>{item.status}</StatusChip>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="sigiu-card sigiu-module-card">
-          <header className="sigiu-card-header-row">
-            <div>
-              <h2>Capacidade operacional</h2>
-              <p>Visão sintética para gestão de equipe e backlog.</p>
-            </div>
-          </header>
-
-          <div className="sigiu-capacidade-lista">
-            <article><strong>Predial</strong><span><i style={{ width: "78%" }} /></span><small>78%</small></article>
-            <article><strong>Hidráulica</strong><span><i style={{ width: "64%" }} /></span><small>64%</small></article>
-            <article><strong>Elétrica</strong><span><i style={{ width: "52%" }} /></span><small>52%</small></article>
-            <article><strong>Preventiva</strong><span><i style={{ width: "44%" }} /></span><small>44%</small></article>
-          </div>
-        </section>
-      </div>
-    </section>
-  );
+export default function Manutencao(){
+  const contextoPatrimonial=useContextoPatrimonial();
+  const cliente=useMemo(()=>{const c=obterConfiguracaoInfraestrutura();return c.apiConfigurada?criarClientePrumo({baseUrl:c.apiUrl,obterContexto:()=>obterContextoDesenvolvimento()}):null;},[]);
+  const [dados,setDados]=useState({chamados:[],planos:[],unidades:[],ativos:[],fornecedores:[],resumo:{}}); const [aba,setAba]=useState("chamados"); const [selecionado,setSelecionado]=useState(null); const [ordemSelecionada,setOrdemSelecionada]=useState(null); const [modal,setModal]=useState(""); const [operacao,setOperacao]=useState(""); const [mensagem,setMensagem]=useState(""); const [carregando,setCarregando]=useState(true); const [salvando,setSalvando]=useState(false); const [filtro,setFiltro]=useState("");
+  async function carregar(){if(!cliente){setMensagem("Configure a API local para utilizar Manutenção.");setCarregando(false);return;}try{const [chamados,planos,unidades,ativos,fornecedores,resumo]=await Promise.all([cliente.listarChamadosManutencao(),cliente.listarPlanosManutencao(),cliente.listarUnidadesPatrimoniais({status:"ativo"}),cliente.listarAtivosPatrimoniais(),cliente.listarFornecedores(),cliente.obterResumoManutencao()]);setDados({chamados,planos,unidades,ativos,fornecedores,resumo});setMensagem("");}catch(e){setMensagem(e.message);}finally{setCarregando(false);}}
+  useEffect(()=>{carregar();},[]);
+  async function abrir(item){try{setSelecionado(await cliente.obterChamadoManutencao(item.id));}catch(e){setMensagem(e.message);}}
+  async function recarregar(id=selecionado?.id){await carregar();if(id)setSelecionado(await cliente.obterChamadoManutencao(id));}
+  const chamados=useMemo(()=>dados.chamados.filter(x=>contextoPatrimonial.estaNoEscopo(x.patrimonioUnidadeId)).filter(x=>!filtro||`${x.codigo} ${x.titulo} ${x.solicitante}`.toLocaleLowerCase("pt-BR").includes(filtro.toLocaleLowerCase("pt-BR"))),[dados.chamados,filtro,contextoPatrimonial.idsEscopo]);
+  const acoes=selecionado?{aberto:[["triar","Triar"],["programar","Programar"],["cancelar","Cancelar"]],triado:[["programar","Programar"],["iniciar","Iniciar"]],programado:[["iniciar","Iniciar"]],em_atendimento:[["resolver","Resolver"]],resolvido:[["reabrir","Reabrir"],["fechar","Registrar aceite"]]}[selecionado.status]||[]:[];
+  async function salvar(event){event.preventDefault();setSalvando(true);const fd=Object.fromEntries(new FormData(event.currentTarget));try{
+    if(modal==="chamado")await cliente.criarChamadoManutencao({...fd,dados:{}},chave());
+    if(modal==="plano")await cliente.criarPlanoManutencao({...fd,periodicidadeDias:Number(fd.periodicidadeDias),dados:{}},chave());
+    if(modal==="decisao")await cliente.decidirChamadoManutencao(selecionado.id,{acao:operacao,justificativa:fd.justificativa||"",responsavel:fd.responsavel||""},selecionado.versao,chave());
+    if(modal==="ordem")await cliente.criarOrdemManutencao(selecionado.id,{...fd,dados:{}},chave());
+    if(modal==="recurso")await cliente.adicionarRecursoOrdemManutencao(ordemSelecionada.id,{...fd,quantidade:Number(fd.quantidade),valorUnitario:Number(fd.valorUnitario||0)},chave());
+    setModal("");setOrdemSelecionada(null);await recarregar(["chamado","plano"].includes(modal)?undefined:selecionado?.id);
+  }catch(e){setMensagem(e.message);}finally{setSalvando(false);}}
+  return <div className="sigiu-page sigiu-manutencao-corporativa">
+    <header className="sigiu-page-heading sigiu-page-heading--modulo"><div><span className="sigiu-page-eyebrow">Operação e facilities</span><h1>Manutenção e facilities</h1><p>Chamados, planos preventivos, SLA, ordens, equipes, fornecedores, materiais e custos.</p></div><div className="sigiu-detail-actions"><button onClick={()=>setModal("plano")}>+ Plano preventivo</button><button className="sigiu-primary" onClick={()=>setModal("chamado")}>+ Novo chamado</button></div></header>
+    {mensagem&&<div className="sigiu-feedback">{mensagem}</div>}
+    {contextoPatrimonial.unidadeAtiva&&<div className="sigiu-context-scope-notice">Exibindo o contexto: <strong>{contextoPatrimonial.unidadeAtiva.nome}</strong></div>}
+    <section className="sigiu-module-kpis"><article className="sigiu-module-kpi sigiu-module-kpi--danger"><small>Críticos</small><strong>{dados.resumo.criticos||0}</strong><em>prioridade imediata</em></article><article className="sigiu-module-kpi sigiu-module-kpi--warning"><small>SLA violado</small><strong>{dados.resumo.slaViolado||0}</strong><em>requer ação gerencial</em></article><article className="sigiu-module-kpi sigiu-module-kpi--info"><small>Preventivas próximas</small><strong>{dados.resumo.preventivasProximas||0}</strong><em>próximos 30 dias</em></article><article className="sigiu-module-kpi sigiu-module-kpi--success"><small>Custo das ordens</small><strong>{moeda(dados.resumo.custoOrdens)}</strong><em>{dados.resumo.concluidos||0} chamados fechados</em></article></section>
+    <nav className="sigiu-tabs"><button className={`sigiu-tab ${aba==="chamados"?"is-active":""}`} onClick={()=>setAba("chamados")}>Chamados e SLA</button><button className={`sigiu-tab ${aba==="planos"?"is-active":""}`} onClick={()=>setAba("planos")}>Planos preventivos</button></nav>
+    <div className="sigiu-planning-toolbar"><input aria-label="Pesquisar manutenção" placeholder="Pesquisar código, chamado ou solicitante" value={filtro} onChange={e=>setFiltro(e.target.value)}/><span>{aba==="chamados"?chamados.length:dados.planos.length} registro(s)</span></div>
+    {carregando?<div className="sigiu-empty">Carregando manutenção…</div>:<>
+      {aba==="chamados"&&<div className="sigiu-planning-table"><table><thead><tr><th>Chamado</th><th>Local / ativo</th><th>Prioridade</th><th>SLA</th><th>Responsável</th><th>Status</th><th></th></tr></thead><tbody>{chamados.map(item=><tr key={item.id} onClick={()=>abrir(item)}><td><b>{item.codigo}</b><span>{item.titulo}<br/><small>{item.solicitante||"Solicitante não informado"}</small></span></td><td>{caminho(dados.unidades.find(x=>x.id===item.patrimonioUnidadeId))}</td><td><span className={`sigiu-status status-${item.prioridade}`}>{titulo(item.prioridade)}</span></td><td><span className={`sigiu-status status-${item.situacaoSla}`}>{titulo(item.situacaoSla)}</span><br/><small>{new Date(item.slaVencimento).toLocaleString("pt-BR")}</small></td><td>{item.responsavel||"—"}</td><td>{titulo(item.status)}</td><td><button className="sigiu-link">Abrir</button></td></tr>)}</tbody></table>{!chamados.length&&<div className="sigiu-empty">Nenhum chamado encontrado.</div>}</div>}
+      {aba==="planos"&&<div className="sigiu-planning-table"><table><thead><tr><th>Plano</th><th>Local / ativo</th><th>Especialidade</th><th>Periodicidade</th><th>Próxima execução</th><th>Status</th></tr></thead><tbody>{dados.planos.map(item=><tr key={item.id}><td><b>{item.codigo}</b><span>{item.nome}</span></td><td>{dados.ativos.find(x=>x.id===item.ativoId)?.nome||caminho(dados.unidades.find(x=>x.id===item.patrimonioUnidadeId))}</td><td>{titulo(item.especialidade)}</td><td>{item.periodicidadeDias} dias</td><td>{item.proximaExecucao}</td><td>{titulo(item.status)}</td></tr>)}</tbody></table>{!dados.planos.length&&<div className="sigiu-empty">Nenhum plano preventivo cadastrado.</div>}</div>}
+    </>}
+    {selecionado&&<div className="sigiu-drawer-backdrop" onClick={()=>setSelecionado(null)}><aside className="sigiu-planning-drawer sigiu-contract-drawer" onClick={e=>e.stopPropagation()}><header><div><span className="sigiu-page-eyebrow">{selecionado.codigo} · {titulo(selecionado.prioridade)}</span><h2>{selecionado.titulo}</h2><p>{caminho(dados.unidades.find(x=>x.id===selecionado.patrimonioUnidadeId))}</p></div><button aria-label="Fechar" onClick={()=>setSelecionado(null)}>×</button></header>
+      <section className="sigiu-contract-summary"><article><span>Status</span><strong>{titulo(selecionado.status)}</strong></article><article><span>SLA</span><strong>{titulo(selecionado.situacaoSla)}</strong></article><article><span>Ordens</span><strong>{selecionado.ordens?.length||0}</strong></article><article><span>Custo</span><strong>{moeda(selecionado.ordens?.reduce((s,x)=>s+Number(x.custoTotal||0),0))}</strong></article></section>
+      <p>{selecionado.descricao}</p><div className="sigiu-detail-actions">{acoes.map(([id,label])=><button key={id} className={id==="cancelar"?"danger":""} onClick={()=>{setOperacao(id);setModal("decisao");}}>{label}</button>)}<button onClick={()=>setModal("ordem")}>+ Ordem de serviço</button></div>
+      <section className="sigiu-timeline"><h3>Ordens e recursos</h3>{selecionado.ordens?.map(x=><article key={x.id}><i/><div><b>{x.codigo} · {titulo(x.status)}</b><span>{x.equipe||"Equipe não definida"} · {x.dataProgramada||"Sem programação"}</span><p>{x.diagnostico||"Diagnóstico pendente"} · custo {moeda(x.custoTotal)}</p><button className="sigiu-link" onClick={()=>{setOrdemSelecionada(x);setModal("recurso");}}>Adicionar material, mão de obra ou serviço</button>{x.recursos?.map(r=><small key={r.id}>{titulo(r.tipo)} · {r.descricao} · {r.quantidade} {r.unidade} · {moeda(r.valorTotal)}</small>)}</div></article>)}{!selecionado.ordens?.length&&<p>Nenhuma ordem de serviço emitida.</p>}</section>
+      <section className="sigiu-timeline"><h3>Histórico</h3>{selecionado.decisoes?.map(x=><article key={x.id}><i/><div><b>{titulo(x.acao)} · {titulo(x.statusNovo)}</b><span>{new Date(x.decididoEm).toLocaleString("pt-BR")}</span><p>{x.justificativa||"Movimentação operacional"}</p></div></article>)}</section>
+    </aside></div>}
+    {modal&&<div className="sigiu-modal-backdrop"><form className="sigiu-modal sigiu-planning-small" onSubmit={salvar}><header><div><span className="sigiu-page-eyebrow">Manutenção e facilities</span><h2>{{chamado:"Novo chamado",plano:"Novo plano preventivo",decisao:titulo(operacao),ordem:"Nova ordem de serviço",recurso:"Adicionar recurso e custo"}[modal]}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header><div className="sigiu-form-grid">
+      {modal==="chamado"&&<><label>Código<input name="codigo" required defaultValue={proximo("CH",dados.chamados)}/></label><label className="span-2">Título<input name="titulo" required/></label><label className="span-2">Local<select name="patrimonioUnidadeId" required><option value="">Cliente › Site › Prédio › Sala</option>{dados.unidades.map(x=><option key={x.id} value={x.id}>{caminho(x)}</option>)}</select></label><label>Ativo<select name="ativoId"><option value="">Sem ativo específico</option>{dados.ativos.map(x=><option key={x.id} value={x.id}>{x.codigo} · {x.nome}</option>)}</select></label><label>Tipo<select name="tipo"><option value="corretiva">Corretiva</option><option value="preventiva">Preventiva</option><option value="inspecao">Inspeção</option><option value="melhoria">Melhoria</option></select></label><label>Prioridade<select name="prioridade"><option value="critica">Crítica · 4h</option><option value="alta">Alta · 12h</option><option value="media">Média · 48h</option><option value="baixa">Baixa · 120h</option></select></label><label>Solicitante<input name="solicitante"/></label><label>Responsável<input name="responsavel"/></label><label className="span-2">Descrição<textarea name="descricao" required/></label></>}
+      {modal==="plano"&&<><label>Código<input name="codigo" required defaultValue={proximo("PM",dados.planos)}/></label><label className="span-2">Nome<input name="nome" required/></label><label className="span-2">Local<select name="patrimonioUnidadeId"><option value="">Selecione se o plano não for de um ativo</option>{dados.unidades.map(x=><option key={x.id} value={x.id}>{caminho(x)}</option>)}</select></label><label>Ativo<select name="ativoId"><option value="">Sem ativo específico</option>{dados.ativos.map(x=><option key={x.id} value={x.id}>{x.codigo} · {x.nome}</option>)}</select></label><label>Especialidade<input name="especialidade" defaultValue="predial"/></label><label>Periodicidade (dias)<input type="number" name="periodicidadeDias" min="1" required/></label><label>Próxima execução<input type="date" name="proximaExecucao" required defaultValue={hoje()}/></label><label>Responsável<input name="responsavel"/></label></>}
+      {modal==="decisao"&&<><label>Responsável<input name="responsavel" defaultValue={selecionado?.responsavel}/></label><label className="span-2">Solução, aceite ou justificativa<textarea name="justificativa" required={["resolver","fechar","cancelar"].includes(operacao)}/></label></>}
+      {modal==="ordem"&&<><label>Código<input name="codigo" required defaultValue={`OS-${String((selecionado?.ordens?.length||0)+1).padStart(3,"0")}`}/></label><label>Equipe<input name="equipe"/></label><label>Fornecedor<select name="fornecedorId"><option value="">Execução própria</option>{dados.fornecedores.map(x=><option key={x.id} value={x.id}>{x.razaoSocial||x.nomeFantasia}</option>)}</select></label><label>Data programada<input type="date" name="dataProgramada"/></label><label className="span-2">Diagnóstico inicial<textarea name="diagnostico"/></label></>}
+      {modal==="recurso"&&<><label>Tipo<select name="tipo"><option value="material">Material</option><option value="mao_obra">Mão de obra</option><option value="equipamento">Equipamento</option><option value="servico">Serviço</option></select></label><label className="span-2">Descrição<input name="descricao" required/></label><label>Unidade<input name="unidade"/></label><label>Quantidade<input type="number" name="quantidade" min="0.0001" step="0.0001" required/></label><label>Valor unitário<input type="number" name="valorUnitario" min="0" step="0.0001" defaultValue="0"/></label></>}
+    </div><footer><button type="button" onClick={()=>setModal("")}>Cancelar</button><button className="sigiu-primary" disabled={salvando}>{salvando?"Salvando…":"Confirmar"}</button></footer></form></div>}
+  </div>;
 }

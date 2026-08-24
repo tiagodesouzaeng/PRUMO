@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BASE_PROPRIA_ID, BASES_TODAS_ID } from "../hooks/useBasesPrecos";
 import { UNIDADES_ORCAMENTARIAS } from "../domain/orcamento";
+import { aplicarPrecoPorUf } from "../domain/basesPrecos";
 import ModalComposicaoRastreavel from "../components/Orcamento/ModalComposicaoRastreavel";
 import { UFS_SINAPI } from "../services/sinapiImport";
 import "../styles/orcamento.css";
@@ -160,39 +161,6 @@ function ModalComposicaoPropria({ fechar, basesPrecos, avisar }) {
   );
 }
 
-function referenciaNaUf(item, uf) {
-  if (!item.precosPorUf) return item;
-  const precoUf = Number(item.precosPorUf[uf]) || 0;
-  const precoSp = Number(item.precosPorUf.SP) || 0;
-  return {
-    ...item,
-    preco: precoUf > 0 ? precoUf : precoSp,
-    semPreco: precoUf <= 0 && precoSp <= 0,
-    ufPrecoEfetivo: precoUf > 0 ? uf : (precoSp > 0 ? "SP" : uf),
-    precoSubstituidoSp: precoUf <= 0 && precoSp > 0 && uf !== "SP",
-  };
-}
-
-function ModalValoresEstados({ item, ufSelecionada, fechar, abrirComposicao }) {
-  const precos = item.precosPorUf || {};
-  return (
-    <div className="orc-modal-backdrop" role="presentation" onMouseDown={fechar}>
-      <section className="orc-modal orc-modal-wide state-prices-modal" role="dialog" aria-modal="true" aria-labelledby="state-prices-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><span>PREÇOS POR ESTADO</span><h3 id="state-prices-title">{item.codigo} · {item.descricao}</h3></div><button type="button" onClick={fechar} aria-label="Fechar">×</button></header>
-        <div className="state-prices-summary"><span>Unidade <strong>{item.unidade || "—"}</strong></span><span>Base <strong>{item.baseTitulo || "Base selecionada"}</strong></span><span>UF em uso <strong>{ufSelecionada}</strong></span></div>
-        {item.precosPorUf ? <div className="state-prices-grid">{UFS_SINAPI.map((uf) => {
-          const original = Number(precos[uf]) || 0;
-          const sp = Number(precos.SP) || 0;
-          const fallback = original <= 0 && sp > 0 && uf !== "SP";
-          return <article key={uf} className={`${uf === ufSelecionada ? "is-selected" : ""} ${fallback ? "is-fallback" : ""}`}><strong>{uf}</strong><span>{original > 0 ? moeda(original) : fallback ? `${moeda(sp)} *` : "Sem preço"}</span></article>;
-        })}</div> : <div className="orc-empty-base"><strong>Base sem variação estadual</strong><span>{item.semPreco ? "Preço não informado." : moeda(item.preco)}</span></div>}
-        {item.precosPorUf && <p className="state-prices-legend">* Valor de SP apresentado porque não há preço publicado para o estado.</p>}
-        <footer>{item.tipo === "composicao" && <button type="button" className="orc-btn orc-btn-ghost" onClick={abrirComposicao}>Abrir composição analítica →</button>}<button type="button" className="orc-btn orc-btn-primary" onClick={fechar}>Fechar</button></footer>
-      </section>
-    </div>
-  );
-}
-
 export default function BasesPrecos({ basesPrecos }) {
   const [modal, setModal] = useState("");
   const [aviso, setAviso] = useState("");
@@ -200,15 +168,20 @@ export default function BasesPrecos({ basesPrecos }) {
   const [tipo, setTipo] = useState("todos");
   const [filtrosAbertos, setFiltrosAbertos] = useState(true);
   const [detalhe, setDetalhe] = useState(null);
-  const [itemEstados, setItemEstados] = useState(null);
   const [ufSelecionada, setUfSelecionada] = useState("RS");
+  const [mesSelecionado, setMesSelecionado] = useState("");
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(200);
   const [mostrarTodos, setMostrarTodos] = useState(false);
-  const referenciasComUf = useMemo(() => basesPrecos.referencias.map((item) => referenciaNaUf(item, ufSelecionada)), [basesPrecos.referencias, ufSelecionada]);
+  const referenciasComUf = useMemo(() => basesPrecos.referencias.map((item) => aplicarPrecoPorUf(item, ufSelecionada)), [basesPrecos.referencias, ufSelecionada]);
   const referenciasFiltradas = useMemo(() => referenciasComUf
     .filter((item) => tipo === "todos" || item.tipo === tipo)
-    .filter((item) => !busca.trim() || `${item.codigo} ${item.descricao} ${item.unidade || ""}`.toLocaleLowerCase("pt-BR").includes(busca.trim().toLocaleLowerCase("pt-BR"))), [referenciasComUf, busca, tipo]);
+    .filter((item) => (
+      basesPrecos.baseAtivaId !== BASES_TODAS_ID
+      || !mesSelecionado
+      || item.baseReferencia === mesSelecionado
+    ))
+    .filter((item) => !busca.trim() || `${item.codigo} ${item.descricao} ${item.unidade || ""}`.toLocaleLowerCase("pt-BR").includes(busca.trim().toLocaleLowerCase("pt-BR"))), [referenciasComUf, busca, tipo, basesPrecos.baseAtivaId, mesSelecionado]);
   const totalPaginas = Math.max(1, Math.ceil(referenciasFiltradas.length / porPagina));
   const referencias = mostrarTodos
     ? referenciasFiltradas
@@ -217,15 +190,88 @@ export default function BasesPrecos({ basesPrecos }) {
   const totalItensPreco = Number(baseAtiva?.total)
     || Number(baseAtiva?.composicoes || 0) + Number(baseAtiva?.insumos || 0);
   const totalRegistros = Number(baseAtiva?.registros) || totalItensPreco;
+  const publicacoesConsulta = basesPrecos.publicacoesConsulta || basesPrecos.bases.filter((base) => !base.propria);
+  const baseTodas = basesPrecos.basesSelecionaveis.find((base) => base.id === BASES_TODAS_ID);
+  const basePropria = basesPrecos.basesSelecionaveis.find((base) => base.id === BASE_PROPRIA_ID);
+  const abasBases = useMemo(() => {
+    const fontes = new Map();
+    publicacoesConsulta.forEach((base) => {
+      const atual = fontes.get(base.fonte);
+      if (!atual || base.id === basesPrecos.baseAtivaId) fontes.set(base.fonte, base);
+    });
+    return [baseTodas, ...fontes.values(), basePropria].filter(Boolean);
+  }, [publicacoesConsulta, baseTodas, basePropria, basesPrecos.baseAtivaId]);
+  const mesesDisponiveis = useMemo(() => [...new Set(
+    publicacoesConsulta
+      .filter((base) => (
+        baseAtiva?.id === BASES_TODAS_ID
+        || base.fonte === baseAtiva?.fonte
+      ))
+      .map((base) => base.referencia)
+      .filter(Boolean),
+  )], [publicacoesConsulta, baseAtiva]);
+  const basesLogicas = new Set(publicacoesConsulta.map((base) => base.fonte)).size + (basePropria ? 1 : 0);
+  const filtrosAplicados = [
+    baseAtiva?.id !== BASES_TODAS_ID && `Base: ${baseAtiva?.fonte}`,
+    mesSelecionado && `Mês: ${mesSelecionado}`,
+    baseAtiva?.fonte === "SINAPI" || baseAtiva?.id === BASES_TODAS_ID ? `Estado: ${ufSelecionada}` : false,
+    tipo !== "todos" && `Tipo: ${tipo === "composicao" ? "Composições" : "Insumos"}`,
+    busca.trim() && `Busca: ${busca.trim()}`,
+  ].filter(Boolean);
 
   useEffect(() => {
     setPagina(1);
     setMostrarTodos(false);
   }, [busca, tipo, basesPrecos.baseAtivaId, ufSelecionada, porPagina]);
 
+  useEffect(() => {
+    if (baseAtiva?.id === BASES_TODAS_ID) {
+      setMesSelecionado((atual) => (mesesDisponiveis.includes(atual) ? atual : ""));
+      return;
+    }
+    if (baseAtiva?.propria) {
+      setMesSelecionado("");
+      return;
+    }
+    setMesSelecionado(baseAtiva?.referencia || "");
+  }, [baseAtiva?.id, baseAtiva?.referencia, baseAtiva?.propria, mesesDisponiveis]);
+
   function avisar(texto) {
     setAviso(texto);
     globalThis.setTimeout(() => setAviso(""), 3000);
+  }
+
+  function selecionarAba(base) {
+    basesPrecos.setBaseAtivaId(base.id);
+  }
+
+  function selecionarMes(referencia) {
+    setMesSelecionado(referencia);
+    if ([BASES_TODAS_ID, BASE_PROPRIA_ID].includes(baseAtiva?.id)) return;
+    const encontrada = publicacoesConsulta.find((base) => (
+      base.fonte === baseAtiva?.fonte
+      && base.referencia === referencia
+    ));
+    if (encontrada) basesPrecos.setBaseAtivaId(encontrada.id);
+  }
+
+  function selecionarEstado(uf) {
+    setUfSelecionada(uf);
+    if (!baseAtiva || ["SINAPI", "PRÓPRIA", "TODAS"].includes(baseAtiva.fonte)) return;
+    const encontrada = publicacoesConsulta.find((base) => (
+      base.fonte === baseAtiva.fonte
+      && base.referencia === baseAtiva.referencia
+      && base.uf === uf
+    ));
+    if (encontrada) basesPrecos.setBaseAtivaId(encontrada.id);
+  }
+
+  function limparFiltros() {
+    setBusca("");
+    setTipo("todos");
+    setUfSelecionada("RS");
+    setMesSelecionado("");
+    basesPrecos.setBaseAtivaId(BASES_TODAS_ID);
   }
 
   return (
@@ -234,27 +280,28 @@ export default function BasesPrecos({ basesPrecos }) {
       {modal === "importar" && <ModalImportar fechar={() => setModal("")} basesPrecos={basesPrecos} avisar={avisar} />}
       {modal === "composicao" && <ModalComposicaoPropria fechar={() => setModal("")} basesPrecos={basesPrecos} avisar={avisar} />}
       {detalhe && <ModalComposicaoRastreavel referencia={detalhe} basesPrecos={basesPrecos} fechar={() => setDetalhe(null)} tituloContexto="Rastreabilidade da base" ufSelecionada={ufSelecionada} />}
-      {itemEstados && <ModalValoresEstados item={itemEstados} ufSelecionada={ufSelecionada} fechar={() => setItemEstados(null)} abrirComposicao={() => { setDetalhe(itemEstados); setItemEstados(null); }} />}
-      <div className="orc-section-heading">
-        <div><span>SUBMÓDULO INDEPENDENTE</span><h2>Bases de preços</h2><p>Publicações oficiais, composições analíticas, insumos e base corporativa fora dos orçamentos.</p></div>
-        <div className="orc-heading-actions"><button className="orc-btn orc-btn-ghost" type="button" onClick={() => setModal("importar")}>⇧ Importar base</button><button className="orc-btn orc-btn-primary" type="button" onClick={() => { basesPrecos.setBaseAtivaId(BASE_PROPRIA_ID); setModal("composicao"); }}>＋ Composição própria</button></div>
-      </div>
       <section className="base-monitor-header">
-        <div><span>BASES MONITORADAS</span><strong>{basesPrecos.bases.length} publicações cadastradas</strong></div>
+        <div><span>BASES MONITORADAS</span><strong>{basesLogicas} {basesLogicas === 1 ? "base cadastrada" : "bases cadastradas"} · {publicacoesConsulta.length} {publicacoesConsulta.length === 1 ? "publicação disponível" : "publicações disponíveis"}</strong></div>
         <div className="base-monitor-pills">
           <b>{referenciasFiltradas.length.toLocaleString("pt-BR")} VISÍVEIS</b>
-          <b>{baseAtiva?.fonte || "SEM BASE"} · {baseAtiva?.uf || "—"} · {baseAtiva?.referencia || "—"}</b>
           <div className="catalog-type-buttons"><button type="button" className={tipo === "todos" ? "is-active" : ""} onClick={() => setTipo("todos")}>TODOS</button><button type="button" className={tipo === "composicao" ? "is-active" : ""} onClick={() => setTipo("composicao")}>COMPOSIÇÕES</button><button type="button" className={tipo === "insumo" ? "is-active" : ""} onClick={() => setTipo("insumo")}>INSUMOS</button></div>
         </div>
       </section>
       <section className="orc-card base-filter-panel">
+        <div className="base-filter-actions"><button className="orc-btn orc-btn-ghost" type="button" onClick={() => setModal("importar")}>⇧ Importar base</button><button className="orc-btn orc-btn-primary" type="button" onClick={() => { basesPrecos.setBaseAtivaId(BASE_PROPRIA_ID); setModal("composicao"); }}>＋ Composição própria</button></div>
         <div className="base-filter-primary">
           <label><span>BUSCAR NA BASE</span><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Pesquisar por código, descrição ou unidade..." /></label>
           <button type="button" className="orc-btn orc-btn-primary" onClick={() => setBusca((atual) => atual.trim())}>Atualizar</button>
         </div>
-        <div className="base-publication-tabs">{basesPrecos.basesSelecionaveis.map((base) => <button type="button" key={base.id} className={base.id === basesPrecos.baseAtivaId ? "is-active" : ""} onClick={() => basesPrecos.setBaseAtivaId(base.id)}><strong>{base.fonte}</strong><span>{base.uf} · {base.referencia}</span><small>{Number(base.composicoes || 0).toLocaleString("pt-BR")} comp. · {Number(base.insumos || 0).toLocaleString("pt-BR")} insumos · {Number(base.total || (Number(base.composicoes || 0) + Number(base.insumos || 0))).toLocaleString("pt-BR")} itens</small></button>)}</div>
-        <button className="base-filter-toggle" type="button" onClick={() => setFiltrosAbertos((aberto) => !aberto)}><span><i>{filtrosAbertos ? "−" : "+"}</i> Filtros da publicação</span><b>{referenciasFiltradas.length.toLocaleString("pt-BR")} de {Number(tipo === "todos" ? totalItensPreco : baseAtiva?.[tipo === "composicao" ? "composicoes" : "insumos"] || 0).toLocaleString("pt-BR")}</b></button>
-        {filtrosAbertos && <div className="base-filter-options">{baseAtiva?.id !== BASES_TODAS_ID && <SeletorPublicacao basesPrecos={basesPrecos} />}<label className="base-state-select"><span>Estado para preços</span><select value={ufSelecionada} onChange={(event) => setUfSelecionada(event.target.value)}>{UFS_SINAPI.map((uf) => <option key={uf}>{uf}</option>)}</select></label></div>}
+        <div className="base-publication-tabs">{abasBases.map((base) => {
+          const ativa = base.id === basesPrecos.baseAtivaId
+            || (!base.propria && !base.todas && base.fonte === baseAtiva?.fonte);
+          const mesesFonte = new Set(publicacoesConsulta.filter((item) => item.fonte === base.fonte).map((item) => item.referencia)).size;
+          return <button type="button" key={base.todas || base.propria ? base.id : base.fonte} className={ativa ? "is-active" : ""} onClick={() => selecionarAba(base)}><strong>{base.fonte}</strong><span>{base.todas ? "Todas as bases" : base.propria ? "Cadastro corporativo" : `${mesesFonte} ${mesesFonte === 1 ? "publicação mensal" : "publicações mensais"}`}</span><small>{Number(base.composicoes || 0).toLocaleString("pt-BR")} comp. · {Number(base.insumos || 0).toLocaleString("pt-BR")} insumos · {Number(base.total || (Number(base.composicoes || 0) + Number(base.insumos || 0))).toLocaleString("pt-BR")} itens</small></button>;
+        })}</div>
+        <button className="base-filter-toggle" type="button" onClick={() => setFiltrosAbertos((aberto) => !aberto)}><span><i>{filtrosAbertos ? "−" : "+"}</i> Filtros da visualização <em>{filtrosAplicados.length} aplicados</em></span><b>{referenciasFiltradas.length.toLocaleString("pt-BR")} de {Number(tipo === "todos" ? totalItensPreco : baseAtiva?.[tipo === "composicao" ? "composicoes" : "insumos"] || 0).toLocaleString("pt-BR")}</b></button>
+        <div className="base-active-filters"><span>VISUALIZAÇÃO ATUAL</span>{filtrosAplicados.map((filtro) => <b key={filtro}>{filtro}</b>)}{!filtrosAplicados.length && <b className="is-empty">Sem filtros adicionais</b>}<button type="button" onClick={limparFiltros}>× Limpar filtros</button></div>
+        {filtrosAbertos && !baseAtiva?.propria && <div className="base-filter-options compact"><label className="base-state-select"><span>Mês de referência</span><select value={mesSelecionado} onChange={(event) => selecionarMes(event.target.value)}>{baseAtiva?.id === BASES_TODAS_ID && <option value="">Todos os meses</option>}{mesesDisponiveis.map((referencia) => <option key={referencia}>{referencia}</option>)}</select></label><label className="base-state-select"><span>Estado para preços</span><select value={ufSelecionada} onChange={(event) => selecionarEstado(event.target.value)}>{UFS_SINAPI.map((uf) => <option key={uf}>{uf}</option>)}</select></label></div>}
       </section>
       <div className="base-count-grid">
         <article><span>COMPOSIÇÕES</span><strong>{Number(baseAtiva?.composicoes || 0).toLocaleString("pt-BR")}</strong><small>Serviços compostos</small></article>
@@ -266,11 +313,11 @@ export default function BasesPrecos({ basesPrecos }) {
         <header><div><span>CATÁLOGO</span><h3>{baseAtiva?.titulo || "Selecione uma base"}</h3></div><div className="base-catalog-header-actions"><label>Itens por página <select disabled={mostrarTodos} value={porPagina} onChange={(event) => setPorPagina(Number(event.target.value))}><option value="200">200</option><option value="500">500</option><option value="1000">1.000</option></select></label><button type="button" onClick={() => setMostrarTodos((valor) => !valor)}>{mostrarTodos ? "Usar paginação" : `Exibir todos (${referenciasFiltradas.length.toLocaleString("pt-BR")})`}</button></div></header>
         <div className="base-catalog-results">
           {referencias.map((item) => (
-            <article key={`${item.basePrecoId || baseAtiva?.id}-${item.tipo}-${item.codigo}`} className="is-clickable" onClick={() => setItemEstados({ ...item, basePrecoId: item.basePrecoId || baseAtiva?.id, baseTitulo: item.baseTitulo || baseAtiva?.titulo })}>
+            <article key={`${item.basePrecoId || baseAtiva?.id}-${item.tipo}-${item.codigo}`} className="is-clickable" onClick={() => setDetalhe({ ...item, basePrecoId: item.basePrecoId || baseAtiva?.id, baseTitulo: item.baseTitulo || baseAtiva?.titulo })}>
               <span><strong>{item.codigo}</strong><small>{item.tipo}</small></span>
               <p>{item.descricao}</p>
               <span className="base-item-unit"><small>UNIDADE</small><strong>{item.unidade || "—"}</strong></span>
-              <b className={item.semPreco ? "sem-preco" : ""}>{item.semPreco ? "Sem preço nesta UF" : <>{moeda(item.preco)}{item.precoSubstituidoSp && <sup>*</sup>}</>}</b>
+              <b className={item.semPreco ? "sem-preco" : ""} title={item.precoSubstituidoSp ? `Valor de SP utilizado porque não há preço publicado para ${ufSelecionada}.` : undefined}>{item.semPreco ? "Sem preço nesta UF" : <>{moeda(item.preco)}{item.precoSubstituidoSp && <sup>*</sup>}</>}</b>
               {baseAtiva?.propria && <button type="button" onClick={(event) => { event.stopPropagation(); basesPrecos.removerComposicaoPropria(basesPrecos.composicoesProprias.find((cpu) => cpu.codigo === item.codigo)?.id); }}>×</button>}
             </article>
           ))}
@@ -279,7 +326,6 @@ export default function BasesPrecos({ basesPrecos }) {
         {!mostrarTodos && referenciasFiltradas.length > porPagina && <footer className="base-pagination"><button type="button" disabled={pagina === 1} onClick={() => setPagina((atual) => Math.max(1, atual - 1))}>← Anterior</button><span>Página {pagina} de {totalPaginas} · {referenciasFiltradas.length.toLocaleString("pt-BR")} registros</span><button type="button" disabled={pagina === totalPaginas} onClick={() => setPagina((atual) => Math.min(totalPaginas, atual + 1))}>Próxima →</button></footer>}
         {referencias.some((item) => item.precoSubstituidoSp) && <p className="base-price-legend">* Valor de SP utilizado porque a publicação não possui preço para {ufSelecionada}.</p>}
       </main>
-      {basesPrecos.usuarioAdministrador && <aside className="orc-card base-admin-archive"><header><div><span>ADMINISTRAÇÃO E AUDITORIA</span><h3>Arquivo interno das bases</h3></div>{baseAtiva && !baseAtiva.propria && !baseAtiva.todas && <button type="button" onClick={async () => { await basesPrecos.remover(baseAtiva.id); avisar("Base arquivada, renomeada e indisponível para os demais usuários."); }}>Arquivar base ativa</button>}</header><p>O arquivo original importado permanece no armazenamento interno. Bases arquivadas conservam catálogo, composições, hash e histórico.</p>{basesPrecos.basesExcluidas.map((base) => <div key={base.id}><span><strong>{base.titulo}</strong><small>Arquivada em {new Date(base.excluidaEm).toLocaleString("pt-BR")} · arquivo renomeado para auditoria</small></span><button type="button" onClick={async () => { await basesPrecos.restaurar(base.id); avisar("Base restaurada e disponibilizada novamente."); }}>Restaurar</button></div>)}</aside>}
       <aside className="orc-card procurement-roadmap-note"><span>EVOLUÇÃO PLANEJADA</span><strong>Relatório de suprimentos</strong><p>A decomposição recursiva das composições preparada nesta etapa será a base para calcular insumos, consumo por cronograma e datas de compra com antecedência configurável.</p></aside>
     </section>
   );

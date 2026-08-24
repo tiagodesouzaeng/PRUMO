@@ -10,12 +10,12 @@ export default function PlaceholderModulo({ modulo, descricao, icone = "▣" }) 
       <div className="sigiu-placeholder sigiu-card">
         <span className="sigiu-placeholder__icon">{icone}</span>
         <div>
-          <span className="sigiu-page-eyebrow">Módulo SIGIU</span>
+          <span className="sigiu-page-eyebrow">Módulo PRUMO</span>
           <h1>{modulo}</h1>
           <p>{descricao}</p>
         </div>
         <div className="sigiu-placeholder__notice">
-          Estrutura visual criada na Sprint 7.2. A integração de dados será tratada em sprint específica.
+          Estrutura visual preparada para integração com os dados corporativos do módulo.
         </div>
       </div>
     </section>

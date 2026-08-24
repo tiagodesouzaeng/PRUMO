@@ -3,6 +3,7 @@
 @import "./styles/sigiuLayout.css";
 @import "./styles/sigiuPages.css";
 @import "./styles/orcamento.css";
+@import "./styles/prumoUnified.css";
 
 body {
   margin: 0;

@@ -1,0 +1,604 @@
+# Backlog permanente do PRUMO
+
+Atualizado em: 08/08/2026
+
+Este arquivo é o registro permanente das melhorias que não devem interromper a
+sprint em execução. Novos itens devem receber um identificador, contexto,
+critérios mínimos de aceite e manter o histórico de situação.
+
+## Situações
+
+- `A avaliar`: demanda registrada, ainda sem desenho funcional definitivo.
+- `Pesquisado`: referências e premissas levantadas, aguardando planejamento.
+- `Planejado`: incluído formalmente em uma sprint futura.
+- `Em desenvolvimento`: implementação iniciada.
+- `Concluído`: implementado e validado.
+
+## Itens ativos
+
+### BL-001 — Separação do custo unitário entre material e mão de obra
+
+- **Situação:** A avaliar
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Bases de Preços, Composições, Orçamentos, Propostas e
+  Licitações
+- **Necessidade:** o custo unitário de cada composição e item do orçamento deve
+  ser formado e exibido como `Material + Mão de obra (serviços)`.
+- **Motivação:** permitir a aplicação correta e auditável dos encargos sociais
+  sobre a parcela pertinente da proposta.
+- **Critérios mínimos para futura implementação:**
+  - classificar recursivamente os componentes das composições;
+  - separar mão de obra, materiais e, se necessário, equipamentos;
+  - preservar a rastreabilidade até o insumo de origem;
+  - garantir que a soma das parcelas corresponda ao custo unitário;
+  - definir explicitamente a base de incidência dos encargos sociais;
+  - refletir a separação nas telas e planilhas de licitação.
+
+### BL-002 — BDI diferenciado para fornecimentos relevantes
+
+- **Situação:** Concluído na v10.2.0 DEV1
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** BDI e Encargos, Orçamentos, Propostas e Licitações
+- **Necessidade:** permitir BDI reduzido para itens de mero fornecimento quando
+  estiverem presentes os requisitos técnicos e jurídicos aplicáveis.
+- **Premissas levantadas:**
+  - a Súmula TCU 253 condiciona o BDI reduzido à inviabilidade
+    técnico-econômica de parcelamento, à natureza específica do fornecimento, à
+    possibilidade de fornecimento por empresa especializada e à
+    representatividade do item no valor global;
+  - materiais ordinários incorporados à execução da obra não devem ser
+    automaticamente tratados como fornecimento sujeito a BDI diferenciado;
+  - o Acórdão TCU 2.622/2013-Plenário apresenta faixa referencial de 11,10% a
+    16,80%, com média de 14,02%, para mero fornecimento de materiais e
+    equipamentos;
+  - o BDI diferenciado tende a excluir o ISS do mero fornecimento e a reduzir
+    parcelas como administração central e remuneração, mas a taxa deve ser
+    calculada e justificada para o caso concreto;
+  - situações de aquisição, fabricação ou logística não padronizadas podem
+    exigir cálculo específico conforme a complexidade.
+- **Critérios implementados:**
+  - classificação explícita do item como serviço, material ordinário ou mero
+    fornecimento relevante;
+  - justificativa técnica obrigatória e registro da inviabilidade de
+    parcelamento;
+  - duas composições de BDI independentes, normal e diferenciada;
+  - memória de cálculo, autor, data e referência normativa;
+  - aplicação do BDI selecionado no item, com totalizações auditáveis;
+  - alertas para uso indevido do BDI reduzido.
+- **Resultado entregue:**
+  - composição analítica independente para o BDI normal e o diferenciado;
+  - validação obrigatória dos requisitos da Súmula TCU 253/2010 antes da
+    aplicação da taxa reduzida;
+  - retorno automático ao BDI normal enquanto houver requisito, responsável ou
+    justificativa pendente;
+  - memória normativa e técnica por item, com responsável e data;
+  - bases, valores e quantidades de itens separados nas totalizações;
+  - aplicação da taxa correspondente nas planilhas de orçamento e proposta;
+  - memória dos itens classificados na aba `BDI e Encargos` do pacote XLSX.
+- **Referências oficiais consultadas:**
+  - Súmula TCU 253/2010:
+    https://pesquisa.apps.tcu.gov.br/documento/sumula/%2A/NUMERO%253A253%2520/DTRELEVANCIA%20desc%2C%20NUMEROINT%20desc/0/sinonimos%253Dtrue
+  - Acórdão TCU 2.622/2013-Plenário:
+    https://pesquisa.apps.tcu.gov.br/documento/acordao-completo/%2A/NUMACORDAO%3A2622%20ANOACORDAO%3A2013%20COLEGIADO%3A%22Plen%C3%A1rio%22/DTRELEVANCIA%20desc%2C%20NUMACORDAOINT%20desc/0
+  - Manual de Obras e Serviços de Engenharia da Consultoria-Geral da União,
+    itens 2.5.8 e 2.9:
+    https://www.gov.br/agu/pt-br/composicao/cgu/arquivos/ManualdeObraseservicosdeengenharia.pdf
+  - Portaria Conjunta MGI/MF/CGU nº 33/2023, art. 74:
+    https://www.gov.br/transferegov/pt-br/legislacao/portarias/portaria-conjunta-mgi-mf-cgu-no-33-de-30-de-agosto-de-2023
+
+### BL-003 — Estratégia de importação de bases públicas e gratuitas
+
+- **Situação:** Em desenvolvimento — catálogo corporativo concluído na v10.3 DEV4
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Bases de Preços, Administração, Composições,
+  Orçamentos e Integrações
+- **Necessidade:** manter um catálogo de fontes públicas e gratuitas de preços,
+  insumos e composições de obras, preparando importadores independentes e
+  auditáveis para futuras versões do PRUMO.
+
+#### Fontes prioritárias confirmadas
+
+| Base | Gestor | Cobertura | Publicação identificada | Prioridade |
+|---|---|---|---|---|
+| SINAPI | CAIXA/IBGE | Edificações e serviços de engenharia, todas as UF | Mensal, ZIP com XLSX de insumos, composições, famílias, manutenção e percentual de mão de obra | P0 — importador existente a consolidar |
+| SICRO | DNIT | Infraestrutura rodoviária, ferroviária, aquaviária e correlata, por UF | Relatórios por estado e referência, normalmente em pacotes 7Z, com ciclos trimestrais observados | P1 |
+| ORSE | CEHOP/SE | Obras e serviços de engenharia, referência Sergipe | Base mensal para download e consulta web de composições analíticas | P1 |
+| SIURB | Prefeitura de São Paulo | Edificações e infraestrutura urbana | Publicação semestral, em janeiro e julho, com arquivos Excel onerados e desonerados | P1 |
+| SEINFRA-CE | Governo do Ceará | Edificações e infraestrutura | Tabelas versionadas com insumos, composições, planos de serviços e mão de obra em XLS, ODS, PDF e ZIP | P2 |
+| SCO-RIO | Prefeitura do Rio de Janeiro | Obras e serviços municipais | Catálogos de itens elementares, serviços, composições e boletins; disponibilidade pública, mas formatos e atualização automatizada precisam ser confirmados | P2 — validação técnica |
+| Preço SETOP | Governo de Minas Gerais | Obras de edificações estaduais | Planilha referencial com composições; página pública localizada, mas continuidade, versão atual e formato precisam ser confirmados | P2 — validação técnica |
+| Tabela de Custos de Curitiba | Prefeitura de Curitiba | Edificações, infraestrutura, iluminação e itens complementares | Arquivos XLSX de composições, cotações, encargos e BDI; periodicidade observada como anual | P2 — complementar |
+
+#### Fontes não enquadradas como gratuitas
+
+- **EMOP-RJ:** é uma referência pública oficial, porém a página oficial informa
+  cobrança pelos boletins e catálogos completos. Não deve entrar na fila de
+  importadores gratuitos sem mudança de licenciamento ou autorização.
+- Bases privadas como SBC, TCPO/PINI e equivalentes devem ser tratadas por
+  importação licenciada pelo usuário, sem redistribuição pelo PRUMO.
+
+#### Estratégia técnica prevista
+
+1. **Cadastro da fonte**
+   - órgão gestor, endereço oficial, abrangência, regime, periodicidade,
+     licença/condições de uso e situação operacional;
+   - separação entre a identidade da base e cada publicação mensal, trimestral
+     ou semestral.
+2. **Aquisição auditável**
+   - download somente de endereço oficial HTTPS;
+   - preservação do arquivo original, URL, data, tamanho e hash;
+   - suporte planejado a ZIP, 7Z, XLSX, XLS, ODS, CSV e, apenas como último
+     recurso, PDF estruturado;
+   - importação manual como alternativa quando não houver endereço estável.
+3. **Adaptadores independentes**
+   - um adaptador por fonte e versão de leiaute;
+   - detecção por conteúdo e cabeçalhos, nunca apenas pelo nome do arquivo;
+   - testes com amostras reais preservadas e sem acoplamento ao orçamento.
+4. **Modelo canônico do PRUMO**
+   - fonte, publicação, referência, UF/região, regime e código original;
+   - tipo: composição, insumo, mão de obra, material, equipamento ou serviço
+     auxiliar;
+   - descrição, unidade, preço e situação do preço;
+   - componentes analíticos, coeficientes e vínculos recursivos;
+   - parcelas de material, mão de obra e equipamento quando publicadas ou
+     calculáveis;
+   - rastreabilidade integral até o registro e arquivo de origem.
+5. **Validação antes da publicação**
+   - contagem de registros, códigos duplicados, unidades vazias e preços
+     ausentes;
+   - conferência da soma analítica das composições;
+   - detecção de ciclos e referências inexistentes;
+   - comparação com a publicação anterior e alerta para variações anormais;
+   - prévia para homologação antes de disponibilizar a base aos usuários.
+6. **Versionamento**
+   - publicações imutáveis e independentes dos orçamentos;
+   - arquivamento e restauração administrativa;
+   - atualização dos itens do orçamento somente por ação controlada, com
+     comparação entre valores anteriores e novos.
+
+#### Ordem recomendada de desenvolvimento
+
+1. consolidar o adaptador nacional do SINAPI e seus testes de regressão;
+2. criar o mecanismo comum de adaptadores e implementar SICRO;
+3. implementar ORSE e SIURB, que ampliam a cobertura de edificações;
+4. implementar SEINFRA-CE;
+5. homologar SCO-RIO, SETOP e Curitiba após validar continuidade, formatos e
+   condições de uso;
+6. disponibilizar um importador genérico mapeável para bases públicas futuras e
+   arquivos licenciados fornecidos pelo usuário.
+
+#### Referências oficiais consultadas
+
+- SINAPI — CAIXA:
+  https://www.caixa.gov.br/poder-publico/modernizacao-gestao/sinapi/Paginas/default.aspx
+- SICRO — DNIT:
+  https://www.gov.br/dnit/pt-br/assuntos/planejamento-e-pesquisa/custos-referenciais/sistemas-de-custos/sicro
+- Relatórios SICRO — DNIT:
+  https://www.gov.br/dnit/pt-br/assuntos/planejamento-e-pesquisa/custos-referenciais/sistemas-de-custos/sicro/relatorios
+- ORSE — CEHOP/SE:
+  https://orse.cehop.se.gov.br/
+- SEINFRA-CE — downloads da Tabela de Custos:
+  https://sites.seinfra.ce.gov.br/siproce/desonerada/tabela-custo-download.html
+- SIURB — Tabelas de Custos:
+  https://prefeitura.sp.gov.br/web/obras/w/tabelas_de_custos/355179
+- SCO-RIO — consulta pública:
+  https://www.rio.rj.gov.br/web/guest/resultado?parambusca=SCO
+- Preço SETOP — SEINFRA/MG:
+  https://www.infraestrutura.mg.gov.br/ajuda/page/44-preco-setop
+- Tabela de Custos — Prefeitura de Curitiba:
+  https://obras.curitiba.pr.gov.br/conteudo/tabela-de-custos/825
+- Condições comerciais dos catálogos EMOP-RJ:
+  https://www.rj.gov.br/emop/catalogos-emop
+
+### BL-004 — Atualização das bases de preços utilizadas pelo orçamento
+
+- **Situação:** Planejado — catálogo corporativo disponível na v10.3 DEV4
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Orçamentos, Revisões, Bases de Preços, Composições
+  Próprias, Cronograma, Suprimentos, Propostas e Licitações
+- **Necessidade:** permitir que o responsável atualize um orçamento elaborado
+  com publicações antigas das bases de preços para publicações mais recentes,
+  antes de sua aprovação, contratação ou publicação.
+- **Exemplo de aplicação:** um orçamento elaborado com a referência `05/2026`
+  poderá ser comparado e atualizado para `06/2026` ou outra publicação
+  homologada disponível.
+- **Premissas funcionais:**
+  - a atualização deve ser iniciada por uma ação explícita do usuário;
+  - o usuário deve selecionar a publicação de destino de cada base utilizada;
+  - estado, regime, unidade e código original devem participar da
+    correspondência;
+  - itens sem preço no estado selecionado devem continuar sujeitos à regra
+    controlada de substituição por SP, com indicação da origem;
+  - composições próprias devem ser recalculadas recursivamente quando
+    utilizarem insumos ou composições das bases atualizadas;
+  - a atualização não deve alterar a publicação original nem sobrescrever
+    silenciosamente o orçamento vigente.
+- **Critérios mínimos para futura implementação:**
+  - botão ou assistente `Atualizar bases de preços` dentro do orçamento;
+  - inventário das bases e publicações utilizadas direta ou indiretamente;
+  - sugestão das publicações homologadas mais recentes;
+  - simulação anterior à aplicação, exibindo valor anterior, novo valor,
+    diferença absoluta e variação percentual;
+  - identificação de itens incluídos, removidos, sem correspondência, sem preço
+    ou com alteração de unidade e descrição;
+  - recálculo recursivo e rastreável das composições próprias;
+  - detecção de ciclos e referências quebradas;
+  - atualização dos custos de material, mão de obra e equipamento conforme a
+    classificação disponível;
+  - recálculo dos itens, grupos da EAP, BDI, cronograma, suprimentos e total do
+    orçamento;
+  - seleção dos itens que poderão ou não ser atualizados;
+  - justificativa e confirmação obrigatórias antes da aplicação;
+  - criação automática de uma nova revisão do orçamento;
+  - preservação da revisão anterior para comparação e restauração;
+  - memória contendo usuário, data, publicações de origem e destino e todos os
+    valores alterados;
+  - bloqueio ou fluxo específico para orçamentos já aprovados, tratando a
+    atualização como estudo de aditivo ou supressão;
+  - testes de regressão garantindo que itens manuais ou expressamente
+    congelados não sejam alterados.
+- **Diretriz técnica:** o cálculo deverá operar no servidor como trabalho
+  assíncrono quando o orçamento ou as composições relacionadas tiverem grande
+  volume, permitindo acompanhar o progresso e cancelar antes da aplicação
+  definitiva.
+- **Avanço na v10.3.0 DEV1:**
+  - criado o contrato do trabalho `atualizar-precos-orcamento`;
+  - empresa, equipe, usuário, orçamento e revisão de origem são obrigatórios;
+  - publicações de destino fazem parte da chave de idempotência;
+  - a primeira execução é obrigatoriamente uma simulação;
+  - o contrato prevê recálculo recursivo das composições próprias;
+  - itens manuais são preservados por padrão;
+  - a aplicação definitiva já exige a criação de uma nova revisão;
+  - a comparação e a aplicação efetiva permanecem pendentes do catálogo
+    corporativo e dos workers das próximas entregas.
+- **Avanço na v10.3.0 DEV4/DEV5:**
+  - fontes, publicações, itens, preços por UF e componentes analíticos já possuem
+    persistência corporativa;
+  - composições próprias podem ser homologadas por lote;
+  - cada publicação preserva referência, regime, arquivo e hash de origem;
+  - permanece pendente o worker que fará a comparação e o recálculo assíncrono
+    do orçamento.
+- **Avanço na v10.3.0 DEV6/DEV7:**
+  - implantada a fila PostgreSQL com progresso, tentativas e reprocessamento;
+  - implantado o worker separado da interação principal;
+  - disponível o executor inicial de recálculo de orçamento;
+  - os repositórios homologados agora passam por modo híbrido antes da ativação
+    corporativa;
+  - permanece pendente a regra completa de comparação entre publicações e a
+    geração automática da revisão de atualização de preços.
+
+### BL-005 — Convergência modular do produto
+
+- **Situação:** Fundação concluída — v10.6.0
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Todos
+- **Necessidade:** operar PRUMO ERP e PRUMO Governança como edições comerciais
+  de um único produto, permitindo contratação e ativação de módulos avulsos sem
+  duplicar código, banco ou cadastros.
+- **Critérios mínimos para futura implementação:**
+  - distinguir módulo disponível, contratado, habilitado e permitido;
+  - manter capacidades, dependências e limites por empresa;
+  - aplicar o bloqueio no frontend, API, tarefas, relatórios e integrações;
+  - separar licença comercial de permissão de usuário e isolamento RLS;
+  - suportar pacotes comerciais e módulos avulsos;
+  - registrar ativações, suspensões e mudanças de pacote na auditoria;
+  - impedir que módulos planejados sejam apresentados como implementados.
+- **Implementado na v10.6.0:** catálogo versionado, capacidades, dependências,
+  contratos por empresa, perfis de organização, bloqueio no contexto da API e
+  no menu, auditoria das alterações e proteção de dependências no banco.
+- **Continuidade:** pacotes, limites e cobrança permanecem como evolução
+  comercial; módulos futuros continuam ocultos até atenderem ao critério de
+  passagem do roadmap.
+
+### BL-006 — Cadastro patrimonial canônico
+
+- **Situação:** Concluído localmente — v11.0.0
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Patrimônio, Obras, Manutenção, Regularidade, Utilidades,
+  Documentos e Relatórios
+- **Necessidade:** estabelecer uma fonte corporativa única para a hierarquia
+  física `Cliente > Site > Prédio > Sala`.
+- **Critérios de implementação atendidos:**
+  - validar a sequência e impedir relacionamentos hierárquicos inválidos;
+  - permitir ativos e equipamentos vinculados à sala;
+  - manter identificação, áreas, endereço, responsáveis, ocupação e situação;
+  - preservar histórico de alterações, movimentações e desativações;
+  - separar a hierarquia patrimonial da EAP de orçamento ou projeto;
+  - aplicar RLS e permissões por empresa e equipe;
+  - permitir que todos os módulos referenciem os mesmos identificadores.
+- **Implementado na v11.0.0:** módulo e interface próprios, árvore validada,
+  ativos, movimentações imutáveis, controle de versão, desativação protegida,
+  RLS por empresa/equipe, auditoria, vínculo com empreendimentos e GED, testes
+  reais de isolamento e recuperação PostgreSQL verificada.
+
+### BL-006A — Demandas e Carteira de Investimentos
+
+- **Situação:** Concluído localmente — v12.0.0
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Planejamento, Patrimônio, Obras, Orçamentos, Suprimentos,
+  Documentos, Relatórios e Auditoria
+- **Necessidade:** transformar necessidades identificadas no patrimônio em uma
+  carteira anual priorizada, aprovada, financeiramente controlada e rastreável.
+- **Implementado na v12.0.0:** programas, demandas vinculadas ao patrimônio,
+  pontuação ponderada, fluxo de decisões imutáveis, carteiras anuais, limite
+  financeiro, RLS por empresa/equipe, idempotência, controle de versão, API,
+  interface responsiva, auditoria e testes reais no PostgreSQL.
+- **Continuidade:** a Sprint 13 deverá consumir demandas incorporadas para iniciar
+  o planejamento das contratações e aquisições.
+
+### BL-007 — Suprimentos, contratações e contratos
+
+- **Situação:** Concluído localmente nas Sprints 13 e 14
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Planejamento, Orçamentos, Suprimentos, Contratos,
+  Medições, Financeiro, Documentos e Auditoria
+- **Necessidade:** completar o ciclo entre demanda, planejamento, seleção,
+  contratação, recebimento, fiscalização e encerramento.
+- **Implementado na v13.0.0:** fornecedores compartilhados, processos originados
+  por demanda incorporada ou orçamento, estudos, riscos, termo de referência,
+  pesquisa de preços, julgamento, pedidos, recebimentos, RLS, auditoria,
+  idempotência, controle de versão, API e interface.
+- **Implementado na v14.0.0:** contratos e atas originados pelo fornecedor
+  vencedor, vigência, saldos, gestores, fiscais, aditivos, reajustes, garantias,
+  execução, ocorrências, sanções, encerramento, RLS, API e interface.
+- **Continuidade:** a Sprint 15 consumirá contratos e execuções no módulo
+  Financeiro-orçamentário.
+- **Critérios mínimos para futura implementação:**
+  - fluxos configuráveis para administração pública, federação e privado;
+  - planejamento da contratação, estudos, riscos e termo de referência;
+  - pesquisa e memória de preços, propostas e julgamento;
+  - pedidos, recebimentos e fornecedores compartilhados;
+  - contratos, atas, vigência, saldo, gestores e fiscais;
+  - aditivos, reajustes, garantias, ocorrências, sanções e encerramento;
+  - integração explícita com orçamento, medição, financeiro e documentos;
+  - trilha integral de aprovação e segregação de funções.
+
+### BL-008 — Financeiro-orçamentário modular
+
+- **Situação:** Concluído — Sprint 15 / v15.0.0
+- **Prioridade sugerida:** Crítica
+- **Módulos afetados:** Planejamento, Suprimentos, Contratos, Medições,
+  Convênios, Relatórios e Auditoria
+- **Necessidade:** controlar a execução gerencial e financeira dos investimentos,
+  contratos, compras e serviços sem obrigar o PRUMO a substituir inicialmente
+  os sistemas fiscais, contábeis e trabalhistas especializados.
+- **Implementado na v15.0.0:**
+  - planejamento anual e plurianual, centros de custo e fontes de recurso;
+  - conceitos configuráveis de dotação, reserva, empenho, liquidação e pagamento;
+  - equivalentes empresariais para federações e organizações privadas;
+  - compromissos originados por pedidos, contratos e medições;
+  - retenções, glosas, saldos, CAPEX, OPEX e fluxo projetado;
+  - realizado contra previsto por empreendimento, contrato e organização;
+  - APIs de integração com sistemas contábeis, bancários e oficiais;
+  - conciliação e auditoria sem exposição de credenciais ou dados sensíveis.
+
+### BL-009 — Convênios, repasses e prestação de contas
+
+- **Situação:** Concluído — Sprint 18 / v18.0.0
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Planejamento, Patrimônio, Obras, Contratos, Financeiro,
+  Documentos, Relatórios e Auditoria
+- **Necessidade:** acompanhar instrumentos de repasse desde a celebração até a
+  comprovação do objeto e a prestação de contas.
+- **Implementado na v18.0.0:**
+  - concedente, recebedor, vigência, plano de trabalho, metas e etapas;
+  - fontes, contrapartidas, parcelas e cronograma de desembolso;
+  - vínculo com contratos, obras, medições e execução financeira;
+  - evidências do cumprimento físico e financeiro;
+  - pendências, prazos, diligências e aprovações;
+  - prestação de contas e relatórios auditáveis;
+  - integração preparada para plataformas oficiais sem duplicação de registros.
+
+### BL-010 — Contexto patrimonial global no banner
+
+- **Situação:** Concluído nas Sprints 21 e 22
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Todos os módulos operacionais, Visão Geral, Relatórios e
+  Administração
+- **Necessidade:** substituir a unidade fixa apresentada no banner por um
+  contexto real e compartilhado, permitindo que o usuário saiba para qual
+  cliente e recorte patrimonial está consultando ou registrando informações.
+- **Requisitos mínimos:**
+  - exibir permanentemente no banner o nome do cliente ativo;
+  - remover o texto fixo `Campus Canoas`;
+  - disponibilizar uma caixa de seleção hierárquica com `Site > Prédio > Sala`;
+  - permitir seleção em qualquer um dos três níveis;
+  - ao selecionar um Site ou Prédio, considerar todos os descendentes do nível;
+  - apresentar o caminho completo da seleção e uma ação clara para limpar o
+    recorte;
+  - preservar a seleção durante a navegação entre módulos;
+  - aplicar o mesmo contexto aos indicadores, tabelas, relatórios e cadastros
+    compatíveis;
+  - carregar apenas locais pertencentes ao cliente, empresa, equipe e permissões
+    ativos;
+  - impedir que a seleção visual altere ou atravesse o isolamento RLS;
+  - oferecer comportamento responsivo para desktop e dispositivos móveis;
+  - registrar testes de propagação do contexto e prevenção de acesso cruzado.
+- **Critério de aceite:** o nome do cliente e o caminho patrimonial selecionado
+  permanecem visíveis e todos os módulos compatíveis atualizam seus dados sem
+  misturar organizações ou locais fora do escopo autorizado.
+
+### BL-011 — Correção da exclusão de Sites
+
+- **Situação:** Concluído na Sprint 21
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Patrimônio, Administração, Auditoria e módulos que
+  referenciam a hierarquia patrimonial
+- **Problema:** o botão de exclusão apresentado no cadastro patrimonial não está
+  removendo o Site selecionado.
+- **Requisitos mínimos:**
+  - permitir a exclusão de Site sem registros dependentes;
+  - solicitar confirmação explícita antes da operação;
+  - bloquear a exclusão quando existirem Prédios, Salas, ativos, documentos,
+    demandas, obras, manutenção ou outros vínculos associados;
+  - apresentar ao usuário quais vínculos impedem a exclusão;
+  - impedir exclusão por usuário sem `patrimonio.editar`;
+  - respeitar empresa, equipe, controle de versão e RLS;
+  - registrar tentativa, sucesso ou bloqueio na auditoria;
+  - atualizar imediatamente a árvore e os indicadores após a exclusão;
+  - diferenciar claramente exclusão definitiva de futura inativação/arquivamento;
+  - testar Site sem vínculo, Site com Prédio, concorrência de versão e tentativa
+    entre empresas distintas.
+- **Critério de aceite:** um Site sem vínculos é removido e desaparece da árvore;
+  um Site com dependências permanece preservado e o sistema informa de forma
+  compreensível todos os impedimentos relevantes.
+
+### BL-012 — Base completa de homologação multiempresa
+
+- **Situação:** Concluído na Sprint 21
+- **Prioridade sugerida:** Alta
+- **Módulos afetados:** Todos os módulos, API, PostgreSQL, Administração,
+  Auditoria, Relatórios e testes automatizados
+- **Necessidade:** disponibilizar uma massa de dados fictícia, realista e
+  reproduzível para validar fluxos completos, isolamento RLS, permissões,
+  indicadores, relatórios e integrações sem utilizar informações verdadeiras.
+- **Empresas fictícias propostas:**
+  1. `Município Modelo` — órgão público com secretarias, prédios administrativos,
+     escolas, unidades de saúde, licitações, contratos, obras e convênios;
+  2. `Federação Regional Modelo` — entidade distribuída com sedes, unidades
+     regionais, patrimônio, manutenção, consumo, contratos e prestação de contas;
+  3. `Projetos Integrados Modelo` — escritório de engenharia e arquitetura com
+     clientes, Sites, projetos, orçamentos, documentos, fornecedores e obras.
+- **Requisitos mínimos da massa de dados:**
+  - organizações, equipes, usuários fictícios e diferentes perfis de permissão;
+  - hierarquia completa `Cliente > Site > Prédio > Sala` para cada empresa;
+  - ativos patrimoniais, movimentações, documentos e requisitos de regularidade;
+  - demandas, programas, carteiras e decisões em diferentes estágios;
+  - bases de preços, composições, orçamentos, revisões e medições consistentes;
+  - fornecedores, pesquisas, processos, pedidos, recebimentos e contratos;
+  - planejamento financeiro, compromissos, retenções, glosas e pagamentos;
+  - obras, cronogramas, diários, evidências e boletins de medição;
+  - chamados corretivos e planos preventivos com SLA e custos;
+  - convênios, metas, repasses, execuções, diligências e prestações de contas;
+  - riscos, planos de ação, auditorias e publicações de transparência;
+  - relatórios, portais e canais de integração sem segredos verdadeiros;
+  - registros concluídos, em andamento, vencidos, bloqueados e com alertas para
+    validar todos os estados visuais relevantes.
+- **Segurança e operação:**
+  - usar banco ou organização técnica exclusiva de homologação;
+  - impedir execução do carregamento em produção sem confirmação explícita;
+  - não incluir CPF, CNPJ, e-mail, telefone, endereço ou credencial real;
+  - gerar identificadores, datas e valores determinísticos para permitir testes;
+  - disponibilizar comandos seguros para criar, restaurar e limpar somente a
+    massa fictícia;
+  - preservar migrações e checksums existentes;
+  - validar isolamento entre as três empresas e suas equipes por testes RLS.
+- **Critério de aceite:** a carga pode ser recriada do zero, os principais fluxos
+  funcionam de ponta a ponta, os painéis apresentam dados coerentes e nenhuma
+  empresa consegue consultar ou alterar registros das outras duas.
+
+### BL-014 — Ciclo do orçamento contratado e aditivos
+
+- **Situação:** Concluído na Sprint 27
+- **Prioridade:** Crítica
+- **Módulos afetados:** Orçamentos, Suprimentos, Contratos, Obras, Medições e Auditoria
+- **Resultado:** o orçamento publicado permanece imutável; a proposta vencedora
+  gera preços unitários contratados por desconto linear; as medições consomem o
+  saldo homologado; e alterações originadas na obra tramitam como solicitações
+  de aditivo analisadas pela engenharia de custos.
+- **Critério de aceite:** nenhuma operação da obra reescreve o orçamento e uma
+  medição não pode ultrapassar a base contratada vigente.
+
+### BL-015 — Governança documental por entidade
+
+- **Situação:** Concluído na Sprint 28
+- **Prioridade:** Alta
+- **Módulos afetados:** Patrimônio, Solicitações, Orçamentos, Suprimentos,
+  Contratos, Obras, Medições, Manutenção, Regularidade, Convênios e GED
+- **Resultado:** documentos novos não podem existir sem uma origem corporativa;
+  a origem é escolhida entre registros reais e acessíveis, relações adicionais
+  reutilizam o mesmo arquivo e o ciclo de revisão, aprovação e arquivamento é
+  versionado, protegido contra concorrência e auditado.
+- **Critério de aceite:** a API rejeita origens inexistentes ou fora da equipe,
+  o PostgreSQL preserva um vínculo principal e todas as versões aprovadas
+  permanecem rastreáveis sem duplicação do arquivo.
+
+### BL-016 — Promoção verificável dos repositórios
+
+- **Situação:** Concluído na Sprint 29 para Orçamentos
+- **Prioridade:** Crítica
+- **Módulos afetados:** Administração, Orçamentos e Auditoria
+- **Resultado:** a fonte principal de Orçamentos somente muda para PostgreSQL
+  após comparação íntegra de quantidade, identificadores e hashes; a decisão é
+  versionada, auditada e pode retornar ao híbrido mediante justificativa.
+- **Continuidade:** criar normalizadores e critérios de paridade próprios para
+  composições próprias, bases de preços e configurações antes de promovê-las.
+- **Critério de aceite:** promoção sem evidência recente é recusada, divergências
+  são identificadas e o retorno preserva todos os dados.
+
+### BL-017 — PPCI local consolidado em Regularidade
+
+- **Situação:** Concluído na Sprint 30
+- **Prioridade:** Alta
+- **Módulos afetados:** Regularidade, Patrimônio, Ativos, GED, Auditoria e Visão geral
+- **Resultado:** a fonte externa foi eliminada; processos PPCI, sistemas
+  preventivos e inspeções são persistidos no PostgreSQL e vinculados à árvore
+  Cliente > Site > Prédio > Sala, com vínculo opcional a ativos da Sala.
+- **Critério de aceite:** nenhum PPCI pode apontar para Cliente ou local inativo,
+  sistemas não atravessam o ramo patrimonial do processo, inspeções são
+  imutáveis e equipes distintas não visualizam os mesmos registros.
+
+### BL-018 — PPCI operacional e Utilidades persistidas
+
+- **Situação:** Concluído na Sprint 31
+- **Prioridade:** Alta
+- **Módulos afetados:** Regularidade, GED, Utilidades, Patrimônio, Solicitações e Auditoria
+- **Resultado:** sistemas PPCI podem ser editados e removidos sem apagar
+  inspeções; responsáveis vêm do cliente ativo; documentos abrem no contexto
+  correto; medidores e leituras deixam os dados demonstrativos do frontend e
+  passam ao PostgreSQL sob RLS.
+- **Critério de aceite:** edição e remoção respeitam concorrência e histórico;
+  medidores e leituras não atravessam equipes; falhas de cadastro permanecem
+  visíveis no formulário; itens de Carteiras abrem a Solicitação completa.
+
+### BL-019 — Operação de campo, endereço herdado e manutenção preventiva
+
+- **Situação:** Planejado para a Sprint 32
+- **Prioridade:** Alta
+- **Módulos afetados:** Regularidade, Utilidades, Patrimônio, Ativos,
+  Manutenção, GED, Visão Geral e Auditoria
+- **Necessidade:** corrigir os fluxos de exclusão e o diálogo do PPCI; oferecer
+  coleta de consumo direta ou por diferença de relógio; simplificar a interface
+  usada em campo; impedir divergência de endereço entre Site, Prédio e Sala; e
+  transformar a periodicidade dos ativos em manutenções rastreáveis.
+- **Resultado esperado:** sistemas são removidos com retorno confiável;
+  inspeções podem ser anuladas sem perda de evidência; leituras acumuladas
+  possuem memória de cálculo; equipes de campo dispõem de uma página objetiva;
+  endereço patrimonial é resolvido pelo Site; e planos dos ativos alimentam o
+  módulo Manutenção e o histórico do equipamento sem duplicidade.
+- **Critério de aceite:** todos os cenários, regras e testes descritos em
+  `docs/SPRINT_32.md` devem estar concluídos, incluindo RLS, auditoria,
+  acessibilidade essencial e build de produção.
+
+## Histórico
+
+| Data | Item | Alteração |
+|---|---|---|
+| 30/07/2026 | BL-001 | Registrada a separação de material e mão de obra. |
+| 30/07/2026 | BL-002 | Registrado e pesquisado o BDI diferenciado. |
+| 30/07/2026 | BL-003 | Pesquisadas bases públicas gratuitas e definida a estratégia inicial de importadores. |
+| 30/07/2026 | BL-002 | Implementado o BDI diferenciado com elegibilidade, memória, totalização e exportação auditáveis. |
+| 30/07/2026 | BL-004 | Registrada a atualização controlada das bases utilizadas pelo orçamento e pelas composições próprias. |
+| 30/07/2026 | BL-004 | Preparado o contrato assíncrono, seguro e idempotente para simulação e futura aplicação. |
+| 30/07/2026 | BL-003 | Implantado o catálogo PostgreSQL de fontes, publicações, itens, preços por UF e composições. |
+| 30/07/2026 | BL-004 | Disponibilizada a persistência necessária para o futuro worker de atualização. |
+| 30/07/2026 | BL-004 | Implantados a fila, o worker inicial e a transição híbrida dos repositórios. |
+| 08/08/2026 | BL-005 | Planejada a convergência de PRUMO ERP e PRUMO Governança em um único produto modular. |
+| 08/08/2026 | BL-006 | Formalizada a hierarquia patrimonial Cliente, Site, Prédio e Sala. |
+| 08/08/2026 | BL-007 | Planejado o ciclo integrado de suprimentos, contratações e contratos. |
+| 08/08/2026 | BL-008 | Planejado o módulo financeiro-orçamentário com perfis público e empresarial. |
+| 08/08/2026 | BL-009 | Planejado o módulo de convênios, repasses e prestação de contas. |
+| 11/08/2026 | BL-008 | Concluído o Financeiro-orçamentário com centros, fontes, orçamento, compromissos, deduções, pagamentos, conciliação, RLS e perfis organizacionais. |
+| 11/08/2026 | BL-010 | Planejado o contexto patrimonial global do banner com Cliente, Site, Prédio e Sala. |
+| 11/08/2026 | BL-011 | Registrada a correção da exclusão segura de Sites no cadastro patrimonial. |
+| 11/08/2026 | BL-012 | Planejada uma base completa de homologação com três empresas fictícias e isolamento RLS. |
+| 11/08/2026 | BL-010 | Implementado o contexto global Cliente, Site, Prédio e Sala com persistência da preferência e propagação operacional. |
+| 11/08/2026 | BL-011 | Corrigida a exclusão de Sites com diagnóstico dos vínculos e mensagem no diálogo. |
+| 11/08/2026 | BL-012 | Criada a massa homologação-v22 com três empresas, perfis e fluxos integrados fictícios. |
+| 11/08/2026 | BL-013 | Concluída a fundação do piloto v23 com OIDC obrigatório, storage GED S3, prontidão, runbook e publicação controlada. |
+| 18/08/2026 | BL-014 | Concluído o ciclo de base contratada, medição por saldo e solicitação de aditivo governada. |
+| 19/08/2026 | BL-015 | Concluída a origem documental obrigatória, catálogo de entidades e aprovação governada. |
+| 19/08/2026 | BL-016 | Concluída a promoção verificável de Orçamentos com paridade, concorrência e retorno auditado. |
+| 19/08/2026 | BL-017 | PPCI migrado para PostgreSQL local e consolidado em Regularidade com vínculo patrimonial. |
+| 24/08/2026 | BL-018 | PPCI operacional, GED contextual, Utilidades persistidas e correções de Patrimônio e Solicitações concluídos. |
+| 24/08/2026 | BL-019 | Planejadas as melhorias de PPCI, leituras de campo, endereço herdado e manutenção preventiva dos ativos para a Sprint 32. |

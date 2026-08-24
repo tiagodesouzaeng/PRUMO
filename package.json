@@ -1,7 +1,7 @@
 {
   "name": "prumo-orcamentos-integrado",
   "private": true,
-  "version": "9.4.5",
+  "version": "31.0.0",
   "type": "module",
   "packageManager": "pnpm@11.9.0",
   "engines": {
@@ -10,19 +10,34 @@
   },
   "scripts": {
     "dev": "vite",
+    "api": "node --env-file-if-exists=.env server/index.js",
+    "api:dev": "node --env-file-if-exists=.env --watch server/index.js",
+    "db:migrate": "node server/migrate.js",
+    "db:backup": "node server/operations/backupPostgres.js",
+    "db:backup:verify": "node server/operations/verificarBackupPostgres.js",
+    "db:restore:test": "node server/operations/testarRestauracaoPostgres.js",
+    "db:seed:homologacao": "node server/operations/seedHomologacao.js",
+    "production:check": "node server/operations/verificarProntidaoProducao.js",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "axios": "^1.7.9",
+    "@aws-sdk/client-s3": "^3.1107.0",
+    "@aws-sdk/s3-request-presigner": "^3.1107.0",
+    "@fastify/cors": "^11.3.0",
+    "exceljs": "4.4.0",
+    "fastify": "^5.11.3",
+    "jose": "^6.2.8",
     "jszip": "^3.10.1",
+    "pg": "^8.23.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.4",
     "fake-indexeddb": "^6.2.5",
-    "vite": "^7.3.1"
+    "vite": "^7.3.6"
   }
 }

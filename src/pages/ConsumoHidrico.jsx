@@ -1,155 +1,44 @@
-/* =====================================================
-   RELEASE........: v7.5 + v7.6 RC1
-   ARQUIVO........: src/pages/ConsumoHidrico.jsx
-   DESCRIÇÃO......: Estrutura visual do módulo Consumo Hídrico
-                    preparada para integração futura de leituras,
-                    poços, hidrômetros e alertas de consumo.
-===================================================== */
+import { useEffect, useMemo, useState } from "react";
+import { criarClientePrumo, obterConfiguracaoInfraestrutura, obterContextoDesenvolvimento } from "../services/infraestruturaCorporativa";
+import { useContextoPatrimonial } from "../contexts/ContextoPatrimonialContext";
 
-const CONSUMO_BARRAS = [62, 66, 64, 70, 72, 68, 76, 74, 71, 78, 82, 88, 79, 92, 74, 70, 67, 73, 81, 86, 114, 77, 72, 69, 71, 75, 78, 74, 70, 68, 72];
-
-const UNIDADES_CONSUMO = [
-  { unidade: "Campus Canoas", medicao: "18,6 mil m³", variacao: "-8%", status: "Normal", classe: "success" },
-  { unidade: "Bloco C", medicao: "2,9 mil m³", variacao: "+22%", status: "Anomalia", classe: "danger" },
-  { unidade: "Ginásio", medicao: "1,7 mil m³", variacao: "+11%", status: "Atenção", classe: "warning" },
-  { unidade: "Bloco B", medicao: "1,2 mil m³", variacao: "-3%", status: "Normal", classe: "success" },
-];
-
-const ALERTAS_HIDRICOS = [
-  { titulo: "Pico de consumo identificado", detalhe: "Bloco C · 23/05 · 114% acima da média", nivel: "Crítico" },
-  { titulo: "Leitura pendente", detalhe: "Hidrômetro Poço 02 · última leitura há 3 dias", nivel: "Atenção" },
-  { titulo: "Consumo estabilizado", detalhe: "Campus Canoas · tendência abaixo da média mensal", nivel: "Informativo" },
-];
-
-function StatusChip({ children, classe = "neutral" }) {
-  return <span className={`sigiu-status-chip sigiu-status-chip--${classe}`}>{children}</span>;
-}
-
-function BarraConsumo({ valor, index }) {
-  const alerta = valor > 100;
-  return (
-    <span
-      className={alerta ? "is-alert" : ""}
-      style={{ height: `${Math.max(26, Math.min(valor, 118))}%` }}
-      title={`Dia ${String(index + 1).padStart(2, "0")}`}
-    />
-  );
-}
+const RECURSOS = { energia:["Energia","⚡","kWh"],agua:["Água","💧","m³"],gas:["Gás","◉","m³"],combustivel:["Combustível","◆","L"],outro:["Outros","▦","un"] };
+const VAZIO = { patrimonioUnidadeId:"",ativoId:"",codigo:"",nome:"",recurso:"energia",unidade:"kWh",direcao:"consumo",multiplicador:1,identificadorExterno:"",status:"ativo",responsavel:"",dados:{} };
+const titulo = (valor) => String(valor || "").replaceAll("_", " ").replace(/^./, (x) => x.toUpperCase());
+const caminho = (unidade) => (unidade?.caminho || []).map((item)=>item.nome).join(" › ") || unidade?.nome || "";
+const codigo = (itens) => `MED-${String(itens.reduce((m,x)=>Math.max(m,Number(String(x.codigo||"").match(/(\d+)$/)?.[1])||0),0)+1).padStart(3,"0")}`;
 
 export default function ConsumoHidrico() {
-  return (
-    <section className="sigiu-page sigiu-page-modulo sigiu-page-hidrico">
-      <div className="sigiu-page-heading sigiu-page-heading--modulo">
-        <div>
-          <span className="sigiu-page-eyebrow">Módulo operacional</span>
-          <h1>Consumo Hídrico</h1>
-          <p>
-            Monitoramento de poços, hidrômetros, leituras diárias, médias de consumo e alertas de anomalia.
-          </p>
-        </div>
-        <div className="sigiu-page-heading__meta">
-          <strong>31</strong>
-          <span>dias monitorados</span>
-        </div>
-      </div>
+  const patrimonio=useContextoPatrimonial();
+  const cliente=useMemo(()=>{const cfg=obterConfiguracaoInfraestrutura();return cfg.apiConfigurada?criarClientePrumo({baseUrl:cfg.apiUrl,obterContexto:()=>obterContextoDesenvolvimento()}):null;},[]);
+  const [dados,setDados]=useState({medidores:[],unidades:[],ativos:[],responsaveis:{usuarios:[],equipes:[]}});
+  const [recurso,setRecurso]=useState(""); const [selecionado,setSelecionado]=useState(null); const [form,setForm]=useState(VAZIO);
+  const [modal,setModal]=useState(""); const [mensagem,setMensagem]=useState(""); const [salvando,setSalvando]=useState(false);
 
-      <div className="sigiu-module-kpis">
-        <article className="sigiu-module-kpi sigiu-module-kpi--info">
-          <span>💧</span>
-          <small>Consumo do mês</small>
-          <strong>18,6 mil m³</strong>
-          <em>8% abaixo do mês anterior</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--danger">
-          <span>⚠</span>
-          <small>Anomalias</small>
-          <strong>3</strong>
-          <em>1 ocorrência crítica</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--primary">
-          <span>▣</span>
-          <small>Hidrômetros</small>
-          <strong>24</strong>
-          <em>estrutura preparada para integração</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--warning">
-          <span>⌁</span>
-          <small>Média diária</small>
-          <strong>620 m³</strong>
-          <em>referência operacional</em>
-        </article>
-      </div>
+  async function carregar(id="") { if(!cliente){setMensagem("Conecte a API corporativa para usar Utilidades.");return;}try{const [medidores,unidades,ativos,responsaveis]=await Promise.all([cliente.listarMedidoresUtilidades(),cliente.listarUnidadesPatrimoniais({status:"ativo"}),cliente.listarAtivosPatrimoniais(),cliente.listarResponsaveisCorporativos()]);setDados({medidores,unidades,ativos,responsaveis});if(id||selecionado?.id){const alvo=id||selecionado.id;setSelecionado(await cliente.obterMedidorUtilidade(alvo));}setMensagem("");}catch(error){setMensagem(error.message);} }
+  useEffect(()=>{carregar();},[]);
+  const medidores=dados.medidores.filter((item)=>patrimonio.estaNoEscopo(item.patrimonioUnidadeId)).filter((item)=>!recurso||item.recurso===recurso);
+  const ativosPermitidos=dados.ativos.filter((item)=>item.status!=="baixado"&&(!form.patrimonioUnidadeId||item.salaId===form.patrimonioUnidadeId));
+  const resumo=Object.fromEntries(Object.keys(RECURSOS).map((id)=>[id,dados.medidores.filter((x)=>x.recurso===id&&x.status==="ativo"&&patrimonio.estaNoEscopo(x.patrimonioUnidadeId)).length]));
 
-      <div className="sigiu-module-grid sigiu-module-grid--main-side">
-        <section className="sigiu-card sigiu-module-card sigiu-module-card--chart">
-          <header className="sigiu-card-header-row">
-            <div>
-              <h2>Leituras do mês</h2>
-              <p>Prévia visual para futura integração com a planilha de leituras diárias.</p>
-            </div>
-            <button type="button" className="sigiu-btn sigiu-btn--outline">Ver relatório</button>
-          </header>
+  function novo(){setSelecionado(null);setForm({...VAZIO,codigo:codigo(dados.medidores),patrimonioUnidadeId:patrimonio.unidadeAtiva?.nivel!=="cliente"?patrimonio.unidadeAtivaId:""});setModal("medidor");}
+  function editar(item){setForm({...VAZIO,...item});setModal("medidor");}
+  async function abrir(item){try{setSelecionado(await cliente.obterMedidorUtilidade(item.id));}catch(error){setMensagem(error.message);}}
+  async function salvarMedidor(event){event.preventDefault();setSalvando(true);try{const payload={...form,multiplicador:Number(form.multiplicador||1),dados:form.dados||{}};delete payload.id;delete payload.tenantId;delete payload.teamId;delete payload.versao;delete payload.criadoPor;delete payload.atualizadoPor;delete payload.criadoEm;delete payload.atualizadoEm;delete payload.local;delete payload.localCodigo;delete payload.localNivel;delete payload.leituras;const salvo=form.id?await cliente.atualizarMedidorUtilidade(form.id,payload,form.versao):await cliente.criarMedidorUtilidade(payload,crypto.randomUUID());setModal("");setMensagem("Medidor salvo com sucesso.");await carregar(salvo.id);}catch(error){setMensagem(error.message);}finally{setSalvando(false);}}
+  async function remover(){if(!selecionado||!globalThis.confirm("Remover este medidor? Se houver leituras, ele será inativado e o histórico será preservado."))return;try{const resultado=await cliente.removerMedidorUtilidade(selecionado.id,selecionado.versao);setSelecionado(null);setMensagem(resultado.modo==="inativado"?"Medidor inativado; leituras preservadas.":"Medidor removido.");await carregar();}catch(error){setMensagem(error.message);}}
+  async function salvarLeitura(event){event.preventDefault();setSalvando(true);const f=Object.fromEntries(new FormData(event.currentTarget));try{await cliente.registrarLeituraUtilidade(selecionado.id,{...f,dataLeitura:new Date(f.dataLeitura).toISOString(),valor:Number(f.valor)},crypto.randomUUID());setModal("");setMensagem("Leitura registrada na trilha imutável.");await carregar(selecionado.id);}catch(error){setMensagem(error.message);}finally{setSalvando(false);}}
 
-          <div className="sigiu-hidrico-chart">
-            <div className="sigiu-hidrico-chart__legend">
-              <span><i className="is-blue" /> Consumo diário</span>
-              <span><i className="is-line" /> Média de referência</span>
-              <span><i className="is-red" /> Anomalia</span>
-            </div>
-            <div className="sigiu-hidrico-chart__bars" aria-label="Gráfico de consumo hídrico mensal">
-              {CONSUMO_BARRAS.map((valor, index) => (
-                <BarraConsumo key={`${valor}-${index}`} valor={valor} index={index} />
-              ))}
-            </div>
-            <div className="sigiu-hidrico-chart__axis">
-              <span>01</span><span>08</span><span>15</span><span>23</span><span>31</span>
-            </div>
-          </div>
-        </section>
+  return <section className="sigiu-page sigiu-page-modulo sigiu-page-hidrico">
+    <header className="sigiu-page-heading sigiu-page-heading--modulo"><div><span className="sigiu-page-eyebrow">Gestão estratégica de recursos</span><h1>Utilidades, energia e consumos</h1><p>Medidores e leituras de água, energia, geração, créditos, débitos, gás e outros recursos vinculados ao patrimônio.</p></div><button className="sigiu-primary" onClick={novo}>+ Novo medidor</button></header>
+    {mensagem&&<div className="sigiu-feedback" role="status">{mensagem}</div>}
+    {patrimonio.unidadeAtiva&&<div className="sigiu-context-scope-notice">Exibindo o contexto: <strong>{patrimonio.unidadeAtiva.nome}</strong></div>}
+    <section className="sigiu-module-kpis">{Object.entries(RECURSOS).map(([id,[nome,icone]])=><article key={id} className={`sigiu-module-kpi ${recurso===id?"sigiu-module-kpi--primary":""}`} onClick={()=>setRecurso(recurso===id?"":id)}><span>{icone}</span><small>{nome}</small><strong>{resumo[id]||0}</strong><em>medidores ativos</em></article>)}</section>
+    {!selecionado?<section className="sigiu-card sigiu-admin-card"><header className="sigiu-card-header-row"><div><h2>Medidores cadastrados</h2><p>Selecione um item para abrir sua página de leituras.</p></div><select value={recurso} onChange={(e)=>setRecurso(e.target.value)}><option value="">Todos os recursos</option>{Object.entries(RECURSOS).map(([id,[nome]])=><option key={id} value={id}>{nome}</option>)}</select></header><div className="sigiu-planning-table"><table><thead><tr><th>Medidor</th><th>Recurso</th><th>Local</th><th>Unidade</th><th>Responsável</th><th>Status</th><th></th></tr></thead><tbody>{medidores.map((item)=><tr key={item.id} className="sigiu-clickable-row" onClick={()=>abrir(item)}><td><b>{item.codigo}</b><span>{item.nome}</span></td><td>{RECURSOS[item.recurso]?.[0]||titulo(item.recurso)}</td><td>{item.local||caminho(dados.unidades.find((u)=>u.id===item.patrimonioUnidadeId))}</td><td>{item.unidade}</td><td>{item.responsavel||"—"}</td><td><span className={`sigiu-status status-${item.status}`}>{titulo(item.status)}</span></td><td><button className="sigiu-link" onClick={(e)=>{e.stopPropagation();abrir(item);}}>Leituras</button></td></tr>)}</tbody></table>{!medidores.length&&<div className="sigiu-empty">Nenhum medidor encontrado neste contexto.</div>}</div></section>
+    :<section><div className="sigiu-section-title"><div><button className="sigiu-link" onClick={()=>setSelecionado(null)}>← Todos os medidores</button><h2>{selecionado.codigo} · {selecionado.nome}</h2><p>{selecionado.local} · {RECURSOS[selecionado.recurso]?.[0]} · {titulo(selecionado.direcao)}</p></div><div className="sigiu-inline-actions"><button onClick={()=>editar(selecionado)}>Editar</button><button className="danger" onClick={remover}>Remover</button><button className="sigiu-primary" disabled={selecionado.status!=="ativo"} onClick={()=>setModal("leitura")}>+ Registrar leitura</button></div></div><section className="sigiu-module-kpis"><article className="sigiu-module-kpi"><small>Última leitura</small><strong>{selecionado.leituras?.[0]?.valor ?? "—"} {selecionado.unidade}</strong></article><article className="sigiu-module-kpi"><small>Registros</small><strong>{selecionado.leituras?.length||0}</strong></article><article className="sigiu-module-kpi"><small>Multiplicador</small><strong>{selecionado.multiplicador}</strong></article><article className="sigiu-module-kpi"><small>Status</small><strong>{titulo(selecionado.status)}</strong></article></section><section className="sigiu-card"><div className="sigiu-section-title"><div><h2>Histórico de leituras</h2><p>Registros preservados para auditoria; correções devem ser lançadas como novo evento.</p></div></div><div className="sigiu-planning-table"><table><thead><tr><th>Data e hora</th><th>Valor</th><th>Natureza</th><th>Origem</th><th>Responsável pelo registro</th><th>Observações</th></tr></thead><tbody>{(selecionado.leituras||[]).map((item)=><tr key={item.id}><td>{new Date(item.dataLeitura).toLocaleString("pt-BR")}</td><td><b>{item.valor} {selecionado.unidade}</b></td><td>{titulo(item.natureza)}</td><td>{titulo(item.origem)}</td><td>{item.registradoPor}</td><td>{item.observacoes||"—"}</td></tr>)}</tbody></table>{!selecionado.leituras?.length&&<div className="sigiu-empty">Nenhuma leitura registrada.</div>}</div></section></section>}
 
-        <section className="sigiu-card sigiu-module-card">
-          <header className="sigiu-card-header-row">
-            <div>
-              <h2>Alertas hídricos</h2>
-              <p>Modelo de priorização para consumos irregulares.</p>
-            </div>
-          </header>
-
-          <div className="sigiu-module-list">
-            {ALERTAS_HIDRICOS.map((alerta) => (
-              <article key={alerta.titulo} className="sigiu-module-list-row">
-                <div>
-                  <strong>{alerta.titulo}</strong>
-                  <small>{alerta.detalhe}</small>
-                </div>
-                <StatusChip classe={alerta.nivel === "Crítico" ? "danger" : alerta.nivel === "Atenção" ? "warning" : "info"}>
-                  {alerta.nivel}
-                </StatusChip>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <section className="sigiu-card sigiu-module-card">
-        <header className="sigiu-card-header-row">
-          <div>
-            <h2>Unidades com acompanhamento previsto</h2>
-            <p>Base visual para ranking futuro por unidade, prédio, poço ou hidrômetro.</p>
-          </div>
-        </header>
-
-        <div className="sigiu-module-table sigiu-module-table--hidrico">
-          {UNIDADES_CONSUMO.map((item) => (
-            <article key={item.unidade}>
-              <strong>{item.unidade}</strong>
-              <span>{item.medicao}</span>
-              <small>{item.variacao}</small>
-              <StatusChip classe={item.classe}>{item.status}</StatusChip>
-            </article>
-          ))}
-        </div>
-      </section>
-    </section>
-  );
+    {modal==="medidor"&&<div className="sigiu-modal-backdrop"><form className="sigiu-modal sigiu-planning-modal" onSubmit={salvarMedidor}><header><div><span className="sigiu-page-eyebrow">Utilidades</span><h2>{form.id?"Editar medidor":"Novo medidor"}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header><div className="sigiu-form-grid"><label>Local patrimonial<select required value={form.patrimonioUnidadeId} onChange={(e)=>setForm({...form,patrimonioUnidadeId:e.target.value,ativoId:""})}><option value="">Selecione Site, Prédio ou Sala</option>{dados.unidades.filter((x)=>["site","predio","sala"].includes(x.nivel)).map((x)=><option key={x.id} value={x.id}>{caminho(x)}</option>)}</select></label><label>Ativo vinculado<select value={form.ativoId||""} onChange={(e)=>setForm({...form,ativoId:e.target.value})}><option value="">Sem ativo específico</option>{ativosPermitidos.map((x)=><option key={x.id} value={x.id}>{x.codigo} · {x.nome}</option>)}</select></label><label>Código<input required value={form.codigo} onChange={(e)=>setForm({...form,codigo:e.target.value})}/></label><label className="span-2">Nome<input required value={form.nome} onChange={(e)=>setForm({...form,nome:e.target.value})}/></label><label>Recurso<select value={form.recurso} onChange={(e)=>setForm({...form,recurso:e.target.value,unidade:RECURSOS[e.target.value]?.[2]||form.unidade})}>{Object.entries(RECURSOS).map(([id,[nome]])=><option key={id} value={id}>{nome}</option>)}</select></label><label>Unidade<input required value={form.unidade} onChange={(e)=>setForm({...form,unidade:e.target.value})}/></label><label>Direção<select value={form.direcao} onChange={(e)=>setForm({...form,direcao:e.target.value})}><option value="consumo">Consumo</option><option value="geracao">Geração</option><option value="bidirecional">Bidirecional</option></select></label><label>Multiplicador<input type="number" min="0.000001" step="0.000001" value={form.multiplicador} onChange={(e)=>setForm({...form,multiplicador:e.target.value})}/></label><label>Identificador externo<input value={form.identificadorExterno||""} onChange={(e)=>setForm({...form,identificadorExterno:e.target.value})}/></label><label>Status<select value={form.status} onChange={(e)=>setForm({...form,status:e.target.value})}><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></label><ResponsavelControl responsaveis={dados.responsaveis} valor={form.responsavel} onChange={(valor)=>setForm({...form,responsavel:valor})}/></div><footer><button type="button" onClick={()=>setModal("")}>Cancelar</button><button className="sigiu-primary" disabled={salvando}>{salvando?"Salvando…":"Salvar medidor"}</button></footer></form></div>}
+    {modal==="leitura"&&<div className="sigiu-modal-backdrop"><form className="sigiu-modal sigiu-planning-small" onSubmit={salvarLeitura}><header><div><span className="sigiu-page-eyebrow">{selecionado.codigo}</span><h2>Registrar leitura</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header><label>Data e hora<input name="dataLeitura" type="datetime-local" required defaultValue={new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)}/></label><label>Valor ({selecionado.unidade})<input name="valor" type="number" step="0.000001" required/></label><label>Natureza<select name="natureza"><option value="leitura">Leitura acumulada</option><option value="consumo">Consumo</option><option value="geracao">Geração</option><option value="credito">Crédito</option><option value="debito">Débito</option></select></label><label>Origem<select name="origem"><option value="manual">Manual</option><option value="importacao">Importação</option><option value="integracao">Integração</option></select></label><label>Observações<textarea name="observacoes"/></label><footer><button type="button" onClick={()=>setModal("")}>Cancelar</button><button className="sigiu-primary" disabled={salvando}>{salvando?"Registrando…":"Registrar leitura"}</button></footer></form></div>}
+  </section>;
 }
+
+function ResponsavelControl({responsaveis,valor,onChange}){const opcoes=[...(responsaveis.usuarios||[]),...(responsaveis.equipes||[])];return <label>Responsável<select value={valor||""} onChange={(e)=>onChange(e.target.value)}><option value="">Selecione</option>{!opcoes.some((x)=>x.nome===valor)&&valor&&<option value={valor}>{valor}</option>}<optgroup label="Usuários do cliente">{(responsaveis.usuarios||[]).map((x)=><option key={`u:${x.id}`} value={x.nome}>{x.nome}</option>)}</optgroup><optgroup label="Grupos do cliente">{(responsaveis.equipes||[]).map((x)=><option key={`e:${x.id}`} value={x.nome}>{x.nome}</option>)}</optgroup></select></label>}

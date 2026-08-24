@@ -1,3 +1,5 @@
+import { aplicarPrecoPorUf } from "../domain/basesPrecos.js";
+
 const DB_NAME = "prumo-bases-precos";
 const DB_VERSION = 4;
 const BASE_STORE = "bases";
@@ -176,19 +178,6 @@ export async function carregarReferenciasBase(baseId, tipos = ["insumo", "compos
   return (await Promise.all(tipos.map(buscarTipo))).flat();
 }
 
-function referenciaNaUf(referencia, uf) {
-  if (!referencia?.precosPorUf) return referencia;
-  const precoUf = Number(referencia.precosPorUf[uf]) || 0;
-  const precoSp = Number(referencia.precosPorUf.SP) || 0;
-  return {
-    ...referencia,
-    preco: precoUf > 0 ? precoUf : precoSp,
-    semPreco: precoUf <= 0 && precoSp <= 0,
-    ufPrecoEfetivo: precoUf > 0 ? uf : (precoSp > 0 ? "SP" : uf),
-    precoSubstituidoSp: precoUf <= 0 && precoSp > 0 && uf !== "SP",
-  };
-}
-
 export async function carregarItensComposicaoBase(baseId, composicaoCodigo, uf = "RS") {
   if (!baseId || !composicaoCodigo) return [];
   const banco = await abrirBanco();
@@ -209,7 +198,7 @@ export async function carregarItensComposicaoBase(baseId, composicaoCodigo, uf =
     referencias.map((item) => [`${item.tipo}:${item.codigo}`, item]),
   );
   return itens.map((item) => {
-    const referencia = referenciaNaUf(
+    const referencia = aplicarPrecoPorUf(
       catalogo.get(`${item.itemTipo}:${item.itemCodigo}`),
       uf,
     );
@@ -219,6 +208,11 @@ export async function carregarItensComposicaoBase(baseId, composicaoCodigo, uf =
       unidade: referencia?.unidade || item.unidade,
       preco: referencia?.preco || 0,
       semPreco: referencia?.semPreco ?? true,
+      percentualMaoObra: referencia?.percentualMaoObra || 0,
+      percentuaisMaoObraPorUf: referencia?.percentuaisMaoObraPorUf || {},
+      custoMaoObra: referencia?.custoMaoObra || 0,
+      custoMaterial: referencia?.custoMaterial ?? referencia?.preco ?? 0,
+      precosPorUf: referencia?.precosPorUf || {},
       referenciaTipo: item.itemTipo,
       referenciaCodigo: item.itemCodigo,
       basePrecoId: baseId,
@@ -295,6 +289,22 @@ export async function restaurarBasePrecos(baseId, usuario = "Administrador atual
       restauradoPor: usuario,
     });
   }
+  await concluirTransacao(transacao);
+}
+
+export async function excluirBasePrecosDefinitivamente(baseId) {
+  if (!baseId) throw new Error("Base de preços não informada.");
+  const banco = await abrirBanco();
+  const transacao = banco.transaction(
+    [BASE_STORE, PACKAGE_STORE, COMPOSITION_STORE, SOURCE_FILE_STORE],
+    "readwrite",
+  );
+  await Promise.all([
+    removerPorBase(transacao.objectStore(PACKAGE_STORE), baseId),
+    removerPorBase(transacao.objectStore(COMPOSITION_STORE), baseId),
+  ]);
+  transacao.objectStore(BASE_STORE).delete(baseId);
+  transacao.objectStore(SOURCE_FILE_STORE).delete(baseId);
   await concluirTransacao(transacao);
 }
 

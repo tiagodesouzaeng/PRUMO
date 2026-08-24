@@ -6,65 +6,87 @@
 
 .sigiu-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: var(--sigiu-sidebar-width) minmax(0, 1fr);
   background: var(--sigiu-bg);
   color: var(--sigiu-text);
 }
 
+.sigiu-shell.is-sidebar-collapsed {
+  grid-template-columns: 78px minmax(0, 1fr);
+}
+
 .sigiu-sidebar-main {
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 22px 14px;
+  padding: 18px 14px max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
   z-index: 50;
 }
 
 .sigiu-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 8px 22px;
+  justify-content: center;
+  padding: 2px 2px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   margin-bottom: 20px;
 }
 
-.sigiu-logo-mark {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid rgba(245, 206, 153, 0.60);
-  color: var(--sigiu-dourado-claro);
-  font-weight: 900;
-  letter-spacing: -1px;
+.prumo-brand-logo {
+  position: relative;
+  width: 176px;
+  height: 59px;
+  display: inline-block;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: #073431;
 }
 
-.sigiu-sidebar-brand strong,
-.sigiu-sidebar-brand span {
-  display: block;
-  line-height: 1.1;
+.prumo-brand-logo img {
+  position: absolute;
+  width: 176px;
+  max-width: none;
+  height: auto;
+  left: 0;
+  top: 0;
 }
 
-.sigiu-sidebar-brand strong {
-  color: #fff;
-  font-size: 1.15rem;
+.prumo-brand-logo.is-compact {
+  width: 48px;
+  height: 48px;
 }
 
-.sigiu-sidebar-brand span {
-  color: var(--sigiu-dourado-claro);
-  font-size: 0.8rem;
-  letter-spacing: 0.18em;
+.prumo-brand-logo.is-compact img {
+  width: 212px;
+  left: -21px;
+  top: -15px;
 }
 
 .sigiu-sidebar-nav {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.sigiu-sidebar-nav::-webkit-scrollbar { width: 6px; }
+.sigiu-sidebar-nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .sigiu-nav-item {
@@ -100,7 +122,8 @@
 }
 
 .sigiu-sidebar-collapse {
-  margin-top: auto;
+  flex: 0 0 auto;
+  margin-top: 12px;
   align-self: flex-end;
   width: 42px;
   height: 36px;
@@ -109,6 +132,41 @@
   background: rgba(0, 0, 0, 0.18);
   color: #fff;
   cursor: pointer;
+}
+
+.sigiu-sidebar-main.is-collapsed {
+  padding-inline: 10px;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-sidebar-brand {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-nav-item {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-nav-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-nav-icon {
+  width: auto;
+  font-size: 1.15rem;
+}
+
+.sigiu-sidebar-main.is-collapsed .sigiu-sidebar-collapse {
+  align-self: center;
 }
 
 .sigiu-main {
@@ -127,6 +185,77 @@
   gap: 20px;
   padding: 16px 28px;
 }
+
+.sigiu-context-selector {
+  min-width: 230px;
+}
+
+.sigiu-context-trigger {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.sigiu-context-trigger > strong:last-child {
+  margin-left: auto;
+}
+
+.sigiu-context-trigger__text {
+  min-width: 0;
+  display: grid;
+  line-height: 1.15;
+}
+
+.sigiu-context-trigger__text strong,
+.sigiu-context-trigger__text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sigiu-context-trigger__text strong { font-size: .8rem; }
+.sigiu-context-trigger__text small { margin-top: 3px; color: var(--sigiu-text-muted); font-size: .7rem; font-weight: 600; }
+
+.sigiu-context-popover {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% - 9px);
+  right: 28px;
+  width: min(390px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--sigiu-text);
+  box-shadow: 0 20px 55px rgba(4, 45, 42, .22);
+}
+
+.sigiu-context-popover > header {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--sigiu-border);
+}
+
+.sigiu-context-popover > header strong { color: var(--sigiu-verde-profundo); font-size: 1rem; }
+.sigiu-context-popover > header small { color: var(--sigiu-text-muted); }
+.sigiu-context-popover label { display: grid; gap: 5px; }
+.sigiu-context-popover label > span { color: var(--sigiu-text-muted); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.sigiu-context-popover select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--sigiu-text);
+  font: inherit;
+}
+.sigiu-context-popover select:disabled { background: var(--sigiu-surface-soft); color: var(--sigiu-text-muted); }
+.sigiu-context-popover > footer { display: flex; justify-content: flex-end; padding-top: 3px; }
+.sigiu-context-error { margin: 0; padding: 9px 11px; border-radius: 8px; background: #fff2f0; color: #9c2f22; font-size: .78rem; }
 
 .sigiu-topbar-title h1 {
   margin: 0;
@@ -253,6 +382,16 @@
     border-bottom: none;
   }
 
+  .sigiu-context-popover {
+    position: fixed;
+    top: 126px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+    max-height: calc(100vh - 150px);
+    overflow: auto;
+  }
+
   .sigiu-topbar-title {
     display: flex;
     align-items: center;
@@ -270,15 +409,10 @@
   }
 
   .sigiu-mobile-brand {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: 1px solid rgba(245, 206, 153, 0.65);
-    color: var(--sigiu-dourado-claro);
-    font-weight: 900;
+    display: inline-block;
+    border-radius: 10px;
+    background: #073431;
+    box-shadow: none;
   }
 
   .sigiu-topbar-actions {
@@ -494,7 +628,12 @@
   .sigiu-mobile-brand {
     width: 42px;
     height: 42px;
-    font-size: 0.72rem;
+  }
+
+  .sigiu-mobile-brand img {
+    width: 186px;
+    left: -18px;
+    top: -13px;
   }
 
   .sigiu-mobile-controls {

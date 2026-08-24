@@ -433,7 +433,7 @@ function RelatoriosPPCI({
   );
 }
 
-export default function PPCI({ dadosPPCI }) {
+export default function PPCI({ dadosPPCI, integrado = false }) {
   const [abaAtual, setAbaAtual] = useState("resumo");
 
   const {
@@ -527,7 +527,7 @@ export default function PPCI({ dadosPPCI }) {
 
   return (
     <section className="sigiu-page sigiu-page-ppci sigiu-page-ppci-tabs">
-      <div className="sigiu-page-heading">
+      {!integrado && <div className="sigiu-page-heading">
         <div>
           <span className="sigiu-page-eyebrow">Módulo operacional</span>
           <h1>PPCI</h1>
@@ -539,7 +539,7 @@ export default function PPCI({ dadosPPCI }) {
           <strong>{ppcis.length}</strong>
           <span>PPCIs cadastrados</span>
         </div>
-      </div>
+      </div>}
 
       <PainelFeedback
         loading={loading}

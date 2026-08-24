@@ -111,9 +111,9 @@ export default function VisaoGeral({ dadosPPCI, onAbrirModulo }) {
               icone="🛡"
               titulo="PPCIs Ativos"
               valor={formatarNumero(ppcis.length)}
-              detalhe="Módulo PPCI"
+              detalhe="Regularidade e segurança"
               variante="primary"
-              onClick={() => onAbrirModulo("ppci")}
+              onClick={() => onAbrirModulo("regularidade")}
             />
             <KpiResumo
               icone="⚠"
@@ -121,7 +121,7 @@ export default function VisaoGeral({ dadosPPCI, onAbrirModulo }) {
               valor={formatarNumero(alertasPPCI.totalCriticos)}
               detalhe="Requer atenção"
               variante="danger"
-              onClick={() => onAbrirModulo("alertas")}
+              onClick={() => onAbrirModulo("regularidade")}
             />
             <KpiResumo
               icone="💧"
@@ -155,7 +155,7 @@ export default function VisaoGeral({ dadosPPCI, onAbrirModulo }) {
                 <h2>Alertas e Pendências</h2>
                 <p>Prioridades consolidadas dos módulos monitorados.</p>
               </div>
-              <button type="button" className="sigiu-link-button" onClick={() => onAbrirModulo("alertas")}>Ver todos ›</button>
+              <button type="button" className="sigiu-link-button" onClick={() => onAbrirModulo("regularidade")}>Ver todos ›</button>
             </header>
 
             <div className="sigiu-alert-tabs">
@@ -171,7 +171,7 @@ export default function VisaoGeral({ dadosPPCI, onAbrirModulo }) {
                     type="button"
                     className="sigiu-alert-row"
                     key={`${alerta.id}-${item?.[PPCI_CAMPOS.ID] || index}`}
-                    onClick={() => onAbrirModulo("alertas")}
+                    onClick={() => onAbrirModulo("regularidade")}
                   >
                     <span className="sigiu-alert-row__icon">⚠</span>
                     <span className="sigiu-alert-row__main">
@@ -198,7 +198,7 @@ export default function VisaoGeral({ dadosPPCI, onAbrirModulo }) {
                   <h2>Unidades Monitoradas</h2>
                   <p>Resumo de edificações e módulos vinculados.</p>
                 </div>
-                <button type="button" className="sigiu-link-button" onClick={() => onAbrirModulo("ppci")}>Ver PPCIs ›</button>
+                <button type="button" className="sigiu-link-button" onClick={() => onAbrirModulo("regularidade")}>Ver em Regularidade ›</button>
               </header>
 
               <div className="sigiu-unidades-lista">
@@ -207,7 +207,7 @@ export default function VisaoGeral({ dadosPPCI, onAbrirModulo }) {
                     key={`${unidade.unidade}-${unidade.predio}`}
                     type="button"
                     className="sigiu-unidade-row"
-                    onClick={() => onAbrirModulo("ppci")}
+                    onClick={() => onAbrirModulo("regularidade")}
                   >
                     <span className="sigiu-unidade-row__icon">🏢</span>
                     <span className="sigiu-unidade-row__main">

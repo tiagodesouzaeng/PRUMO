@@ -1,107 +1,60 @@
-/* =====================================================
-   RELEASE........: v7.5 + v7.6 RC1
-   ARQUIVO........: src/pages/Obras.jsx
-   DESCRIÇÃO......: Estrutura visual do módulo Obras.
-===================================================== */
+import { useEffect, useMemo, useState } from "react";
+import { criarClientePrumo, obterConfiguracaoInfraestrutura, obterContextoDesenvolvimento } from "../services/infraestruturaCorporativa";
+import { useContextoPatrimonial } from "../contexts/ContextoPatrimonialContext";
 
-const OBRAS = [
-  { nome: "Reforma Bloco C – 3º Andar", detalhe: "Adequações e modernização", progresso: 72, status: "Em andamento", prazo: "30/06/2026", classe: "info" },
-  { nome: "Cobertura Ginásio", detalhe: "Substituição de telhas", progresso: 45, status: "Em andamento", prazo: "15/07/2026", classe: "info" },
-  { nome: "Auditório Central – AC", detalhe: "Adequações PPCI", progresso: 20, status: "Planejado", prazo: "10/08/2026", classe: "neutral" },
-  { nome: "Marquise Prédio 16", detalhe: "Estrutura metálica e ACM", progresso: 64, status: "Atenção", prazo: "28/07/2026", classe: "warning" },
-];
+const hoje=()=>new Date().toISOString().slice(0,10);
+const chave=()=>globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random()}`;
+const moeda=(valor)=>Number(valor||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const titulo=(valor)=>String(valor||"").replaceAll("_"," ").replace(/^./,x=>x.toUpperCase());
+const proximo=(itens)=>`OB-${String(itens.reduce((m,x)=>Math.max(m,Number(String(x.codigo||"").match(/(\d+)$/)?.[1])||0),0)+1).padStart(3,"0")}`;
+const caminho=(item)=>item?.caminho?.map(x=>x.nome).join(" › ")||item?.nome||"Local não identificado";
 
-function StatusChip({ children, classe = "neutral" }) {
-  return <span className={`sigiu-status-chip sigiu-status-chip--${classe}`}>{children}</span>;
-}
-
-export default function Obras() {
-  return (
-    <section className="sigiu-page sigiu-page-modulo sigiu-page-obras">
-      <div className="sigiu-page-heading sigiu-page-heading--modulo">
-        <div>
-          <span className="sigiu-page-eyebrow">Módulo operacional</span>
-          <h1>Obras</h1>
-          <p>
-            Acompanhamento de obras em andamento, cronogramas, medições, status, prazos e riscos executivos.
-          </p>
-        </div>
-        <div className="sigiu-page-heading__meta">
-          <strong>12</strong>
-          <span>obras em andamento</span>
-        </div>
-      </div>
-
-      <div className="sigiu-module-kpis">
-        <article className="sigiu-module-kpi sigiu-module-kpi--primary">
-          <span>🏗</span>
-          <small>Em andamento</small>
-          <strong>12</strong>
-          <em>5 próximas da conclusão</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--warning">
-          <span>⌛</span>
-          <small>Com atenção</small>
-          <strong>4</strong>
-          <em>prazos ou pendências críticas</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--info">
-          <span>▦</span>
-          <small>Medições previstas</small>
-          <strong>7</strong>
-          <em>próximos 30 dias</em>
-        </article>
-        <article className="sigiu-module-kpi sigiu-module-kpi--success">
-          <span>✓</span>
-          <small>Concluídas no mês</small>
-          <strong>3</strong>
-          <em>base demonstrativa</em>
-        </article>
-      </div>
-
-      <div className="sigiu-module-grid sigiu-module-grid--main-side">
-        <section className="sigiu-card sigiu-module-card">
-          <header className="sigiu-card-header-row">
-            <div>
-              <h2>Carteira de obras</h2>
-              <p>Prévia visual para futura integração com cronograma, medição e orçamento.</p>
-            </div>
-            <button type="button" className="sigiu-btn sigiu-btn--outline">Ver todas</button>
-          </header>
-
-          <div className="sigiu-obras-lista">
-            {OBRAS.map((obra) => (
-              <article key={obra.nome} className="sigiu-obra-row">
-                <div className="sigiu-obra-row__main">
-                  <strong>{obra.nome}</strong>
-                  <small>{obra.detalhe}</small>
-                </div>
-                <div className="sigiu-obra-row__progress">
-                  <span><i style={{ width: `${obra.progresso}%` }} /></span>
-                  <small>{obra.progresso}%</small>
-                </div>
-                <StatusChip classe={obra.classe}>{obra.status}</StatusChip>
-                <time>{obra.prazo}</time>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="sigiu-card sigiu-module-card">
-          <header className="sigiu-card-header-row">
-            <div>
-              <h2>Próximos marcos</h2>
-              <p>Resumo executivo de eventos relevantes.</p>
-            </div>
-          </header>
-
-          <div className="sigiu-timeline">
-            <article><span /> <div><strong>Medição contratual</strong><small>Reforma Bloco C · próxima semana</small></div></article>
-            <article><span /> <div><strong>Entrega parcial</strong><small>Cobertura Ginásio · 15/07/2026</small></div></article>
-            <article><span /> <div><strong>Revisão de escopo</strong><small>Marquise Prédio 16 · atenção operacional</small></div></article>
-          </div>
-        </section>
-      </div>
-    </section>
-  );
+export default function Obras(){
+  const contextoPatrimonial=useContextoPatrimonial();
+  const cliente=useMemo(()=>{const c=obterConfiguracaoInfraestrutura();return c.apiConfigurada?criarClientePrumo({baseUrl:c.apiUrl,obterContexto:()=>obterContextoDesenvolvimento()}):null;},[]);
+  const [dados,setDados]=useState({obras:[],unidades:[],contratos:[],orcamentos:[],resumo:{}}); const [selecionada,setSelecionada]=useState(null); const [modal,setModal]=useState(""); const [operacao,setOperacao]=useState(""); const [mensagem,setMensagem]=useState(""); const [carregando,setCarregando]=useState(true); const [salvando,setSalvando]=useState(false); const [filtro,setFiltro]=useState("");
+  async function carregar(){if(!cliente){setMensagem("Configure a API local para utilizar Obras.");setCarregando(false);return;}try{const [obras,unidades,contratos,orcamentos,resumo]=await Promise.all([cliente.listarObrasCorporativas(),cliente.listarUnidadesPatrimoniais({status:"ativo"}),cliente.listarContratos(),cliente.listarOrcamentos(),cliente.obterResumoObras()]);setDados({obras,unidades,contratos,orcamentos,resumo});setMensagem("");}catch(e){setMensagem(e.message);}finally{setCarregando(false);}}
+  useEffect(()=>{carregar();},[]);
+  async function abrir(item){try{setSelecionada(await cliente.obterObraCorporativa(item.id));}catch(e){setMensagem(e.message);}}
+  async function recarregar(id=selecionada?.id){await carregar();if(id)setSelecionada(await cliente.obterObraCorporativa(id));}
+  const lista=useMemo(()=>dados.obras.filter(x=>contextoPatrimonial.estaNoEscopo(x.patrimonioUnidadeId)).filter(x=>!filtro||`${x.codigo} ${x.nome} ${x.responsavel}`.toLocaleLowerCase("pt-BR").includes(filtro.toLocaleLowerCase("pt-BR"))),[dados.obras,filtro,contextoPatrimonial.idsEscopo]);
+  const acoes=selecionada?{planejamento:[["iniciar","Iniciar obra"],["cancelar","Cancelar"]],em_andamento:[["suspender","Suspender"],["concluir","Concluir"]],suspensa:[["retomar","Retomar"],["cancelar","Cancelar"]]}[selecionada.status]||[]:[];
+  async function salvar(event){event.preventDefault();setSalvando(true);const fd=Object.fromEntries(new FormData(event.currentTarget));try{
+    if(modal==="obra")await cliente.criarObraCorporativa({...fd,valorPrevisto:Number(fd.valorPrevisto),progressoFisico:0,dados:{}},chave());
+    if(modal==="cronograma")await cliente.adicionarItemCronogramaObra(selecionada.id,{...fd,peso:Number(fd.peso||0),progresso:Number(fd.progresso||0),valorPrevisto:Number(fd.valorPrevisto||0),dados:{}},chave());
+    if(modal==="diario")await cliente.registrarDiarioObra(selecionada.id,{...fd,efetivo:Number(fd.efetivo||0),evidencias:[]},chave());
+    if(modal==="medicao")await cliente.criarMedicaoObra(selecionada.id,{...fd,numero:Number(fd.numero),valorBruto:Number(fd.valorBruto),retencoes:Number(fd.retencoes||0),glosas:Number(fd.glosas||0),multas:Number(fd.multas||0),itens:[],dados:{}},chave());
+    if(modal==="decisao")await cliente.decidirObraCorporativa(selecionada.id,{acao:operacao,justificativa:fd.justificativa||""},selecionada.versao,chave());
+    if(modal==="aditivo")await cliente.criarSolicitacaoAditivo(selecionada.id,{...fd,impactoValor:Number(fd.impactoValor||0),impactoPrazoDias:Number(fd.impactoPrazoDias||0)},chave());
+    if(modal==="decisao-aditivo")await cliente.decidirSolicitacaoAditivo(operacao.id,{acao:operacao.acao,parecer:fd.parecer||""},operacao.versao,chave());
+    setModal("");await recarregar(modal==="obra"?undefined:selecionada?.id);
+  }catch(e){setMensagem(e.message);}finally{setSalvando(false);}}
+  async function decidirMedicao(item,acao){try{await cliente.decidirMedicaoObra(item.id,{acao,justificativa:acao==="aprovar"||acao==="aceitar"?"Aprovada conforme fiscalização.":"Encaminhada para ajuste."},item.versao,chave());await recarregar(selecionada.id);}catch(e){setMensagem(e.message);}}
+  function decidirAditivo(item,acao){setOperacao({id:item.id,acao,versao:item.versao});setModal("decisao-aditivo");}
+  return <div className="sigiu-page sigiu-obras-corporativas">
+    <header className="sigiu-page-heading sigiu-page-heading--modulo"><div><span className="sigiu-page-eyebrow">Execução de obras</span><h1>Obras e medições</h1><p>Carteira corporativa, cronograma físico-financeiro, diário, evidências, boletins e aceite.</p></div><button className="sigiu-primary" onClick={()=>setModal("obra")}>+ Nova obra</button></header>
+    {mensagem&&<div className="sigiu-feedback">{mensagem}</div>}
+    {contextoPatrimonial.unidadeAtiva&&<div className="sigiu-context-scope-notice">Exibindo o contexto: <strong>{contextoPatrimonial.unidadeAtiva.nome}</strong></div>}
+    <section className="sigiu-module-kpis"><article className="sigiu-module-kpi"><small>Obras ativas</small><strong>{dados.resumo.emAndamento||0}</strong><em>{dados.resumo.total||0} cadastradas</em></article><article className="sigiu-module-kpi sigiu-module-kpi--warning"><small>Exigem atenção</small><strong>{dados.resumo.atencao||0}</strong><em>prazo ou suspensão</em></article><article className="sigiu-module-kpi sigiu-module-kpi--info"><small>Medições pendentes</small><strong>{dados.resumo.medicoesPendentes||0}</strong><em>aguardando análise</em></article><article className="sigiu-module-kpi sigiu-module-kpi--success"><small>Valor medido</small><strong>{moeda(dados.resumo.valorMedido)}</strong><em>de {moeda(dados.resumo.valorPrevisto)}</em></article></section>
+    <div className="sigiu-planning-toolbar"><input aria-label="Pesquisar obras" placeholder="Pesquisar código, obra ou responsável" value={filtro} onChange={e=>setFiltro(e.target.value)}/><span>{lista.length} registro(s)</span></div>
+    {carregando?<div className="sigiu-empty">Carregando obras…</div>:<div className="sigiu-planning-table"><table><thead><tr><th>Obra</th><th>Responsável</th><th>Prazo</th><th>Físico</th><th>Medido</th><th>Status</th><th></th></tr></thead><tbody>{lista.map(item=><tr key={item.id} onClick={()=>abrir(item)}><td><b>{item.codigo}</b><span>{item.nome}<br/><small>{caminho(dados.unidades.find(x=>x.id===item.patrimonioUnidadeId))}</small></span></td><td>{item.responsavel||"—"}</td><td>{item.dataFimPrevista||"—"}</td><td><span className="sigiu-progress"><i style={{width:`${item.progressoFisico||0}%`}}/></span><small>{item.progressoFisico||0}%</small></td><td>{moeda(item.resumo?.valorMedido)}</td><td><span className={`sigiu-status status-${item.status}`}>{titulo(item.status)}</span></td><td><button className="sigiu-link">Abrir</button></td></tr>)}</tbody></table>{!lista.length&&<div className="sigiu-empty">Nenhuma obra corporativa cadastrada.</div>}</div>}
+    {selecionada&&<div className="sigiu-drawer-backdrop" onClick={()=>setSelecionada(null)}><aside className="sigiu-planning-drawer sigiu-contract-drawer" onClick={e=>e.stopPropagation()}><header><div><span className="sigiu-page-eyebrow">{selecionada.codigo} · {titulo(selecionada.status)}</span><h2>{selecionada.nome}</h2><p>{caminho(dados.unidades.find(x=>x.id===selecionada.patrimonioUnidadeId))}</p></div><button aria-label="Fechar" onClick={()=>setSelecionada(null)}>×</button></header>
+      <section className="sigiu-contract-summary"><article><span>Base contratada</span><strong>{moeda(selecionada.baseContratada?.valorContratado||selecionada.valorPrevisto)}</strong><small>{selecionada.baseContratada?`${selecionada.baseContratada.descontoPercentual}% de desconto homologado`:"Pendente de homologação"}</small></article><article><span>Valor medido</span><strong>{moeda(selecionada.resumo?.valorMedido)}</strong></article><article><span>Saldo a medir</span><strong>{moeda(selecionada.resumo?.saldoMedir)}</strong></article><article><span>Progresso físico</span><strong>{selecionada.progressoFisico||0}%</strong></article></section>
+      <div className="sigiu-detail-actions">{acoes.map(([id,label])=><button key={id} className={id==="cancelar"?"danger":""} onClick={()=>{setOperacao(id);setModal("decisao");}}>{label}</button>)}<button onClick={()=>setModal("cronograma")}>+ Etapa</button><button onClick={()=>setModal("diario")}>+ Diário</button><button onClick={()=>setModal("medicao")} disabled={!selecionada.baseContratada}>+ Medição</button><button onClick={()=>setModal("aditivo")} disabled={!selecionada.baseContratada}>+ Solicitação de aditivo</button></div>
+      <nav className="sigiu-tabs"><span className="sigiu-tab is-active">Cronograma</span><span className="sigiu-tab">Diário</span><span className="sigiu-tab">Medições</span></nav>
+      <section className="sigiu-timeline"><h3>Cronograma físico-financeiro</h3>{selecionada.cronograma?.map(x=><article key={x.id}><i/><div><b>{x.codigo} · {x.titulo}</b><span>{x.dataInicio} a {x.dataFim} · {x.progresso}% · {moeda(x.valorPrevisto)}</span><p>{titulo(x.status)} · peso {x.peso}%</p></div></article>)}{!selecionada.cronograma?.length&&<p>Nenhuma etapa cadastrada.</p>}</section>
+      <section className="sigiu-timeline"><h3>Diário de obra</h3>{selecionada.diario?.map(x=><article key={x.id}><i/><div><b>{x.dataRegistro} · {x.clima||"Clima não informado"}</b><span>Efetivo: {x.efetivo}</span><p>{x.atividades}{x.ocorrencias&&` · Ocorrências: ${x.ocorrencias}`}</p></div></article>)}{!selecionada.diario?.length&&<p>Nenhum registro de fiscalização.</p>}</section>
+      <section className="sigiu-timeline"><h3>Boletins de medição</h3>{selecionada.medicoes?.map(x=><article key={x.id}><i/><div><b>Medição {x.numero} · {moeda(x.valorBruto)}</b><span>{x.periodoInicio} a {x.periodoFim} · líquido {moeda(x.valorLiquido)}</span><p>{titulo(x.status)} · retenções {moeda(x.retencoes)} · glosas {moeda(x.glosas)}</p><div className="sigiu-detail-actions">{x.status==="rascunho"&&<button onClick={()=>decidirMedicao(x,"enviar")}>Enviar</button>}{x.status==="em_analise"&&<><button onClick={()=>decidirMedicao(x,"aprovar")}>Aprovar</button><button onClick={()=>decidirMedicao(x,"devolver")}>Devolver</button></>}{x.status==="aprovada"&&<button onClick={()=>decidirMedicao(x,"aceitar")}>Registrar aceite</button>}</div></div></article>)}{!selecionada.medicoes?.length&&<p>Nenhum boletim registrado.</p>}</section>
+      <section className="sigiu-timeline"><h3>Solicitações de aditivo</h3>{selecionada.solicitacoesAditivo?.map(x=><article key={x.id}><i/><div><b>SA-{String(x.numero).padStart(3,"0")} · {titulo(x.tipo)}</b><span>{moeda(x.impactoValor)} · {x.impactoPrazoDias} dia(s) · {titulo(x.status)}</span><p>{x.descricao} · {x.justificativa}</p><div className="sigiu-detail-actions">{x.status==="rascunho"&&<button onClick={()=>decidirAditivo(x,"submeter")}>Submeter a custos</button>}{x.status==="submetida"&&<button onClick={()=>decidirAditivo(x,"iniciar_analise")}>Iniciar análise</button>}{x.status==="em_analise"&&<><button onClick={()=>decidirAditivo(x,"aprovar")}>Aprovar</button><button onClick={()=>decidirAditivo(x,"rejeitar")}>Rejeitar</button></>}{x.status==="aprovada"&&<button onClick={()=>decidirAditivo(x,"converter")}>Converter em revisão</button>}</div></div></article>)}{!selecionada.solicitacoesAditivo?.length&&<p>Nenhuma alteração contratual solicitada pela obra.</p>}</section>
+    </aside></div>}
+    {modal&&<div className="sigiu-modal-backdrop"><form className="sigiu-modal sigiu-planning-small" onSubmit={salvar}><header><div><span className="sigiu-page-eyebrow">Obras e medições</span><h2>{{obra:"Nova obra",cronograma:"Nova etapa do cronograma",diario:"Registro no diário",medicao:"Novo boletim de medição",decisao:titulo(operacao),aditivo:"Nova solicitação de aditivo","decisao-aditivo":titulo(operacao?.acao)}[modal]}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header><div className="sigiu-form-grid">
+      {modal==="obra"&&<><label>Código<input name="codigo" required defaultValue={proximo(dados.obras)}/></label><label className="span-2">Nome<input name="nome" required/></label><label className="span-2">Local patrimonial<select name="patrimonioUnidadeId" required><option value="">Cliente › Site › Prédio › Sala</option>{dados.unidades.map(x=><option key={x.id} value={x.id}>{caminho(x)}</option>)}</select></label><label>Contrato<select name="contractId" required><option value="">Selecione o contrato</option>{dados.contratos.map(x=><option key={x.id} value={x.id}>{x.numero} · {x.titulo}</option>)}</select></label><label>Orçamento aprovado<select name="orcamentoId" required><option value="">Selecione o orçamento</option>{dados.orcamentos.filter(x=>String(x.dados?.status||"").toLocaleLowerCase("pt-BR").includes("aprov")).map(x=><option key={x.id} value={x.id}>{x.id} · {x.nome}</option>)}</select></label><label>Responsável<input name="responsavel"/></label><label>Início<input type="date" name="dataInicio" required defaultValue={hoje()}/></label><label>Fim previsto<input type="date" name="dataFimPrevista" required/></label><label>Valor previsto<input type="number" name="valorPrevisto" min="0" step="0.01" required/></label></>}
+      {modal==="cronograma"&&<><label>Código<input name="codigo" required defaultValue={`ET-${String((selecionada?.cronograma?.length||0)+1).padStart(2,"0")}`}/></label><label className="span-2">Etapa<input name="titulo" required/></label><label>Início<input type="date" name="dataInicio" required/></label><label>Fim<input type="date" name="dataFim" required/></label><label>Peso (%)<input type="number" name="peso" min="0" max="100" step="0.01"/></label><label>Valor previsto<input type="number" name="valorPrevisto" min="0" step="0.01"/></label><input type="hidden" name="status" value="planejado"/></>}
+      {modal==="diario"&&<><label>Data<input type="date" name="dataRegistro" required defaultValue={hoje()}/></label><label>Clima<input name="clima" placeholder="Ensolarado, chuva…"/></label><label>Efetivo<input type="number" name="efetivo" min="0" defaultValue="0"/></label><label className="span-2">Atividades<textarea name="atividades" required/></label><label className="span-2">Ocorrências<textarea name="ocorrencias"/></label></>}
+      {modal==="medicao"&&<><label>Número<input type="number" name="numero" min="1" required defaultValue={(selecionada?.medicoes?.length||0)+1}/></label><label>Início do período<input type="date" name="periodoInicio" required/></label><label>Fim do período<input type="date" name="periodoFim" required/></label><label>Valor bruto<input type="number" name="valorBruto" min="0.01" max={selecionada?.resumo?.saldoMedir} step="0.01" required/></label><label>Retenções<input type="number" name="retencoes" min="0" step="0.01" defaultValue="0"/></label><label>Glosas<input type="number" name="glosas" min="0" step="0.01" defaultValue="0"/></label><label>Multas<input type="number" name="multas" min="0" step="0.01" defaultValue="0"/></label></>}
+      {modal==="decisao"&&<label className="span-2">Justificativa<textarea name="justificativa" required={["suspender","cancelar"].includes(operacao)}/></label>}
+      {modal==="aditivo"&&<><label>Tipo<select name="tipo" required><option value="aditivo_valor">Acréscimo de valor</option><option value="supressao">Supressão</option><option value="prazo">Prazo</option><option value="reequilibrio">Reequilíbrio</option><option value="outro">Outro</option></select></label><label>Impacto estimado<input type="number" name="impactoValor" step="0.01" defaultValue="0"/></label><label>Impacto no prazo (dias)<input type="number" name="impactoPrazoDias" step="1" defaultValue="0"/></label><label className="span-2">Descrição técnica<textarea name="descricao" required minLength="3"/></label><label className="span-2">Justificativa e evidências<textarea name="justificativa" required minLength="3"/></label></>}
+      {modal==="decisao-aditivo"&&<label className="span-2">Parecer da engenharia de custos<textarea name="parecer" required={["aprovar","rejeitar"].includes(operacao?.acao)} placeholder="Registre a memória de análise, referência de preços e conclusão."/></label>}
+    </div><footer><button type="button" onClick={()=>setModal("")}>Cancelar</button><button className="sigiu-primary" disabled={salvando}>{salvando?"Salvando…":"Confirmar"}</button></footer></form></div>}
+  </div>;
 }

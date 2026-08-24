@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { mesclarReferenciasSinapi } from "../domain/basesPrecos";
 import { importarArquivoBasePrecos } from "../services/sinapiImport";
 import {
   arquivarBasePrecos,
   carregarItensComposicaoBase,
   carregarReferenciasBase,
+  excluirBasePrecosDefinitivamente,
   listarBasesPrecos,
   restaurarBasePrecos,
   salvarBasePrecos,
@@ -16,6 +18,27 @@ import {
 
 export const BASE_PROPRIA_ID = "base-propria-prumo";
 export const BASES_TODAS_ID = "todas-as-bases-prumo";
+
+function prioridadePublicacao(base) {
+  if (base.uf === "NACIONAL") return 100;
+  return Number(base.ufsDisponiveis?.length || 0);
+}
+
+function agruparPublicacoes(bases) {
+  const grupos = new Map();
+  bases.forEach((base) => {
+    const escopo = base.fonte === "SINAPI" ? "NACIONAL" : (base.uf || "GERAL");
+    const chave = `${base.fonte}:${escopo}:${base.referencia}:${base.regime || "PADRAO"}`;
+    grupos.set(chave, [...(grupos.get(chave) || []), base]);
+  });
+  return [...grupos.values()];
+}
+
+function publicacoesCanonicas(bases) {
+  return agruparPublicacoes(bases).map((grupo) => (
+    [...grupo].sort((a, b) => prioridadePublicacao(b) - prioridadePublicacao(a))[0]
+  ));
+}
 
 export default function useBasesPrecos() {
   const [basesImportadas, setBasesImportadas] = useState([]);
@@ -66,6 +89,14 @@ export default function useBasesPrecos() {
     () => [...basesImportadas, basePropria],
     [basesImportadas, basePropria],
   );
+  const publicacoesConsulta = useMemo(
+    () => publicacoesCanonicas(basesImportadas),
+    [basesImportadas],
+  );
+  const basesConsulta = useMemo(
+    () => [...publicacoesConsulta, basePropria],
+    [publicacoesConsulta, basePropria],
+  );
   const baseTodas = useMemo(() => ({
     id: BASES_TODAS_ID,
     titulo: "Todas as bases disponíveis",
@@ -73,13 +104,13 @@ export default function useBasesPrecos() {
     uf: "MÚLTIPLAS",
     referencia: "Todas",
     regime: "CONSOLIDADO",
-    registros: bases.reduce((total, base) => total + Number(base.registros || 0), 0),
-    total: bases.reduce((total, base) => total + Number(base.total || (Number(base.composicoes || 0) + Number(base.insumos || 0))), 0),
-    insumos: bases.reduce((total, base) => total + Number(base.insumos || 0), 0),
-    composicoes: bases.reduce((total, base) => total + Number(base.composicoes || 0), 0),
-    ufsDisponiveis: [...new Set(bases.flatMap((base) => base.ufsDisponiveis || [base.uf]).filter(Boolean))],
+    registros: basesConsulta.reduce((total, base) => total + Number(base.registros || 0), 0),
+    total: basesConsulta.reduce((total, base) => total + Number(base.total || (Number(base.composicoes || 0) + Number(base.insumos || 0))), 0),
+    insumos: basesConsulta.reduce((total, base) => total + Number(base.insumos || 0), 0),
+    composicoes: basesConsulta.reduce((total, base) => total + Number(base.composicoes || 0), 0),
+    ufsDisponiveis: [...new Set(basesConsulta.flatMap((base) => base.ufsDisponiveis || [base.uf]).filter(Boolean))],
     todas: true,
-  }), [bases]);
+  }), [basesConsulta]);
   const basesSelecionaveis = useMemo(() => [baseTodas, ...bases], [baseTodas, bases]);
 
   useEffect(() => {
@@ -105,15 +136,25 @@ export default function useBasesPrecos() {
     }
     if (baseAtivaId === BASES_TODAS_ID) {
       setCarregando(true);
-      Promise.all(basesImportadas.map(async (base) => (
-        (await carregarReferenciasBase(base.id)).map((referencia) => ({
+      Promise.all(agruparPublicacoes(basesImportadas).map(async (grupo) => {
+        const base = [...grupo].sort(
+          (a, b) => prioridadePublicacao(b) - prioridadePublicacao(a),
+        )[0];
+        const referenciasBase = base.fonte === "SINAPI" && grupo.length > 1
+          ? mesclarReferenciasSinapi(await Promise.all(grupo.map(async (publicacao) => ({
+            base: publicacao,
+            referencias: await carregarReferenciasBase(publicacao.id),
+          }))))
+          : await carregarReferenciasBase(base.id);
+        return referenciasBase.map((referencia) => ({
           ...referencia,
           basePrecoId: base.id,
           baseTitulo: base.titulo,
+          baseFonte: base.fonte,
           baseUf: base.uf,
           baseReferencia: base.referencia,
-        }))
-      )))
+        }));
+      }))
         .then((grupos) => {
           if (!ativo) return;
           const proprias = composicoesProprias.map((composicao) => ({
@@ -132,7 +173,21 @@ export default function useBasesPrecos() {
       return () => { ativo = false; };
     }
     setCarregando(true);
-    carregarReferenciasBase(baseAtivaId)
+    const publicacaoAtiva = basesImportadas.find((base) => base.id === baseAtivaId);
+    const publicacoesSinapi = publicacaoAtiva?.fonte === "SINAPI"
+      ? basesImportadas.filter((base) => (
+        base.fonte === "SINAPI"
+        && base.referencia === publicacaoAtiva.referencia
+        && (base.regime || "PADRAO") === (publicacaoAtiva.regime || "PADRAO")
+      ))
+      : [];
+    const carregamento = publicacoesSinapi.length > 1
+      ? Promise.all(publicacoesSinapi.map(async (base) => ({
+        base,
+        referencias: await carregarReferenciasBase(base.id),
+      }))).then(mesclarReferenciasSinapi)
+      : carregarReferenciasBase(baseAtivaId);
+    carregamento
       .then((encontradas) => {
         if (ativo) setReferencias(encontradas);
       })
@@ -141,7 +196,7 @@ export default function useBasesPrecos() {
         if (ativo) setCarregando(false);
       });
     return () => { ativo = false; };
-  }, [baseAtivaId, composicoesProprias, basesImportadas]);
+  }, [baseAtivaId, composicoesProprias, basesImportadas, publicacoesConsulta]);
 
   const baseAtiva = useMemo(
     () => basesSelecionaveis.find((base) => base.id === baseAtivaId),
@@ -202,6 +257,16 @@ export default function useBasesPrecos() {
     return atualizadas;
   }
 
+  async function excluirDefinitivamente(baseId) {
+    if ([BASE_PROPRIA_ID, BASES_TODAS_ID].includes(baseId)) return;
+    await excluirBasePrecosDefinitivamente(baseId);
+    const atualizadas = await recarregarBases();
+    if (baseAtivaId === baseId) {
+      setBaseAtivaId(atualizadas[0]?.id || BASE_PROPRIA_ID);
+    }
+    return atualizadas;
+  }
+
   function salvarPropria(dados) {
     const componentes = dados.componentes || [];
     const custoUnitario = componentes.length
@@ -229,6 +294,7 @@ export default function useBasesPrecos() {
 
   return {
     bases,
+    publicacoesConsulta,
     basesSelecionaveis,
     basesExcluidas,
     baseAtiva,
@@ -239,6 +305,7 @@ export default function useBasesPrecos() {
     importar,
     remover,
     restaurar,
+    excluirDefinitivamente,
     usuarioAdministrador: true,
     composicoesProprias,
     salvarComposicaoPropria: salvarPropria,

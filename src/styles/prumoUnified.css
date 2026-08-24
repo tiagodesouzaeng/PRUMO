@@ -1,0 +1,896 @@
+/* =========================================================
+   PRUMO DESIGN SYSTEM — CAMADA DE CONVERGENCIA VISUAL
+   REFERENCIA....: Modulo Orcamentos
+   OBJETIVO......: Uniformizar tipografia, cores e componentes
+========================================================= */
+
+/* A camada fica por ultimo no App.css para compatibilizar telas historicas. */
+body {
+  background: var(--sigiu-bg);
+  color: var(--sigiu-text);
+  font-family: var(--sigiu-font-family);
+  font-size: var(--sigiu-font-size-md);
+  line-height: 1.45;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.sigiu-content,
+.orc-page {
+  color: var(--sigiu-text);
+  font-family: var(--sigiu-font-family);
+  font-size: var(--sigiu-font-size-md);
+}
+
+.orc-page {
+  --orc-navy: var(--sigiu-azul);
+  --orc-teal: var(--sigiu-verde-institucional);
+  --orc-muted: var(--sigiu-text-muted);
+  --orc-border: var(--sigiu-border);
+  --orc-bg: var(--sigiu-bg);
+}
+
+/* Estrutura, cabecalho e hierarquia tipografica das paginas. */
+.sigiu-content {
+  width: min(100%, 1540px);
+  padding: 22px 24px 36px;
+}
+
+.sigiu-page,
+.sigiu-planning,
+.sigiu-procurement {
+  width: 100%;
+  max-width: 1540px;
+  margin-inline: auto;
+}
+
+.sigiu-page-heading,
+.sigiu-page-header {
+  min-height: 64px;
+  margin-bottom: 17px;
+  gap: 20px;
+}
+
+.sigiu-page-heading h1,
+.sigiu-page-header h1 {
+  margin: 3px 0 5px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: var(--sigiu-font-size-2xl);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+
+.sigiu-placeholder h1 {
+  margin: 3px 0 5px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: var(--sigiu-font-size-2xl);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+
+.sigiu-placeholder p,
+.sigiu-placeholder__notice {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-lg);
+}
+
+.sigiu-page-heading p,
+.sigiu-page-header p {
+  margin: 0;
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-lg);
+  line-height: 1.45;
+}
+
+.sigiu-page-eyebrow,
+.sigiu-eyebrow,
+.sigiu-planning-header span {
+  color: var(--sigiu-verde-institucional);
+  font-size: var(--sigiu-font-size-sm);
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.sigiu-page-heading-meta,
+.sigiu-page-heading__meta {
+  min-width: 154px;
+  padding: 10px 14px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface);
+  box-shadow: var(--sigiu-shadow-sm);
+}
+
+.sigiu-page-heading-meta span,
+.sigiu-page-heading-meta small,
+.sigiu-page-heading__meta span,
+.sigiu-page-heading__meta small {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sigiu-page-heading-meta strong,
+.sigiu-page-heading__meta strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.sigiu-section-title {
+  margin: 17px 0 12px;
+  gap: 12px;
+  color: var(--sigiu-azul);
+  font-size: var(--sigiu-font-size-xl);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sigiu-section-title::before {
+  display: none;
+}
+
+.sigiu-section-title h2,
+.sigiu-card-header-row h2,
+.sigiu-content article > header h2,
+.sigiu-content section > header h2 {
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: var(--sigiu-font-size-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.sigiu-section-title p,
+.sigiu-card-header-row p {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-md);
+}
+
+/* Superficies e indicadores. */
+.sigiu-card,
+.sigiu-module-kpi,
+.sigiu-planning-kpis article,
+.sigiu-procurement-kpis article,
+.sigiu-planning-cards > article,
+.sigiu-procurement-grid article,
+.sigiu-planning-table,
+.sigiu-procurement-table,
+.sigiu-admin-card,
+.sigiu-admin-panel,
+.sigiu-overview-card {
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface);
+  box-shadow: var(--sigiu-shadow-sm);
+}
+
+.sigiu-module-kpis,
+.sigiu-planning-kpis,
+.sigiu-procurement-kpis {
+  gap: 12px;
+  margin: 17px 0;
+}
+
+.sigiu-module-kpi,
+.sigiu-planning-kpis article,
+.sigiu-procurement-kpis article {
+  min-height: 94px;
+  padding: 15px 17px;
+}
+
+.sigiu-module-kpi span,
+.sigiu-planning-kpis span,
+.sigiu-procurement-kpis span {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sigiu-module-kpi strong,
+.sigiu-planning-kpis strong,
+.sigiu-procurement-kpis strong {
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.sigiu-module-kpi small,
+.sigiu-module-kpi em {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+/* Botoes e campos com a mesma altura, raio e foco. */
+.sigiu-btn,
+.sigiu-primary,
+.sigiu-secondary,
+.sigiu-page-heading button,
+.sigiu-page-header button,
+.sigiu-section-title button,
+.sigiu-modal footer button,
+.sigiu-detail-actions button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--sigiu-radius-sm);
+  font-size: var(--sigiu-font-size-md);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sigiu-primary {
+  padding: 0 14px !important;
+  border-radius: var(--sigiu-radius-sm) !important;
+}
+
+.sigiu-btn--primary,
+.sigiu-primary {
+  border-color: var(--sigiu-verde-institucional);
+  background: var(--sigiu-verde-institucional);
+  color: #fff;
+}
+
+.sigiu-btn--outline,
+.sigiu-secondary,
+.sigiu-section-title button,
+.sigiu-detail-actions button {
+  border-color: var(--sigiu-border-strong);
+  background: var(--sigiu-surface);
+  color: var(--sigiu-verde-institucional);
+}
+
+.sigiu-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.sigiu-content select,
+.sigiu-content textarea,
+.sigiu-input {
+  min-height: 36px;
+  padding: 8px 11px;
+  border: 1px solid var(--sigiu-border-strong);
+  border-radius: var(--sigiu-radius-sm);
+  background: var(--sigiu-surface);
+  color: var(--sigiu-text);
+  font-size: var(--sigiu-font-size-md);
+  line-height: 1.35;
+}
+
+.sigiu-content textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.sigiu-content input:focus,
+.sigiu-content select:focus,
+.sigiu-content textarea:focus,
+.sigiu-input:focus {
+  outline: none;
+  border-color: var(--sigiu-verde-institucional);
+  box-shadow: 0 0 0 3px rgba(8, 127, 115, 0.12);
+}
+
+.sigiu-content label {
+  color: #50616a;
+  font-size: var(--sigiu-font-size-md);
+}
+
+/* Abas no mesmo padrao horizontal do Orcamento. */
+.sigiu-tabs,
+.sigiu-admin-tabs,
+.sigiu-planning-tabs,
+.sigiu-procurement-tabs {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  margin-bottom: 16px;
+  padding: 0;
+  overflow-x: auto;
+  border: 0;
+  border-bottom: 1px solid var(--sigiu-border);
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: thin;
+}
+
+.sigiu-tab,
+.sigiu-admin-tabs button,
+.sigiu-planning-tabs button,
+.sigiu-procurement-tabs button {
+  flex: 0 0 auto;
+  min-height: 43px;
+  padding: 0 13px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-lg);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.sigiu-tab.is-active,
+.sigiu-admin-tabs button.is-active,
+.sigiu-admin-tabs button.active,
+.sigiu-planning-tabs button.active,
+.sigiu-procurement-tabs button.active {
+  border-bottom-color: var(--sigiu-verde-institucional);
+  background: transparent;
+  color: var(--sigiu-verde-institucional);
+  box-shadow: none;
+}
+
+/* Tabelas e listas operacionais. */
+.sigiu-content table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--sigiu-text);
+  font-size: 10px;
+}
+
+.sigiu-content th {
+  padding: 10px 12px;
+  background: var(--sigiu-surface-soft);
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.sigiu-content td {
+  padding: 11px 12px;
+  border-top: 1px solid #edf1f2;
+  color: var(--sigiu-text);
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.sigiu-content tbody tr:hover {
+  background: #f7fbfa;
+}
+
+.sigiu-chip,
+.sigiu-status,
+.sigiu-status-chip {
+  padding: 4px 8px;
+  border-radius: var(--sigiu-radius-pill);
+  font-size: var(--sigiu-font-size-xs);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+/* Modais e paineis laterais. */
+.sigiu-modal,
+.sigiu-planning-drawer,
+.sigiu-procurement-drawer,
+.sigiu-drawer {
+  border-radius: var(--sigiu-radius-lg);
+  background: var(--sigiu-surface);
+  color: var(--sigiu-text);
+  box-shadow: var(--sigiu-shadow-lg);
+}
+
+.sigiu-modal {
+  padding: 20px;
+}
+
+.sigiu-modal > header,
+.sigiu-planning-drawer > header,
+.sigiu-procurement-drawer > header {
+  margin-bottom: 16px;
+  padding-bottom: 13px;
+  border-bottom-color: var(--sigiu-border);
+}
+
+.sigiu-modal h2,
+.sigiu-planning-drawer h2,
+.sigiu-procurement-drawer h2 {
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.sigiu-form-grid {
+  gap: 12px;
+}
+
+.sigiu-contract-drawer {
+  width: min(760px, 96vw);
+}
+
+.sigiu-contract-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sigiu-contract-summary article,
+.sigiu-contract-detail-grid > div {
+  padding: 13px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface-soft);
+}
+
+.sigiu-contract-summary span,
+.sigiu-contract-detail-grid article span {
+  display: block;
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+.sigiu-contract-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 16px;
+}
+
+.sigiu-contract-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sigiu-contract-detail-grid h3 {
+  margin: 0 0 9px;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 15px;
+}
+
+.sigiu-contract-detail-grid article {
+  padding: 8px 0;
+  border-top: 1px solid var(--sigiu-border);
+}
+
+.sigiu-contract-detail-grid article:first-of-type {
+  border-top: 0;
+}
+
+.status-vigente { background: var(--sigiu-success-soft); color: var(--sigiu-success); }
+.status-suspenso { background: var(--sigiu-warning-soft); color: #8a5b00; }
+.status-concluido { background: var(--sigiu-info-soft); color: var(--sigiu-info); }
+.status-encerrado { background: var(--sigiu-neutral-soft); color: var(--sigiu-neutral); }
+.status-rescindido,
+.status-cancelado { background: var(--sigiu-danger-soft); color: var(--sigiu-danger); }
+
+/* Navegacao principal tambem segue a escala compacta. */
+.sigiu-topbar-main {
+  gap: 18px;
+  padding: 12px 24px;
+}
+
+.sigiu-context-scope-notice {
+  margin: -4px 0 14px;
+  padding: 8px 12px;
+  border: 1px solid rgba(4, 90, 82, .16);
+  border-radius: 9px;
+  background: rgba(4, 90, 82, .06);
+  color: var(--sigiu-verde-profundo);
+  font-size: .78rem;
+}
+
+.sigiu-topbar-title h1 {
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.sigiu-topbar-title p {
+  color: var(--sigiu-text-muted);
+  font-size: 10px;
+}
+
+.sigiu-nav-item {
+  min-height: 40px;
+  gap: 10px;
+  padding-inline: 11px;
+  border-radius: 8px;
+  font-size: var(--sigiu-font-size-md);
+}
+
+.sigiu-select-button,
+.sigiu-date-button,
+.sigiu-icon-button,
+.sigiu-notification-button {
+  min-height: 36px;
+  border-radius: var(--sigiu-radius-sm);
+  color: var(--sigiu-text);
+  font-size: 10px;
+}
+
+@media (max-width: 900px) {
+  .sigiu-content {
+    padding: 18px 16px calc(var(--sigiu-mobile-bottom-nav-height) + 24px);
+  }
+
+  .sigiu-page-heading,
+  .sigiu-page-header,
+  .sigiu-planning-header,
+  .sigiu-procurement-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .sigiu-page-heading h1,
+  .sigiu-page-header h1 {
+    font-size: 23px;
+  }
+
+  .sigiu-module-kpis,
+  .sigiu-planning-kpis,
+  .sigiu-procurement-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sigiu-contract-summary,
+  .sigiu-contract-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .sigiu-content {
+    padding-inline: 12px;
+  }
+
+  .sigiu-module-kpis,
+  .sigiu-planning-kpis,
+  .sigiu-procurement-kpis,
+  .sigiu-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  .sigiu-contract-summary,
+  .sigiu-contract-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sigiu-form-grid .span-2 {
+    grid-column: auto;
+  }
+}
+
+/* Roadmap gerencial centralizado na Auditoria. */
+.sigiu-roadmap-card {
+  overflow: hidden;
+}
+
+.sigiu-roadmap-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.sigiu-roadmap-summary article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: var(--sigiu-surface-soft);
+}
+
+.sigiu-roadmap-summary span {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+.sigiu-roadmap-summary strong {
+  color: var(--sigiu-azul);
+  font-size: 22px;
+}
+
+.sigiu-roadmap-progress {
+  height: 8px;
+  margin: 14px 0 24px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--sigiu-neutral-soft);
+}
+
+.sigiu-roadmap-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--sigiu-verde-institucional), #2ba99d);
+}
+
+.sigiu-roadmap-phases {
+  display: grid;
+  gap: 24px;
+}
+
+.sigiu-roadmap-phase > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--sigiu-border);
+}
+
+.sigiu-roadmap-phase > header h3 {
+  margin: 0;
+  color: var(--sigiu-azul);
+  font-family: var(--sigiu-font-family-display);
+  font-size: 17px;
+}
+
+.sigiu-roadmap-phase > header span {
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+}
+
+.sigiu-roadmap-timeline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  padding-top: 14px;
+}
+
+.sigiu-roadmap-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.sigiu-roadmap-marker {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.sigiu-roadmap-marker::after {
+  position: absolute;
+  top: 15px;
+  bottom: -18px;
+  width: 2px;
+  background: var(--sigiu-border);
+  content: "";
+}
+
+.sigiu-roadmap-item:last-child .sigiu-roadmap-marker::after {
+  display: none;
+}
+
+.sigiu-roadmap-marker i {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  margin-top: 5px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--sigiu-neutral);
+  box-shadow: 0 0 0 2px var(--sigiu-border);
+}
+
+.sigiu-roadmap-item.is-complete .sigiu-roadmap-marker i {
+  background: var(--sigiu-verde-institucional);
+  box-shadow: 0 0 0 2px rgba(8, 127, 115, 0.25);
+}
+
+.sigiu-roadmap-item.is-current .sigiu-roadmap-marker i {
+  background: var(--sigiu-warning);
+  box-shadow: 0 0 0 3px var(--sigiu-warning-soft);
+}
+
+.sigiu-roadmap-content {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--sigiu-border);
+  border-radius: var(--sigiu-radius-md);
+  background: #fff;
+}
+
+.sigiu-roadmap-item.is-current .sigiu-roadmap-content {
+  border-color: rgba(184, 138, 34, 0.42);
+  background: var(--sigiu-warning-soft);
+}
+
+.sigiu-roadmap-content > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sigiu-roadmap-content > header span,
+.sigiu-roadmap-content > header em {
+  font-size: var(--sigiu-font-size-xs);
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sigiu-roadmap-content > header span {
+  color: var(--sigiu-verde-institucional);
+}
+
+.sigiu-roadmap-content > header em {
+  color: var(--sigiu-text-muted);
+}
+
+.sigiu-roadmap-content h4 {
+  margin: 7px 0 4px;
+  color: var(--sigiu-azul);
+  font-size: var(--sigiu-font-size-lg);
+}
+
+.sigiu-roadmap-content p {
+  margin: 0;
+  color: var(--sigiu-text-muted);
+  font-size: var(--sigiu-font-size-sm);
+  line-height: 1.45;
+}
+
+.sigiu-roadmap-content > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.sigiu-roadmap-content small {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--sigiu-surface-soft);
+  color: var(--sigiu-text);
+  font-size: 10px;
+}
+
+@media (max-width: 900px) {
+  .sigiu-roadmap-summary,
+  .sigiu-roadmap-timeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .sigiu-roadmap-summary,
+  .sigiu-roadmap-timeline {
+    grid-template-columns: 1fr;
+  }
+}
+.sigiu-document-versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.sigiu-document-versions .sigiu-btn {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sigiu-document-search { display:grid; gap:6px; margin:0 0 12px; color:var(--prumo-text-muted); font-size:12px; font-weight:700; }
+.sigiu-document-search input { min-height:38px; border:1px solid var(--prumo-border); border-radius:8px; padding:0 11px; background:var(--prumo-surface); color:var(--prumo-text); }
+.sigiu-document-workflow,.sigiu-document-links { display:grid; gap:8px; margin-top:14px; padding:12px; border:1px solid var(--prumo-border); border-radius:10px; background:var(--prumo-surface-muted); }
+.sigiu-document-workflow>div { display:flex; flex-wrap:wrap; gap:8px; }
+.sigiu-document-workflow>span,.sigiu-document-links span { color:var(--prumo-text-muted); font-size:12px; text-transform:capitalize; }
+.sigiu-document-links span { display:block; padding-bottom:7px; border-bottom:1px solid var(--prumo-border); }
+.sigiu-document-links span:last-child { padding-bottom:0; border-bottom:0; }
+
+.orc-contract-baseline { margin-top: 18px; }
+.orc-contract-baseline > header > b { padding: 7px 11px; border-radius: 999px; background: #fff4d8; color: #875d00; font-size: 12px; }
+.orc-contract-baseline > header > b.approved { background: #def4e9; color: #14613f; }
+.orc-contract-form { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; padding: 18px; }
+.orc-contract-form label { display: grid; gap: 6px; color: #536477; font-size: 12px; font-weight: 700; }
+.orc-contract-form input, .orc-contract-form textarea { width: 100%; border: 1px solid #cdd7e1; border-radius: 7px; background: #fff; padding: 10px 11px; color: #1e3042; font: inherit; }
+.orc-contract-form textarea { min-height: 76px; resize: vertical; }
+.orc-contract-form .orc-field-wide, .orc-contract-preview, .orc-contract-form > p { grid-column: 1 / -1; }
+.orc-contract-preview { display: flex; justify-content: flex-end; gap: 24px; padding: 12px; border-radius: 8px; background: #f2f7f8; color: #5c6c78; }
+.orc-contract-preview span { display: grid; gap: 2px; }
+.orc-contract-preview strong { color: #163c42; font-size: 18px; }
+.orc-contract-form > button { grid-column: 1 / -1; justify-self: end; }
+.orc-contract-note { margin: 0 18px 18px; padding: 12px 14px; border-left: 3px solid #168477; background: #eef8f6; color: #365b57; }
+@media (max-width: 1000px) { .orc-contract-form { grid-template-columns: repeat(2, minmax(150px, 1fr)); } }
+.sigiu-pilot-checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-3, 12px);
+  margin-top: var(--space-4, 16px);
+}
+
+.sigiu-pilot-checklist > article {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--color-border, #d9e1e8);
+  border-radius: 12px;
+  background: var(--color-surface, #fff);
+}
+
+.sigiu-pilot-checklist__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sigiu-pilot-checklist__heading > div,
+.sigiu-pilot-checklist label,
+.sigiu-pilot-decision > label {
+  display: grid;
+  gap: 4px;
+}
+
+.sigiu-pilot-checklist small,
+.sigiu-pilot-checklist label span,
+.sigiu-pilot-decision label span {
+  color: var(--color-text-muted, #667785);
+  font-size: 0.75rem;
+}
+
+.sigiu-pilot-checklist input,
+.sigiu-pilot-checklist select,
+.sigiu-pilot-decision input {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid var(--color-border, #cfd9e2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--color-surface, #fff);
+  color: inherit;
+}
+
+.sigiu-pilot-checklist__heading select {
+  width: auto;
+  min-width: 130px;
+}
+
+.sigiu-pilot-decision {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border, #d9e1e8);
+}
+
+@media (max-width: 640px) {
+  .sigiu-pilot-checklist { grid-template-columns: 1fr; }
+  .sigiu-pilot-checklist__heading { flex-direction: column; }
+  .sigiu-pilot-checklist__heading select { width: 100%; }
+}
+.sigiu-inline-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sigiu-inline-actions button{min-height:36px}.sigiu-inline-actions .danger,.sigiu-link.danger{color:#9b2c2c;border-color:#e8b4b4}.sigiu-clickable-card{cursor:pointer}.sigiu-clickable-card:hover{border-color:var(--color-primary,#087c71);box-shadow:0 8px 22px rgba(8,124,113,.1)}.sigiu-module-kpi[onClick]{cursor:pointer}.sigiu-page-hidrico .sigiu-planning-table td:first-child span{display:block;color:var(--color-text-muted,#667785);font-size:.78rem}.sigiu-page-hidrico .sigiu-section-title{align-items:flex-start}
+/* Acesso seguro — Sprint 26 */
+.prumo-login-shell{min-height:100vh;display:grid;grid-template-columns:minmax(320px,46%) 1fr;background:#f4f7f7;color:#12323d}.prumo-login-brand{padding:clamp(36px,6vw,88px);display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(145deg,#082f3d,#0b4b57 62%,#087a72);color:#fff;overflow:hidden;position:relative}.prumo-login-brand::after{content:"";position:absolute;width:520px;height:520px;border:1px solid rgba(255,255,255,.15);border-radius:50%;right:-260px;bottom:-180px}.prumo-login-brand img{width:190px;max-width:58%;position:relative;z-index:1}.prumo-login-brand div{max-width:620px;position:relative;z-index:1}.prumo-login-brand span,.prumo-login-card header span{font-size:12px;font-weight:800;letter-spacing:.12em}.prumo-login-brand h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(34px,4vw,62px);line-height:1.03;margin:18px 0}.prumo-login-brand p{font-size:17px;line-height:1.6;max-width:520px;color:#d9eeee}.prumo-login-brand footer{font-size:12px;letter-spacing:.08em;color:#b6d9dc;position:relative;z-index:1}.prumo-login-panel{display:grid;place-items:center;padding:32px}.prumo-login-card{width:min(440px,100%);background:#fff;border:1px solid #dce6e7;border-radius:18px;padding:clamp(28px,5vw,48px);box-shadow:0 22px 60px rgba(13,53,64,.12)}.prumo-login-card header h2{font-family:Georgia,"Times New Roman",serif;font-size:32px;margin:10px 0 6px}.prumo-login-card header p{color:#687c83;margin:0 0 28px}.prumo-login-primary{width:100%;min-height:48px;border:0;border-radius:9px;background:#087c71;color:#fff;font-weight:800;cursor:pointer;padding:0 18px}.prumo-login-primary:disabled{background:#9aacae;cursor:not-allowed}.prumo-login-hint{display:block;color:#74878c;line-height:1.45;margin:10px 0 0}.prumo-login-contingencia{border-top:1px solid #e3eaeb;margin-top:26px;padding-top:20px}.prumo-login-link{border:0;background:none;padding:0;color:#375d66;font-weight:700;cursor:pointer}.prumo-login-contingencia form{display:grid;gap:14px;margin-top:18px}.prumo-login-contingencia label{display:grid;gap:6px;font-size:12px;font-weight:800;color:#425f66}.prumo-login-contingencia input{height:44px;border:1px solid #bdcdcf;border-radius:8px;padding:0 12px;background:#fbfdfd}.prumo-login-contingencia p{font-size:11px;color:#74878c;line-height:1.45;margin:0}.prumo-login-feedback{padding:12px 14px;border-radius:8px;margin-bottom:16px;display:grid;gap:3px;font-size:13px}.prumo-login-feedback.is-error{background:#fff0ee;color:#8e2d25;border:1px solid #efc2bc}.sigiu-session-button{min-height:40px;border:1px solid #d7e1e2;background:#fff;border-radius:8px;padding:5px 10px;display:grid;text-align:left;cursor:pointer}.sigiu-session-button span{font-size:10px;color:#62787e}.sigiu-session-button strong{font-size:12px;color:#0d625d}@media(max-width:800px){.prumo-login-shell{grid-template-columns:1fr}.prumo-login-brand{min-height:280px;padding:28px}.prumo-login-brand h1{font-size:34px}.prumo-login-brand footer{display:none}.prumo-login-panel{padding:18px;margin-top:-28px;position:relative}.sigiu-session-button{display:none}}
